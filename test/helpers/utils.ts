@@ -182,3 +182,18 @@ export async function deployContract<T extends Contract>(
 
     return contract;
 }
+
+export async function deployContractAs<T extends Contract>(
+    owner: SignerWithAddress,
+    name: string,
+    ...args: any[]
+): Promise<T> {
+    const contractFactory = await ethers.getContractFactory(name);
+
+    contractFactory.connect(owner);
+    const contract: any = await contractFactory.deploy(...args);
+
+    await contract.deployed();
+
+    return contract;
+}

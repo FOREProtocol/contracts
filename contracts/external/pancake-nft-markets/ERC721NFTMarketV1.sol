@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-// https://github.com/pancakeswap/pancake-smart-contracts/blob/master/projects/nft-markets/contracts/ERC721NFTMarketV1.sol
-
 pragma solidity ^0.8.0;
 pragma abicoder v2;
 
@@ -30,7 +28,7 @@ contract ERC721NFTMarketV1 is ERC721Holder, Ownable, ReentrancyGuard {
 
     address public immutable WBNB;
 
-    uint256 public constant TOTAL_MAX_FEE = 1000; // 10% of a sale
+    uint256 public constant TOTAL_MAX_FEE = 3000; // 30% of a sale
 
     address public adminAddress;
     address public treasuryAddress;

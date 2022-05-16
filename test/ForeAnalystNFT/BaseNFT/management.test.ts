@@ -5,16 +5,14 @@ import {
 } from "@/ForeAnalystNFT";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import * as makeInterfaceId from "@openzeppelin/test-helpers/src/makeInterfaceId";
 import { expect } from "chai";
 import { BigNumber, ContractTransaction } from "ethers";
 import { ethers } from "hardhat";
 import {
-    deployContract,
-    assertIsAvailableOnlyForOwner,
-    findEvent,
-    txExec,
     assertEvent,
+    assertIsAvailableOnlyForOwner,
+    deployContract,
+    txExec,
 } from "../../helpers/utils";
 
 describe("ForeAnalystNFT / BaseNFT / Management", () => {
