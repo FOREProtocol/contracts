@@ -33,6 +33,8 @@ Documentation files will appear in the `/docs` folder, open `index.html` in a br
 
 5. Local migrations/local deployment
 
+   Fill `config` object in `deploy.ts` with right values.
+
    Run local node:
 
    ```
@@ -46,6 +48,8 @@ Documentation files will appear in the `/docs` folder, open `index.html` in a br
    ```
 
 6. Testnet/production deployment
+
+   Fill `config` object in `deploy.ts` with right values.
 
    Make sure that first account (id[0]) for selected mnemonic has a native currency on selected network. Use a faucets for a testnets.
 

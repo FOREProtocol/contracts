@@ -4,12 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npx hardhat test",
     "compile": "npx hardhat compile",
     "lint": "solhint 'contracts/*.sol'",
     "lint:fix": "solhint 'contracts/**/*.sol' --fix",
     "format": "prettier --write .",
-    "test": "npx hardhat test",
     "docgen": "npx hardhat docgen",
     "node": "npx hardhat node",
     "local": "npx hardhat run --network localhost scripts/deploy.ts"
@@ -50,6 +49,9 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.6.0",
-    "hardhat-docgen": "^1.3.0"
+    "buidler-contract-sizer": "^1.0.2",
+    "hardhat-contract-sizer": "^2.5.1",
+    "hardhat-docgen": "^1.3.0",
+    "hardhat-interface-generator": "^0.0.6"
   }
 }
