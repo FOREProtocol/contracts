@@ -151,7 +151,7 @@ contract(
             }
         });
 
-        describe("COLLECTIBLE MARKET #1 - NORMAL BEHAVIOR", async () => {
+        xdescribe("COLLECTIBLE MARKET #1 - NORMAL BEHAVIOR", async () => {
             it("Admin adds a new collection (Mock NFT #1)", async () => {
                 const result = await collectibleMarket.addCollection(
                     mockNFT1.address,
@@ -990,7 +990,7 @@ contract(
             });
         });
 
-        describe("COLLECTIBLE MARKET #2 - ALTERNATIVE BEHAVIOR", async () => {
+        xdescribe("COLLECTIBLE MARKET #2 - ALTERNATIVE BEHAVIOR", async () => {
             it("Cannot buy a token not for sale", async () => {
                 await expectRevert(
                     collectibleMarket.buyTokenUsingBNB(mockNFT1.address, "10", {
@@ -1172,7 +1172,7 @@ contract(
             });
         });
 
-        describe("COLLECTIBLE MARKET #3 - TOKEN RESTRICTIONS/PANCAKEBUNNIES", async () => {
+        xdescribe("COLLECTIBLE MARKET #3 - TOKEN RESTRICTIONS/PANCAKEBUNNIES", async () => {
             it("Add collection with restrictions", async () => {
                 const result = await collectibleMarket.addCollection(
                     pancakeBunnies.address,
@@ -1394,7 +1394,7 @@ contract(
             });
         });
 
-        describe("COLLECTIBLE MARKET #4 - ADMIN/OWNER/SPECIAL BEHAVIOR", async () => {
+        xdescribe("COLLECTIBLE MARKET #4 - ADMIN/OWNER/SPECIAL BEHAVIOR", async () => {
             it("Can recover tokens sent by accident", async () => {
                 // Random ERC20
                 await mockERC20.transfer(
@@ -1804,7 +1804,7 @@ contract(
                 );
             });
 
-            describe("COLLECTIBLE MARKET #5 - VIEW FUNCTIONS", async () => {
+            xdescribe("COLLECTIBLE MARKET #5 - VIEW FUNCTIONS", async () => {
                 it("Add fourth collection whose tokens are minted/listed by seller3", async () => {
                     const result = await collectibleMarket.addCollection(
                         mockNFT4.address,

@@ -4,7 +4,7 @@ pragma solidity ^0.8.7;
 import "./external/pancake-nft-markets/ERC721NFTMarketV1.sol";
 
 
-contract NFTMarketplace is
+contract ForeNftMarketplace is
     ERC721NFTMarketV1
 {
 
@@ -23,6 +23,7 @@ contract NFTMarketplace is
             _maximumAskPrice
         )
     {
+
     }
 
 }
