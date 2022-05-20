@@ -22,7 +22,7 @@ import {
     txExec,
 } from "../helpers/utils";
 
-describe("Protocol configuration", () => {
+xdescribe("Protocol configuration", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
     let revenueWallet: SignerWithAddress;
