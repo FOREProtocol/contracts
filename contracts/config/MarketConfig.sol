@@ -1,14 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-contract MarketConfig{
+contract MarketConfig {
+
+    /// @notice Opening dispute price (FORE)
+    /// @dev Used in order to disincentive spam
     uint256 public immutable disputePrice;
+
+    /// @notice Dispute period (in seconds)
     uint256 public immutable disputePeriod;
+
+    /// @notice Verification period (in seconds)
     uint256 public immutable verificationPeriod;
+
+    /// @notice Burn fee (1 = 0.01%)
     uint256 public immutable burnFee;
+
+    /// @notice Foundation fee (1 = 0.01%)
     uint256 public immutable foundationFee;
+
+    /// @notice Revenue fee (1 = 0.01%)
     uint256 public immutable revenueFee;
+
+    /// @notice Market creator fee (1 = 0.01%)
     uint256 public immutable marketCreatorFee;
+
+    /// @notice Verification fee (1 = 0.01%)
     uint256 public immutable verificationFee;
 
     constructor(
@@ -31,6 +48,9 @@ contract MarketConfig{
         verificationFee = verificationFeeP;
     }
 
+    /**
+     * @notice Returns all config values
+     */
     function config()
         external
         view
@@ -57,7 +77,14 @@ contract MarketConfig{
         );
     }
 
+    /**
+     * @notice Returns sum of all fees (1 = 0.01%)
+     */
     function feesSum() external view returns(uint256){
-        return(burnFee + foundationFee + revenueFee + marketCreatorFee + verificationFee);
+        return burnFee
+            + foundationFee
+            + revenueFee
+            + marketCreatorFee
+            + verificationFee;
     }
 }

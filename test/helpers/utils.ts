@@ -197,3 +197,11 @@ export async function deployContractAs<T extends Contract>(
 
     return contract;
 }
+
+export async function attachContract<T extends Contract>(
+    name: string,
+    address: string
+): Promise<T> {
+    const contractFactory = await ethers.getContractFactory(name);
+    return <any>await contractFactory.attach(address);
+}
