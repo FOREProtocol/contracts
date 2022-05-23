@@ -16,7 +16,7 @@ dotenv.config();
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
-task("accounts", "Prints the list of accounts", async(taskArgs, hre) => {
+task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
     const accounts = await hre.ethers.getSigners();
 
     for (const account of accounts) {
@@ -37,6 +37,11 @@ const config: HardhatUserConfig = {
                         enabled: true,
                         runs: 15,
                     },
+                    outputSelection: {
+                        "*": {
+                            "*": ["storageLayout"],
+                        },
+                    },
                 },
             },
             {
@@ -46,15 +51,22 @@ const config: HardhatUserConfig = {
                         enabled: true,
                         runs: 15,
                     },
-                }
-            }
-        ]
+                    outputSelection: {
+                        "*": {
+                            "*": ["storageLayout"],
+                        },
+                    },
+                },
+            },
+        ],
     },
     networks: {
         hardhat: {
             accounts: {
                 mnemonic:
-                    process.env.MNEMONIC !== undefined ? process.env.MNEMONIC : '',
+                    process.env.MNEMONIC !== undefined
+                        ? process.env.MNEMONIC
+                        : "",
             },
         },
         rinkeby: {
@@ -62,7 +74,9 @@ const config: HardhatUserConfig = {
             chainId: 4,
             accounts: {
                 mnemonic:
-                    process.env.MNEMONIC !== undefined ? process.env.MNEMONIC : '',
+                    process.env.MNEMONIC !== undefined
+                        ? process.env.MNEMONIC
+                        : "",
             },
         },
         fantom: {
@@ -70,7 +84,9 @@ const config: HardhatUserConfig = {
             chainId: 250,
             accounts: {
                 mnemonic:
-                    process.env.MNEMONIC !== undefined ? process.env.MNEMONIC : '',
+                    process.env.MNEMONIC !== undefined
+                        ? process.env.MNEMONIC
+                        : "",
             },
         },
         fantomtestnet: {
@@ -78,7 +94,9 @@ const config: HardhatUserConfig = {
             chainId: 4002,
             accounts: {
                 mnemonic:
-                    process.env.MNEMONIC !== undefined ? process.env.MNEMONIC : '',
+                    process.env.MNEMONIC !== undefined
+                        ? process.env.MNEMONIC
+                        : "",
             },
         },
     },

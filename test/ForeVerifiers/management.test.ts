@@ -1,12 +1,14 @@
 import { TransferEvent } from "@/ERC721";
+import { ForeMarkets } from "@/ForeMarkets";
+import { ForeToken } from "@/ForeToken";
 import {
-    ForeVerifiers,
     FactoryChangedEvent,
-    TransferAllowanceChangedEvent,
-    TokenPowerIncreasedEvent,
+    ForeVerifiers,
     TokenPowerDecreasedEvent,
+    TokenPowerIncreasedEvent,
+    TransferAllowanceChangedEvent,
 } from "@/ForeVerifiers";
-import { MarketCreationChangedEvent } from "@/ProtocolConfig";
+import { FakeContract, smock } from "@defi-wonderland/smock";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
@@ -21,14 +23,39 @@ import {
 
 describe("ForeVerifiers / Management", () => {
     let owner: SignerWithAddress;
-    let factory: SignerWithAddress;
+    let market: SignerWithAddress;
+    let operator: SignerWithAddress;
     let alice: SignerWithAddress;
+    let bob: SignerWithAddress;
 
     let contract: ForeVerifiers;
+    let foreToken: FakeContract<ForeToken>;
+    let foreMarkets: FakeContract<ForeMarkets>;
 
     beforeEach(async () => {
+        [owner, market, operator, alice, bob] = await ethers.getSigners();
+
         contract = await deployContract<ForeVerifiers>("ForeVerifiers");
-        [owner, factory, alice] = await ethers.getSigners();
+
+        foreToken = await smock.fake<ForeToken>("ForeToken");
+        foreToken.transfer.returns(true);
+
+        foreMarkets = await smock.fake<ForeMarkets>("ForeMarkets");
+        foreMarkets.foreToken.returns(foreToken.address);
+        foreMarkets.isForeMarket.returns(false);
+        foreMarkets.isForeMarket.whenCalledWith(market.address).returns(true);
+        foreMarkets.isForeOperator.returns(false);
+        foreMarkets.isForeOperator
+            .whenCalledWith(operator.address)
+            .returns(true);
+
+        // add some eth to mocked contract
+        await txExec(
+            owner.sendTransaction({
+                value: ethers.utils.parseEther("10"),
+                to: foreMarkets.address,
+            })
+        );
     });
 
     describe("Initial state", () => {
@@ -45,35 +72,23 @@ describe("ForeVerifiers / Management", () => {
         });
     });
 
-    describe("Change factory contract address", () => {
-        it("Should allow to execute only by owner", async () => {
-            await assertIsAvailableOnlyForOwner(async (account) => {
-                return contract.connect(account).setFactory(factory.address);
-            });
-        });
-
-        it("Should emit FactoryChanged event", async () => {
-            const [tx, recipt] = await txExec(
-                contract.connect(owner).setFactory(factory.address)
+    describe("For non existing token", () => {
+        it("Should revert while checking token URI", async () => {
+            await expect(contract.tokenURI(123)).to.be.revertedWith(
+                "ERC721Metadata: URI query for nonexistent token"
             );
-
-            assertEvent<FactoryChangedEvent>(recipt, "FactoryChanged", {
-                addr: factory.address,
-            });
         });
 
-        describe("with factory configured", () => {
-            beforeEach(async () => {
-                await txExec(
-                    contract.connect(owner).setFactory(factory.address)
-                );
-            });
+        it("Should revert while trying to increase power", async () => {
+            await expect(contract.increasePower(123, 10)).to.be.revertedWith(
+                "TokenNotExists()"
+            );
+        });
 
-            it("Should not allow to change factory again", async () => {
-                await expect(
-                    contract.connect(owner).setFactory(factory.address)
-                ).to.be.revertedWith("ForeVerifiers: Factory is set");
-            });
+        it("Should revert while trying to decrease power", async () => {
+            await expect(contract.decreasePower(123, 10)).to.be.revertedWith(
+                "TokenNotExists()"
+            );
         });
     });
 
@@ -99,9 +114,51 @@ describe("ForeVerifiers / Management", () => {
         });
     });
 
+    describe("Change factory contract address", () => {
+        it("Should allow to execute only by owner", async () => {
+            await assertIsAvailableOnlyForOwner(async (account) => {
+                return contract
+                    .connect(account)
+                    .setFactory(foreMarkets.address);
+            });
+        });
+
+        it("Should emit FactoryChanged event", async () => {
+            const [tx, recipt] = await txExec(
+                contract.connect(owner).setFactory(foreMarkets.address)
+            );
+
+            assertEvent<FactoryChangedEvent>(recipt, "FactoryChanged", {
+                addr: foreMarkets.address,
+            });
+        });
+
+        describe("successfully", () => {
+            beforeEach(async () => {
+                await txExec(
+                    contract.connect(owner).setFactory(foreMarkets.address)
+                );
+            });
+
+            it("Should not allow to change factory again", async () => {
+                await expect(
+                    contract.connect(owner).setFactory(foreMarkets.address)
+                ).to.be.revertedWith("FactoryAlreadySet()");
+            });
+
+            it("Should return proper factory address", async () => {
+                expect(await contract.factory()).to.be.equal(
+                    foreMarkets.address
+                );
+            });
+        });
+    });
+
     describe("with factory configured", () => {
         beforeEach(async () => {
-            await txExec(contract.connect(owner).setFactory(factory.address));
+            await txExec(
+                contract.connect(owner).setFactory(foreMarkets.address)
+            );
         });
 
         describe("Minting new tokens", () => {
@@ -112,8 +169,8 @@ describe("ForeVerifiers / Management", () => {
                             .connect(account)
                             .mintWithPower(alice.address, 10);
                     },
-                    factory,
-                    "ForeNFT: FORBIDDEN"
+                    foreMarkets.wallet,
+                    "OnlyFactoryAllowed()"
                 );
             });
 
@@ -124,12 +181,12 @@ describe("ForeVerifiers / Management", () => {
                 beforeEach(async () => {
                     [tx, recipt] = await txExec(
                         contract
-                            .connect(factory)
+                            .connect(foreMarkets.wallet)
                             .mintWithPower(alice.address, 10)
                     );
                 });
 
-                it("Should emit Transfer event", async () => {
+                it("Should emit Transfer (mint) event", async () => {
                     assertEvent<TransferEvent>(recipt, "Transfer", {
                         from: "0x0000000000000000000000000000000000000000",
                         to: alice.address,
@@ -144,136 +201,271 @@ describe("ForeVerifiers / Management", () => {
                 it("Should have proper initial power", async () => {
                     expect(await contract.initialPowerOf(0)).to.be.equal(10);
                 });
+
+                it("Should increase height", async () => {
+                    expect(await contract.height()).to.be.equal(1);
+                });
+            });
+        });
+
+        describe("with token minted", () => {
+            beforeEach(async () => {
+                await txExec(
+                    contract
+                        .connect(foreMarkets.wallet)
+                        .mintWithPower(alice.address, 10)
+                );
+            });
+
+            it("Should return proper URL", async () => {
+                expect(await contract.tokenURI(0)).to.be.equal(
+                    "https://nft.api.foreprotocol.io/token/0"
+                );
+            });
+
+            describe("increasing power", () => {
+                it("Only market can increase power", async () => {
+                    await assertIsAvailableOnlyForOwner(
+                        async (account) => {
+                            return contract
+                                .connect(account)
+                                .increasePower(0, 10);
+                        },
+                        market,
+                        "OnlyMarketAllowed()"
+                    );
+                });
+
+                describe("successfully", () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+
+                    beforeEach(async () => {
+                        [tx, recipt] = await txExec(
+                            contract.connect(market).increasePower(0, 10)
+                        );
+                    });
+
+                    it("Should emit TokenPowerIncreased event", async () => {
+                        assertEvent<TokenPowerIncreasedEvent>(
+                            recipt,
+                            "TokenPowerIncreased",
+                            {
+                                id: BigNumber.from(0),
+                                powerDelta: BigNumber.from(10),
+                                newPower: BigNumber.from(20),
+                            }
+                        );
+                    });
+
+                    it("Should have proper power", async () => {
+                        expect(await contract.powerOf(0)).to.be.equal(20);
+                    });
+                });
+            });
+
+            describe("decreasing power by token owner (withdrawal)", () => {
+                beforeEach(async () => {
+                    await txExec(contract.connect(market).increasePower(0, 10));
+                });
+
+                it("Should be larger than 0", async () => {
+                    await expect(
+                        contract.connect(alice).decreasePower(0, 0)
+                    ).to.be.revertedWith("NothingToWithdraw()");
+                });
+
+                it("Should not allow to execute by non owner nor market", async () => {
+                    await expect(
+                        contract.connect(bob).decreasePower(0, 10)
+                    ).to.be.revertedWith("NotAuthorized()");
+                });
+
+                it("Should be limited to increased value", async () => {
+                    await expect(
+                        contract.connect(alice).decreasePower(0, 11)
+                    ).to.be.revertedWith("AmountExceedLimit(10)");
+                });
+
+                describe("successfully", async () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+
+                    beforeEach(async () => {
+                        [tx, recipt] = await txExec(
+                            contract.connect(alice).decreasePower(0, 10)
+                        );
+                    });
+
+                    it("Should emit TokenPowerDecreased event", async () => {
+                        assertEvent<TokenPowerDecreasedEvent>(
+                            recipt,
+                            "TokenPowerDecreased",
+                            {
+                                id: BigNumber.from(0),
+                                powerDelta: BigNumber.from(10),
+                                newPower: BigNumber.from(10),
+                            }
+                        );
+                    });
+
+                    it("Should have proper power", async () => {
+                        expect(await contract.powerOf(0)).to.be.equal(10);
+                    });
+                });
+            });
+
+            describe("decreasing power by market (penalty)", () => {
+                it("Should be limited to current power", async () => {
+                    await expect(
+                        contract.connect(market).decreasePower(0, 11)
+                    ).to.be.revertedWith("AmountExceedLimit(10)");
+                });
+
+                describe("successfully applying penalty", async () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+
+                    beforeEach(async () => {
+                        [tx, recipt] = await txExec(
+                            contract.connect(market).decreasePower(0, 5)
+                        );
+                    });
+
+                    it("Should emit TokenPowerDecreased event", async () => {
+                        assertEvent<TokenPowerDecreasedEvent>(
+                            recipt,
+                            "TokenPowerDecreased",
+                            {
+                                id: BigNumber.from(0),
+                                powerDelta: BigNumber.from(5),
+                                newPower: BigNumber.from(5),
+                            }
+                        );
+                    });
+
+                    it("Should have proper power", async () => {
+                        expect(await contract.powerOf(0)).to.be.equal(5);
+                    });
+
+                    it("Should call ERC20 transfer", async () => {
+                        expect(foreToken.transfer.getCall(0).args).to.be.eql([
+                            market.address,
+                            BigNumber.from(5),
+                        ]);
+                    });
+                });
+
+                describe("successfully burning", async () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+
+                    beforeEach(async () => {
+                        [tx, recipt] = await txExec(
+                            contract.connect(market).decreasePower(0, 10)
+                        );
+                    });
+
+                    it("Should emit TokenPowerDecreased event", async () => {
+                        assertEvent<TokenPowerDecreasedEvent>(
+                            recipt,
+                            "TokenPowerDecreased",
+                            {
+                                id: BigNumber.from(0),
+                                powerDelta: BigNumber.from(10),
+                                newPower: BigNumber.from(0),
+                            }
+                        );
+                    });
+
+                    it("Should emit Transfer (burn) event", async () => {
+                        assertEvent<TransferEvent>(recipt, "Transfer", {
+                            from: alice.address,
+                            to: "0x0000000000000000000000000000000000000000",
+                            tokenId: BigNumber.from(0),
+                        });
+                    });
+
+                    it("Should have proper power", async () => {
+                        expect(await contract.powerOf(0)).to.be.equal(0);
+                    });
+
+                    it("Should call ERC20 transfer", async () => {
+                        expect(foreToken.transfer.getCall(0).args).to.be.eql([
+                            market.address,
+                            BigNumber.from(10),
+                        ]);
+                    });
+                });
+            });
+
+            describe("transfering", () => {
+                beforeEach(async () => {
+                    await txExec(
+                        contract
+                            .connect(foreMarkets.wallet)
+                            .mintWithPower(operator.address, 10)
+                    );
+                });
+
+                it("Should be allowed to transfer tokens by operator", async () => {
+                    await txExec(
+                        contract
+                            .connect(operator)
+                            .transferFrom(alice.address, operator.address, 0)
+                    );
+                });
+
+                it("Should preserve default behavior of approving in case of non operator", async () => {
+                    await expect(
+                        contract
+                            .connect(bob)
+                            .transferFrom(alice.address, operator.address, 0)
+                    ).to.be.revertedWith(
+                        "ERC721: transfer caller is not owner nor approved"
+                    );
+                });
+
+                it("Should not be allowed to transfer tokens by default", async () => {
+                    await expect(
+                        contract
+                            .connect(alice)
+                            .transferFrom(alice.address, bob.address, 0)
+                    ).to.be.revertedWith("TransferAllowedOnlyForOperator()");
+                });
+
+                it("Should be allowed to transfer tokens to operator", async () => {
+                    await txExec(
+                        contract
+                            .connect(alice)
+                            .transferFrom(alice.address, operator.address, 0)
+                    );
+                });
+
+                it("Should be allowed to transfer tokens from operator", async () => {
+                    await txExec(
+                        contract
+                            .connect(operator)
+                            .transferFrom(operator.address, bob.address, 1)
+                    );
+                });
+
+                describe("with transferability enabled", () => {
+                    beforeEach(async () => {
+                        await txExec(
+                            contract.connect(owner).setTransferAllowance(true)
+                        );
+                    });
+
+                    it("Should be allowed to transfer tokens", async () => {
+                        await txExec(
+                            contract
+                                .connect(alice)
+                                .transferFrom(alice.address, bob.address, 0)
+                        );
+                    });
+                });
             });
         });
     });
-
-    // describe("Change token penalty", () => {
-    //     it("Should fail for non existing token", async () => {
-    //         await expect(
-    //             contract.connect(owner).setTokenPenalty(0, 100)
-    //         ).to.be.revertedWith("TokenNotExist()");
-    //     });
-    //
-    //     describe("with existing token", () => {
-    //         beforeEach(async () => {
-    //             await txExec(
-    //                 contract.connect(owner).mint(alice.address, {
-    //                     staked: ethers.utils.parseUnits("1", "ether"),
-    //                     penalty: 10,
-    //                 })
-    //             );
-    //         });
-    //
-    //         it("Should allow to execute only by owner", async () => {
-    //             await assertIsAvailableOnlyForOwner(async (account) => {
-    //                 return contract.connect(account).setTokenPenalty(0, 100);
-    //             });
-    //         });
-    //
-    //         describe("successfully", () => {
-    //             let tx: ContractTransaction;
-    //             let recipt: ContractReceipt;
-    //
-    //             beforeEach(async () => {
-    //                 [tx, recipt] = await txExec(
-    //                     contract.connect(owner).setTokenPenalty(0, 100)
-    //                 );
-    //             });
-    //
-    //             it("Should emit event", async () => {
-    //                 assertEvent<TokenPenaltyChangedEvent>(
-    //                     recipt,
-    //                     "TokenPenaltyChanged",
-    //                     {
-    //                         tokenId: BigNumber.from(0),
-    //                         penalty: BigNumber.from(100),
-    //                     }
-    //                 );
-    //             });
-    //
-    //             it("Should update state", async () => {
-    //                 const token = await contract.tokens(0);
-    //                 expect(token.penalty).to.be.equal(100);
-    //             });
-    //         });
-    //     });
-    // });
-    //
-    // describe("Activating whitelist", () => {
-    //     it("Should allow to execute only by owner", async () => {
-    //         await assertIsAvailableOnlyForOwner(async (account) => {
-    //             return contract
-    //                 .connect(account)
-    //                 .setWhitelistFeatureActive(true);
-    //         });
-    //     });
-    //
-    //     describe("successfully", () => {
-    //         let tx: ContractTransaction;
-    //         let recipt: ContractReceipt;
-    //
-    //         beforeEach(async () => {
-    //             [tx, recipt] = await txExec(
-    //                 contract.connect(owner).setWhitelistFeatureActive(true)
-    //             );
-    //         });
-    //
-    //         it("Should emit event", async () => {
-    //             assertEvent<WhitelistActivityChangedEvent>(
-    //                 recipt,
-    //                 "WhitelistActivityChanged",
-    //                 {
-    //                     active: true,
-    //                 }
-    //             );
-    //         });
-    //
-    //         it("Should update state", async () => {
-    //             expect(await contract.getWhitelistFeatureActive()).to.be.equal(
-    //                 true
-    //             );
-    //         });
-    //     });
-    // });
-    //
-    // describe("Adding to whitelist", () => {
-    //     it("Should allow to execute only by owner", async () => {
-    //         await assertIsAvailableOnlyForOwner(async (account) => {
-    //             return contract
-    //                 .connect(account)
-    //                 .setAccountWhitelisted(alice.address, true);
-    //         });
-    //     });
-    //
-    //     describe("successfully", () => {
-    //         let tx: ContractTransaction;
-    //         let recipt: ContractReceipt;
-    //
-    //         beforeEach(async () => {
-    //             [tx, recipt] = await txExec(
-    //                 contract
-    //                     .connect(owner)
-    //                     .setAccountWhitelisted(alice.address, true)
-    //             );
-    //         });
-    //
-    //         it("Should emit event", async () => {
-    //             assertEvent<WhitelistAccountChangedEvent>(
-    //                 recipt,
-    //                 "WhitelistAccountChanged",
-    //                 {
-    //                     account: alice.address,
-    //                     active: true,
-    //                 }
-    //             );
-    //         });
-    //
-    //         it("Should update state", async () => {
-    //             expect(
-    //                 await contract.getAccountWhitelisted(alice.address)
-    //             ).to.be.equal(true);
-    //         });
-    //     });
-    // });
 });

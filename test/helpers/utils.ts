@@ -1,15 +1,16 @@
 import { Block } from "@ethersproject/abstract-provider";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { Contract, ContractTransaction, Event, Signer } from "ethers";
 import { TypedEvent } from "@typechain/ethers-v5/static/common";
 import chai, { expect } from "chai";
 import chaiSubset from "chai-subset";
 import { solidity } from "ethereum-waffle";
-import { Contract, ContractTransaction, Event } from "ethers";
 import { ethers, network } from "hardhat";
+import { smock } from "@defi-wonderland/smock";
 
 chai.use(chaiSubset);
 chai.use(solidity);
+chai.use(smock.matchers);
 
 export function findEvent<T extends Event>(
     result: ContractReceipt,
@@ -67,24 +68,23 @@ export function assertNoEvent<T extends TypedEvent<any>>(
     }
 }
 
-type AccountCallback = (
-    account: SignerWithAddress
-) => Promise<ContractTransaction>;
+type AccountCallback = (account: Signer) => Promise<ContractTransaction>;
 
 export async function assertIsAvailableOnlyForOwner(
     callback: AccountCallback,
-    ownerOverride?: SignerWithAddress,
+    ownerOverride?: Signer,
     errorMessage = "Ownable: caller is not the owner"
 ) {
     const allAccounts = await ethers.getSigners();
-    let owner = allAccounts[0];
 
+    let owner: Signer = allAccounts[0];
     if (ownerOverride) {
         owner = ownerOverride;
     }
 
+    const ownerAddress = await owner.getAddress();
     const nonOwnerAccounts = allAccounts
-        .filter((account) => account.address !== owner.address)
+        .filter((account) => account.address !== ownerAddress)
         .slice(0, 2);
 
     for (const account of nonOwnerAccounts) {
@@ -184,7 +184,7 @@ export async function deployContract<T extends Contract>(
 }
 
 export async function deployContractAs<T extends Contract>(
-    owner: SignerWithAddress,
+    owner: Signer,
     name: string,
     ...args: any[]
 ): Promise<T> {

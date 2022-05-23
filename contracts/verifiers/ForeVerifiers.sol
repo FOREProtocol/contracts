@@ -15,6 +15,15 @@ contract ForeVerifiers is
 {
     using Strings for uint256;
 
+    error FactoryAlreadySet();
+    error TokenNotExists();
+    error OnlyFactoryAllowed();
+    error OnlyMarketAllowed();
+    error NothingToWithdraw();
+    error AmountExceedLimit(uint256 limit);
+    error TransferAllowedOnlyForOperator();
+    error NotAuthorized();
+
 
     event FactoryChanged(IForeMarkets addr);
     event TransferAllowanceChanged(bool status);
@@ -98,10 +107,9 @@ contract ForeVerifiers is
         external
         onlyOwner
     {
-        require(
-            address(_factory) == address(0),
-            "ForeVerifiers: Factory is set"
-        );
+        if (address(_factory) != address(0)) {
+            revert FactoryAlreadySet();
+        }
 
         _factory = addr;
 
@@ -132,10 +140,9 @@ contract ForeVerifiers is
     )
         external
     {
-        require(
-            address(_factory) == msg.sender,
-            "ForeNFT: FORBIDDEN"
-        );
+        if (address(_factory) != msg.sender) {
+            revert OnlyFactoryAllowed();
+        }
 
         _power[_height] = power;
         _initialPower[_height] = power;
@@ -156,10 +163,12 @@ contract ForeVerifiers is
     )
         external
     {
-        require(
-            _factory.isForeMarket(msg.sender),
-            "ForeNFT: FORBIDDEN"
-        );
+        if (!_exists(id)) {
+            revert TokenNotExists();
+        }
+        if (!_factory.isForeMarket(msg.sender)) {
+            revert OnlyMarketAllowed();
+        }
 
         _power[id] += powerDelta;
 
@@ -177,24 +186,36 @@ contract ForeVerifiers is
     )
         external
     {
+        if (!_exists(id)) {
+            revert TokenNotExists();
+        }
+        if (powerDelta == 0) {
+            revert NothingToWithdraw();
+        }
+
         uint256 currentPower = _power[id];
 
-        uint256 withdrawableByUser = (currentPower > _initialPower[_height])
-            ? currentPower - _initialPower[_height]
-            : 0;
-        uint256 maxAmount = _factory.isForeMarket(msg.sender)
-            ? currentPower
-            : withdrawableByUser;
+        // limit withdraw value
+        uint256 maxAmount = 0;
 
-        require(
-            powerDelta != 0,
-            "ForeNft: Nothing to withdraw"
-        );
+        if (_factory.isForeMarket(msg.sender)) {
+            // market can ultimately reduce power
+            maxAmount = currentPower;
+        }
+        else if (ownerOf(id) == msg.sender) {
+            // user can withdraw only value larger than initial power
+            maxAmount = currentPower > _initialPower[id]
+                ? currentPower - _initialPower[id]
+                : 0;
+        }
+        else {
+            // different user can't withdraw
+            revert NotAuthorized();
+        }
 
-        require(
-            powerDelta <= maxAmount,
-            "ForeNft: Amount exceed balace"
-        );
+        if (powerDelta > maxAmount) {
+            revert AmountExceedLimit(maxAmount);
+        }
 
         currentPower -= powerDelta;
         _power[id] = currentPower;
@@ -235,21 +256,24 @@ contract ForeVerifiers is
         address to,
         uint256 tokenId
     ) internal override {
-        require(
-            (_transfersAllowed ||
-                _factory.isForeOperator(to) ||
-                _factory.isForeOperator(from)),
-            "ForeNft: Only protocol operator"
-        );
+        if (!_transfersAllowed) {
+            if (
+                !_factory.isForeOperator(to)
+                && !_factory.isForeOperator(from)
+            ) {
+                revert TransferAllowedOnlyForOperator();
+            }
+        }
+
         super._transfer(from, to, tokenId);
     }
 
     /**
-     * @inheritdoc ERC721Burnable
+     * @inheritdoc ERC721
      */
-    function burn(uint256 tokenId) public virtual override {
+    function _burn(uint256 tokenId) internal virtual override {
         _power[tokenId] = 0;
-        super.burn(tokenId);
+        super._burn(tokenId);
     }
 
 }
