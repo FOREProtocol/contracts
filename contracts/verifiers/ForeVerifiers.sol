@@ -24,7 +24,6 @@ contract ForeVerifiers is
     error TransferAllowedOnlyForOperator();
     error NotAuthorized();
 
-
     event FactoryChanged(IForeMarkets addr);
     event TransferAllowanceChanged(bool status);
     event TokenPowerIncreased(uint id, uint powerDelta, uint newPower);

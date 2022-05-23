@@ -20,7 +20,7 @@ import {
     attachContract,
     deployContract,
     txExec,
-} from "../helpers/utils";
+} from "./helpers/utils";
 
 xdescribe("Protocol configuration", () => {
     let owner: SignerWithAddress;

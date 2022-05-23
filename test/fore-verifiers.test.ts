@@ -19,9 +19,9 @@ import {
     assertIsAvailableOnlyForOwner,
     deployContract,
     txExec,
-} from "../helpers/utils";
+} from "./helpers/utils";
 
-describe("ForeVerifiers / Management", () => {
+xdescribe("Fore NFT Verifiers token", () => {
     let owner: SignerWithAddress;
     let market: SignerWithAddress;
     let operator: SignerWithAddress;

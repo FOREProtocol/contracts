@@ -3,7 +3,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
-import { deployContract } from "../helpers/utils";
+import { deployContract } from "./helpers/utils";
 
 xdescribe("Market configuration", () => {
     let owner: SignerWithAddress;
