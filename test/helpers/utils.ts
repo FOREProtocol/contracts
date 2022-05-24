@@ -105,6 +105,12 @@ export async function mineBlock(delay = 10): Promise<Block> {
     return ethers.provider.getBlock("latest");
 }
 
+export async function timetravel(timestamp: number): Promise<Block> {
+    await network.provider.send("evm_setNextBlockTimestamp", [timestamp]);
+    await network.provider.send("evm_mine");
+    return ethers.provider.getBlock("latest");
+}
+
 export async function txExec(
     txPromise: Promise<ContractTransaction>
 ): Promise<[ContractTransaction, ContractReceipt]> {

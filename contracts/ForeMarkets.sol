@@ -12,75 +12,88 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 
 
-contract ForeMarkets is ERC721, ERC721Burnable{
+contract ForeMarkets is
+    ERC721,
+    ERC721Burnable
+{
     using Strings for uint256;
 
-    ///@notice Init creatin code
-    ///@dev Needed to calculate market address
+
+    event MarketCreated(
+        address indexed creator,
+        bytes32 marketHash,
+        address market,
+        uint256 length
+    );
+
+
+    /// @notice Init creatin code
+    /// @dev Needed to calculate market address
     bytes32 public constant INIT_CODE_PAIR_HASH = keccak256(abi.encodePacked(type(ForeMarket).creationCode));
 
-    ///@notice ForeToken
+    /// @notice ForeToken
     IERC20Burnable public foreToken;
 
-    ///@notice Protocol Config
+    /// @notice Protocol Config
     IProtocolConfig public config;
 
-    ///@notice ForeVerifiers 
+    /// @notice ForeVerifiers
     IForeVerifiers public foreVerifiers;
 
-    event MarketCreated(address indexed creator, bytes32 martkeHash, address market, uint256 length);
+    /// @notice Market address for hash (ipfs hash without first 2 bytes)
+    mapping(bytes32 => address) public market;
 
-    ///@notice Returns base uri
+    /// @notice True if address is ForeMarket
+    mapping(address => bool) public isForeMarket;
+
+    /// @notice All markets array
+    address[] public allMarkets;
+
+
+    /// @param cfg Protocol Config address
+    constructor(IProtocolConfig cfg)
+        ERC721("Fore Markets", "MFORE")
+    {
+        config = cfg;
+        foreToken = IERC20Burnable(config.foreToken());
+        foreVerifiers =IForeVerifiers(config.foreVerifiers());
+    }
+
+    /// @notice Returns base uri
     function _baseURI() internal pure override returns (string memory) {
         return "https://markets.api.foreprotocol.io/market/";
     }
 
-    ///@notice Returns token uri for existing token
+    /// @notice Returns token uri for existing token
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         require(tokenId < allMarkets.length, "Non minted token");
         string memory baseURI = _baseURI();
         return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, tokenId.toString())) : "";
     }
 
-    ///@notice Market address for hash (ipfs hash without first 2 bytes)
-    mapping(bytes32 => address) public market;
-
-    ///@notice True if address is ForeMarket
-    mapping(address => bool) public isForeMarket;
-
-    ///@notice All markets array
-    address[] public allMarkets;
-
-    ///@notice Returns true if Address is ForeOperator
-    ///@dev ForeOperators: ForeMarkets(as factory), ForeMarket contracts and marketplace
-    function isForeOperator(address addr) external view returns(bool){
+    /// @notice Returns true if Address is ForeOperator
+    /// @dev ForeOperators: ForeMarkets(as factory), ForeMarket contracts and marketplace
+    function isForeOperator(address addr) external view returns(bool) {
         return (addr != address(0) && (addr == address(this) || isForeMarket[addr] || addr == config.marketplace()));
     }
 
-    ///@notice Returns length of all markets array / nft height
+    /// @notice Returns length of all markets array / nft height
     function allMarketLength() external view returns (uint256) {
         return allMarkets.length;
     }
 
-    ///@param cfg Protocol Config address
-    constructor(IProtocolConfig cfg) ERC721("Fore Markets", "MFORE") {
-        config = cfg;
-        foreToken = IERC20Burnable(config.foreToken());
-        foreVerifiers =IForeVerifiers(config.foreVerifiers());
-    }
-
-    ///@notice Mints Verifier Nft (ForeVerifier)
-    ///@param receiver receiver address
+    /// @notice Mints Verifier Nft (ForeVerifier)
+    /// @param receiver receiver address
     function mintVerifier(address receiver) external {
         uint256 mintPrice = config.verifierMintPrice();
         foreToken.transferFrom(msg.sender, address(foreVerifiers), mintPrice);
         foreVerifiers.mintWithPower(receiver, mintPrice);
     }
 
-    ///@notice Buys additional power (ForeVerifier)
-    ///@param id token id
-    ///@param amount amount to buy
-    function buyPower(uint256 id, uint256 amount) external{
+    /// @notice Buys additional power (ForeVerifier)
+    /// @param id token id
+    /// @param amount amount to buy
+    function buyPower(uint256 id, uint256 amount) external {
         require(foreVerifiers.powerOf(id) + amount <= config.verifierMintPrice(), "ForeFactory: Buy limit reached");
         foreToken.transferFrom(msg.sender, address(foreVerifiers), amount);
         foreVerifiers.increasePower(id, amount);
@@ -94,10 +107,26 @@ contract ForeMarkets is ERC721, ERC721Burnable{
     /// @param startPredictionTimestamp Start predictions unix timestamp
     /// @param endPredictionTimestamp End predictions unix timestamp
     /// @return createdMarket Address of created market
-    function createMarket(bytes32 marketHash, address receiver, uint256 amountA, uint256 amountB, uint256 startPredictionTimestamp, uint256 endPredictionTimestamp) external returns(address createdMarket){
-        require(market[marketHash] == address(0), "ForeFactory: Market exists");
+    function createMarket(
+        bytes32 marketHash,
+        address receiver,
+        uint256 amountA,
+        uint256 amountB,
+        uint256 startPredictionTimestamp,
+        uint256 endPredictionTimestamp
+    )
+        external
+        returns(address createdMarket)
+    {
+        require(
+            market[marketHash] == address(0),
+            "ForeFactory: Market exists"
+        );
+
         uint256 creationFee = config.marketCreationPrice();
-        if(creationFee!=0) foreToken.burnFrom(msg.sender, creationFee);
+        if (creationFee != 0) {
+            foreToken.burnFrom(msg.sender, creationFee);
+        }
 
         bytes memory bytecode = type(ForeMarket).creationCode;
         bytes32 salt = keccak256(abi.encodePacked(marketHash));
@@ -131,4 +160,5 @@ contract ForeMarkets is ERC721, ERC721Burnable{
         }
         return super.isApprovedForAll(owner, operator);
     }
+
 }

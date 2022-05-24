@@ -21,7 +21,7 @@ import {
     txExec,
 } from "./helpers/utils";
 
-xdescribe("Fore NFT Verifiers token", () => {
+describe("Fore NFT Verifiers token", () => {
     let owner: SignerWithAddress;
     let market: SignerWithAddress;
     let operator: SignerWithAddress;
@@ -287,7 +287,7 @@ xdescribe("Fore NFT Verifiers token", () => {
                     ).to.be.revertedWith("AmountExceedLimit(10)");
                 });
 
-                describe("successfully", async () => {
+                describe("successfully", () => {
                     let tx: ContractTransaction;
                     let recipt: ContractReceipt;
 
@@ -322,7 +322,7 @@ xdescribe("Fore NFT Verifiers token", () => {
                     ).to.be.revertedWith("AmountExceedLimit(10)");
                 });
 
-                describe("successfully applying penalty", async () => {
+                describe("successfully applying penalty", () => {
                     let tx: ContractTransaction;
                     let recipt: ContractReceipt;
 
@@ -356,7 +356,7 @@ xdescribe("Fore NFT Verifiers token", () => {
                     });
                 });
 
-                describe("successfully burning", async () => {
+                describe("successfully burning", () => {
                     let tx: ContractTransaction;
                     let recipt: ContractReceipt;
 

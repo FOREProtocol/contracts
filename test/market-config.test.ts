@@ -5,7 +5,7 @@ import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
 import { deployContract } from "./helpers/utils";
 
-xdescribe("Market configuration", () => {
+describe("Market configuration", () => {
     let owner: SignerWithAddress;
 
     let contract: MarketConfig;
