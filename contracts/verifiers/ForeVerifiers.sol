@@ -18,7 +18,7 @@ contract ForeVerifiers is
     error FactoryAlreadySet();
     error TokenNotExists();
     error OnlyFactoryAllowed();
-    error OnlyMarketAllowed();
+    error OnlyOperatorAllowed();
     error NothingToWithdraw();
     error AmountExceedLimit(uint256 limit);
     error TransferAllowedOnlyForOperator();
@@ -165,8 +165,8 @@ contract ForeVerifiers is
         if (!_exists(id)) {
             revert TokenNotExists();
         }
-        if (!_factory.isForeMarket(msg.sender)) {
-            revert OnlyMarketAllowed();
+        if (!_factory.isForeOperator(msg.sender)) {
+            revert OnlyOperatorAllowed();
         }
 
         _power[id] += powerDelta;
