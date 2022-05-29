@@ -1,16 +1,21 @@
+import { ForeMarkets } from "@/ForeMarkets";
 import { ForeNftMarketplace } from "@/ForeNftMarketplace";
-import { ForeVerifiers, TransferEvent } from "@/ForeVerifiers";
 import { ForeToken } from "@/ForeToken";
+import { ForeVerifiers, TransferEvent } from "@/ForeVerifiers";
+import { IProtocolConfig } from "@/IProtocolConfig";
+import { FakeContract, smock } from "@defi-wonderland/smock";
+import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { BigNumber, ContractTransaction } from "ethers";
-import { ethers } from "hardhat";
 import { expect } from "chai";
+import { BigNumber, ContractTransaction, Signer } from "ethers";
+import { ethers, network } from "hardhat";
 import {
-    assertEvent,
     deployContract,
     deployContractAs,
+    deployMockedContract,
     findEvent,
+    impersonateContract,
     txExec,
 } from "../helpers/utils";
 
@@ -22,24 +27,13 @@ describe("NFTMarketplace / NFT integration", () => {
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
 
-    let tokenContract: ForeToken;
-    let nftContract: ForeVerifiers;
-    let marketplaceContract: ForeNftMarketplace;
+    let foreMarkets: MockContract<ForeMarkets>;
+    let foreMarketsAccount: Signer;
+    let foreToken: MockContract<ForeToken>;
+    let nftToken: MockContract<ForeVerifiers>;
+    let contract: ForeNftMarketplace;
 
     let ownerdNfts: Record<string, BigNumber[]>;
-
-    async function transferCoins(num: number, recipients: string[]) {
-        for (const recipient of recipients) {
-            const [tx, recipt] = await txExec(
-                tokenContract
-                    .connect(owner)
-                    .transfer(
-                        recipient,
-                        ethers.utils.parseUnits(num.toString(), "ether")
-                    )
-            );
-        }
-    }
 
     async function createTokens(num: number, recipients: string[]) {
         for (let i = 0; i < num; ++i) {
@@ -47,7 +41,9 @@ describe("NFTMarketplace / NFT integration", () => {
             const recipient = recipients[rIdx];
 
             const [tx, recipt] = await txExec(
-                nftContract.connect(owner).mintWithPower(recipient, 100)
+                nftToken
+                    .connect(foreMarketsAccount)
+                    .mintWithPower(recipient, 100)
             );
 
             const mintEvent = findEvent<TransferEvent>(recipt, "Transfer");
@@ -59,31 +55,63 @@ describe("NFTMarketplace / NFT integration", () => {
         }
     }
 
+    async function transferCoins(num: number, recipients: string[]) {
+        for (const recipient of recipients) {
+            const [tx, recipt] = await txExec(
+                foreToken
+                    .connect(owner)
+                    .transfer(
+                        recipient,
+                        ethers.utils.parseUnits(num.toString(), "ether")
+                    )
+            );
+        }
+    }
+
     beforeEach(async () => {
         [owner, admin, treasury, creator, alice, bob] =
             await ethers.getSigners();
 
         ownerdNfts = {};
 
-        tokenContract = await deployContract<ForeToken>("ForeToken");
-        nftContract = await deployContractAs<ForeVerifiers>(
-            creator,
-            "ForeVerifiers"
-        );
-        marketplaceContract = await deployContract<ForeNftMarketplace>(
+        foreToken = await deployMockedContract("ForeToken");
+        nftToken = await deployMockedContract("ForeVerifiers");
+
+        contract = await deployContract<ForeNftMarketplace>(
             "ForeNftMarketplace",
             admin.address,
             treasury.address,
-            tokenContract.address,
+            foreToken.address,
             ethers.utils.parseUnits("0.0001", "ether"),
             ethers.utils.parseUnits("1000", "ether")
         );
 
+        const protocolConfig = await deployMockedContract(
+            "ProtocolConfig",
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000002",
+            "0x0000000000000000000000000000000000000003",
+            contract.address,
+            foreToken.address,
+            nftToken.address,
+            ethers.utils.parseEther("2"),
+            ethers.utils.parseEther("3")
+        );
+
+        foreMarkets = await deployMockedContract(
+            "ForeMarkets",
+            protocolConfig.address
+        );
+        foreMarketsAccount = await impersonateContract(foreMarkets.address);
+
+        await txExec(foreToken.setFactory(foreMarkets.address));
+        await txExec(nftToken.setFactory(foreMarkets.address));
+
         await txExec(
-            marketplaceContract
+            contract
                 .connect(admin)
                 .addCollection(
-                    nftContract.address,
+                    nftToken.address,
                     creator.address,
                     "0x0000000000000000000000000000000000000000",
                     0,
@@ -96,18 +124,18 @@ describe("NFTMarketplace / NFT integration", () => {
 
         // allowance
         await txExec(
-            tokenContract
+            foreToken
                 .connect(alice)
                 .approve(
-                    marketplaceContract.address,
+                    contract.address,
                     ethers.utils.parseUnits("1000", "ether")
                 )
         );
         await txExec(
-            tokenContract
+            foreToken
                 .connect(bob)
                 .approve(
-                    marketplaceContract.address,
+                    contract.address,
                     ethers.utils.parseUnits("1000", "ether")
                 )
         );
@@ -116,19 +144,16 @@ describe("NFTMarketplace / NFT integration", () => {
     describe("with tokens for sale", () => {
         beforeEach(async () => {
             await txExec(
-                nftContract
+                nftToken
                     .connect(alice)
-                    .approve(
-                        marketplaceContract.address,
-                        ownerdNfts[alice.address][0]
-                    )
+                    .approve(contract.address, ownerdNfts[alice.address][0])
             );
 
             await txExec(
-                marketplaceContract
+                contract
                     .connect(alice)
                     .createAskOrder(
-                        nftContract.address,
+                        nftToken.address,
                         ownerdNfts[alice.address][0],
                         ethers.utils.parseUnits("1", "ether")
                     )
@@ -137,15 +162,15 @@ describe("NFTMarketplace / NFT integration", () => {
 
         it("Should transfer coins from buyer", async () => {
             await expect(() =>
-                marketplaceContract
+                contract
                     .connect(bob)
                     .buyTokenUsingWBNB(
-                        nftContract.address,
+                        nftToken.address,
                         ownerdNfts[alice.address][0],
                         ethers.utils.parseUnits("1", "ether")
                     )
             ).to.changeTokenBalance(
-                tokenContract,
+                foreToken,
                 bob,
                 ethers.utils.parseUnits("-1", "ether")
             );
@@ -153,15 +178,15 @@ describe("NFTMarketplace / NFT integration", () => {
 
         it("Should transfer coins to seller", async () => {
             await expect(() =>
-                marketplaceContract
+                contract
                     .connect(bob)
                     .buyTokenUsingWBNB(
-                        nftContract.address,
+                        nftToken.address,
                         ownerdNfts[alice.address][0],
                         ethers.utils.parseUnits("1", "ether")
                     )
             ).to.changeTokenBalance(
-                tokenContract,
+                foreToken,
                 alice,
                 ethers.utils.parseUnits("0.8", "ether")
             );
@@ -173,10 +198,10 @@ describe("NFTMarketplace / NFT integration", () => {
 
             beforeEach(async () => {
                 [tx, recipt] = await txExec(
-                    marketplaceContract
+                    contract
                         .connect(bob)
                         .buyTokenUsingWBNB(
-                            nftContract.address,
+                            nftToken.address,
                             ownerdNfts[alice.address][0],
                             ethers.utils.parseUnits("1", "ether")
                         )
@@ -185,9 +210,9 @@ describe("NFTMarketplace / NFT integration", () => {
 
             it("Should emit Trade event", async () => {
                 expect(tx)
-                    .to.emit(marketplaceContract, "Trade")
+                    .to.emit(contract, "Trade")
                     .withArgs(
-                        nftContract.address,
+                        nftToken.address,
                         ownerdNfts[alice.address][0],
                         alice.address,
                         bob.address,
@@ -199,9 +224,9 @@ describe("NFTMarketplace / NFT integration", () => {
 
             it("Should emit Transfer event", async () => {
                 expect(tx)
-                    .to.emit(nftContract, "Transfer")
+                    .to.emit(nftToken, "Transfer")
                     .withArgs(
-                        marketplaceContract.address,
+                        contract.address,
                         bob.address,
                         ownerdNfts[alice.address][0]
                     );
@@ -209,15 +234,15 @@ describe("NFTMarketplace / NFT integration", () => {
 
             it("Should increase pending revenue", async () => {
                 expect(
-                    await marketplaceContract.pendingRevenue(creator.address)
+                    await contract.pendingRevenue(creator.address)
                 ).to.be.equal(ethers.utils.parseUnits("0.2", "ether"));
             });
 
             it("Should be able to claim pending revenue", async () => {
                 await expect(() =>
-                    marketplaceContract.connect(creator).claimPendingRevenue()
+                    contract.connect(creator).claimPendingRevenue()
                 ).to.changeTokenBalance(
-                    tokenContract,
+                    foreToken,
                     creator,
                     ethers.utils.parseUnits("0.2", "ether")
                 );

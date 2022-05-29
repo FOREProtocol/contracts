@@ -17,19 +17,19 @@ describe("Fore ERC20 token", function () {
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
 
-    let contract: ForeToken;
     let foreMarkets: FakeContract<ForeMarkets>;
+    let contract: ForeToken;
 
     beforeEach(async () => {
         [owner, operator, alice, bob] = await ethers.getSigners();
 
-        contract = await deployContract("ForeToken");
-
-        foreMarkets = await smock.fake<ForeMarkets>("ForeMarkets");
+        foreMarkets = await smock.fake("ForeMarkets");
         foreMarkets.isForeOperator.returns(false);
         foreMarkets.isForeOperator
             .whenCalledWith(operator.address)
             .returns(true);
+
+        contract = await deployContract("ForeToken");
     });
 
     describe("Initial values", () => {

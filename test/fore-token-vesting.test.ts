@@ -1,6 +1,7 @@
 import { ForeToken } from "@/ForeToken";
 import { ForeVesting } from "@/ForeVesting";
 import { FakeContract, smock } from "@defi-wonderland/smock";
+import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
@@ -9,16 +10,17 @@ import { ethers } from "hardhat";
 import {
     assertIsAvailableOnlyForOwner,
     deployContract,
+    deployMockedContract,
     timetravel,
     txExec,
 } from "./helpers/utils";
 
-xdescribe("Fore ERC20 token vesting", function () {
+describe("Fore ERC20 token vesting", function () {
     let owner: SignerWithAddress;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
 
-    let foreToken: FakeContract<ForeToken>;
+    let foreToken: MockContract<ForeToken>;
     let contract: ForeVesting;
 
     let blockTimestamp: number;
@@ -26,7 +28,7 @@ xdescribe("Fore ERC20 token vesting", function () {
     beforeEach(async () => {
         [owner, alice, bob] = await ethers.getSigners();
 
-        foreToken = await smock.fake<ForeToken>("ForeToken");
+        foreToken = await deployMockedContract("ForeToken");
         contract = await deployContract("ForeVesting", foreToken.address);
 
         const previousBlock = await ethers.provider.getBlock("latest");
@@ -80,8 +82,11 @@ xdescribe("Fore ERC20 token vesting", function () {
 
     describe("with spending allowance", () => {
         beforeEach(async () => {
-            foreToken.allowance.returns(ethers.utils.parseEther("100"));
-            foreToken.balanceOf.returns(ethers.utils.parseEther("100"));
+            await txExec(
+                foreToken
+                    .connect(owner)
+                    .approve(contract.address, ethers.utils.parseEther("100"))
+            );
         });
 
         it("Should revert without required balance", async () => {
@@ -169,6 +174,16 @@ xdescribe("Fore ERC20 token vesting", function () {
                     ]);
                 });
 
+                it("Should emit Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            owner.address,
+                            contract.address,
+                            ethers.utils.parseEther("35")
+                        );
+                });
+
                 it("Should return proper slots info", async () => {
                     expect(await contract.slotsOf(alice.address)).to.be.equal(
                         2
@@ -209,8 +224,11 @@ xdescribe("Fore ERC20 token vesting", function () {
 
     describe("with vesting prepared", () => {
         beforeEach(async () => {
-            foreToken.allowance.returns(ethers.utils.parseEther("100"));
-            foreToken.balanceOf.returns(ethers.utils.parseEther("100"));
+            await txExec(
+                foreToken
+                    .connect(owner)
+                    .approve(contract.address, ethers.utils.parseEther("100"))
+            );
 
             await txExec(
                 contract
@@ -286,6 +304,16 @@ xdescribe("Fore ERC20 token vesting", function () {
                     ]);
                 });
 
+                it("Should emit Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            bob.address,
+                            ethers.utils.parseEther("5.000375")
+                        );
+                });
+
                 it("Should reduce remaining available to withdraw funds", async () => {
                     expect(
                         await contract.available(bob.address, 0)
@@ -333,6 +361,16 @@ xdescribe("Fore ERC20 token vesting", function () {
                                 bob.address,
                                 ethers.utils.parseEther("0.375375"),
                             ]);
+                        });
+
+                        it("Should emit Transfer event", async () => {
+                            await expect(tx)
+                                .to.emit(foreToken, "Transfer")
+                                .withArgs(
+                                    contract.address,
+                                    bob.address,
+                                    ethers.utils.parseEther("0.375375")
+                                );
                         });
 
                         it("Should reduce remaining available to withdraw funds", async () => {
@@ -388,6 +426,16 @@ xdescribe("Fore ERC20 token vesting", function () {
                     ]);
                 });
 
+                it("Should emit Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            bob.address,
+                            ethers.utils.parseEther("20")
+                        );
+                });
+
                 it("Should reduce remaining available to withdraw funds", async () => {
                     expect(
                         await contract.available(bob.address, 0)
@@ -430,6 +478,16 @@ xdescribe("Fore ERC20 token vesting", function () {
                     contract.address,
                     ethers.utils.parseEther("20"),
                 ]);
+            });
+
+            it("Should emit Transfer event", async () => {
+                await expect(tx)
+                    .to.emit(foreToken, "Transfer")
+                    .withArgs(
+                        owner.address,
+                        contract.address,
+                        ethers.utils.parseEther("20")
+                    );
             });
 
             it("Should return proper slots info", async () => {

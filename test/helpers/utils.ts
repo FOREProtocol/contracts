@@ -1,4 +1,5 @@
 import { smock } from "@defi-wonderland/smock";
+import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { Block } from "@ethersproject/abstract-provider";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { TypedEvent } from "@typechain/ethers-v5/static/common";
@@ -204,10 +205,53 @@ export async function deployContractAs<T extends Contract>(
     return contract;
 }
 
+export async function deployMockedContract<T extends Contract>(
+    name: string,
+    ...args: any[]
+): Promise<MockContract<T>> {
+    const [owner] = await ethers.getSigners();
+
+    const contractFactory = await smock.mock(name);
+    const contract: any = await contractFactory.deploy(...args);
+
+    await contract.deployed();
+
+    return contract;
+}
+
+export async function deployMockedContractAs<T extends Contract>(
+    owner: Signer,
+    name: string,
+    ...args: any[]
+): Promise<T> {
+    const contractFactory = await smock.mock(name, owner);
+    const contract: any = await contractFactory.deploy(...args);
+
+    await contract.deployed();
+
+    return contract;
+}
+
 export async function attachContract<T extends Contract>(
     name: string,
     address: string
 ): Promise<T> {
     const contractFactory = await ethers.getContractFactory(name);
     return <any>await contractFactory.attach(address);
+}
+
+export async function impersonateContract(
+    contractAddress: string
+): Promise<Signer> {
+    await network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [contractAddress],
+    });
+
+    await network.provider.send("hardhat_setBalance", [
+        contractAddress,
+        ethers.utils.parseEther("10").toHexString(),
+    ]);
+
+    return await ethers.getSigner(contractAddress);
 }
