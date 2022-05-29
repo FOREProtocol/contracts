@@ -4,6 +4,8 @@ pragma solidity ^0.8.7;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+import "hardhat/console.sol";
+
 contract ForeVesting is
     Ownable
 {
@@ -15,20 +17,20 @@ contract ForeVesting is
 
 
     struct Vesting {
-        /// @notice Vesting amount
+        /// @notice Total vesting amount (includes activation amount)
         uint256 vestingAmount;
 
-        /// @notice Remaining (non vested) amount
-        uint256 vestingRemaining;
+        /// @notice Alread vested amount
+        uint256 claimedAmount;
 
-        /// @notice Activation amount
+        /// @notice Activation amount - released fully after vesting start time
         uint256 activationAmount;
 
-        /// @notice Beginning of linear vesting
-        uint256 timestampStart;
+        /// @notice Vesting beginning time
+        uint64 timestampStart;
 
-        /// @notice Ending of linear vesting
-        uint256 timestampEnd;
+        /// @notice Vesting ending time
+        uint64 timestampEnd;
     }
 
     /// @notice FORE ERC20 token
@@ -68,30 +70,33 @@ contract ForeVesting is
     }
 
     /**
-     * @dev Internal function. Calculates amount available to claim
+     * @dev Internal function.
+     * Calculates vested amount available to claim (at the moment of execution)
      */
-    function _availableVesting(Vesting memory v)
+    function _vestedAmount(Vesting memory vesting)
         internal
         view
         returns (uint256)
     {
-        if (v.vestingAmount == 0) {
+        if (vesting.vestingAmount == 0) {
             return 0;
         }
-        if (block.timestamp <= v.timestampStart) {
+        if (block.timestamp < vesting.timestampStart) {
             return 0;
         }
-        if (block.timestamp >= v.timestampEnd) {
-            return v.vestingRemaining;
+
+        if (block.timestamp >= vesting.timestampEnd) {
+            // in case of exceeding end time
+            return vesting.vestingAmount;
         }
 
-        uint256 sharePerSecond = v.vestingAmount / (v.timestampEnd - v.timestampStart);
-        uint256 maximumPayout = sharePerSecond * (block.timestamp - v.timestampStart);
-        uint256 withdrawnAmount = v.vestingAmount - v.vestingRemaining;
+        uint256 vestingAmount = vesting.vestingAmount - vesting.activationAmount;
+        uint256 vestingPeriod = vesting.timestampEnd - vesting.timestampStart;
 
-        return maximumPayout >= withdrawnAmount
-            ? (maximumPayout - withdrawnAmount)
-            : 0;
+        uint256 timeSinceVestingStart = uint64(block.timestamp) - vesting.timestampStart;
+
+        uint256 vestedAmount = vestingAmount * timeSinceVestingStart / vestingPeriod;
+        return vestedAmount + vesting.activationAmount;
     }
 
     /**
@@ -103,29 +108,30 @@ contract ForeVesting is
         address _address,
         uint256 _slot
     )
-        external
+        public
         view
         returns (uint256)
     {
-        Vesting memory v = _vesting[_address][_slot];
-        return v.vestingRemaining == v.vestingAmount
-            ? (_availableVesting(v) + v.activationAmount)
-            : _availableVesting(v);
+        Vesting memory vesting = _vesting[_address][_slot];
+        return _vestedAmount(vesting) - vesting.claimedAmount;
     }
 
     /**
-     * @notice Adds vesting informations
+     * @notice Adds vesting informations.
+     * In case of linear vesting of 200 tokens and intial unlock of 50 tokens
+     *      _amounts[i] should contain 200
+     *      _initialUnlock[i] should contain 50
      * @param _addresses Addresses
-     * @param _amounts Amounts
+     * @param _amounts Vesting amount (this value excludes inital unlock amount)
      * @param _timestampStart Start timestamps
      * @param _timestampEnd End timestamps
      * @param _initialUnlock Intially unlocked amounts
      */
-    function addAddresses(
+    function addVestingEntries(
         address[] memory _addresses,
         uint256[] memory _amounts,
-        uint256[] memory _timestampStart,
-        uint256[] memory _timestampEnd,
+        uint64[] memory _timestampStart,
+        uint64[] memory _timestampEnd,
         uint256[] memory _initialUnlock
     )
         external
@@ -143,18 +149,22 @@ contract ForeVesting is
 
         uint256 tokensSum;
         for (uint256 i = 0; i < len; i++) {
-            uint256 vestingNum = _slotsOf[_addresses[i]];
-            _slotsOf[_addresses[i]]++;
+            address account = _addresses[i];
+
+            // increase required amount to transfer
             tokensSum += _amounts[i];
 
-            Vesting memory v = Vesting(
+            Vesting memory vesting = Vesting(
                 _amounts[i],
-                _amounts[i],
+                0,
                 _initialUnlock[i],
                 _timestampStart[i],
                 _timestampEnd[i]
             );
-            _vesting[_addresses[i]][vestingNum] = v;
+
+            uint256 vestingNum = _slotsOf[account];
+            _vesting[account][vestingNum] = vesting;
+            _slotsOf[account]++;
         }
 
         if (
@@ -173,22 +183,20 @@ contract ForeVesting is
      */
     function withdraw(uint256 _slot) external
     {
-        Vesting storage v = _vesting[msg.sender][_slot];
+        Vesting storage vesting = _vesting[msg.sender][_slot];
 
-        if (v.vestingAmount == 0) {
+        if (vesting.vestingAmount == 0) {
             revert VestingNotFound();
         }
-        if (block.timestamp < v.timestampStart) {
+        if (block.timestamp < vesting.timestampStart) {
             revert VestingNotStartedYet();
         }
 
-        uint256 toWithdraw = _availableVesting(v);
-        v.vestingRemaining -= toWithdraw;
+        uint256 toWithdraw = available(msg.sender, _slot);
 
-        if (v.vestingRemaining == v.vestingAmount) {
-            toWithdraw += v.activationAmount;
-        }
+        vesting.claimedAmount += toWithdraw;
 
+        // withdraw all available funds
         _token.transfer(msg.sender, toWithdraw);
     }
 

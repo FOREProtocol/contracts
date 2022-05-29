@@ -1,12 +1,12 @@
+import { smock } from "@defi-wonderland/smock";
 import { Block } from "@ethersproject/abstract-provider";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
-import { Contract, ContractTransaction, Event, Signer } from "ethers";
 import { TypedEvent } from "@typechain/ethers-v5/static/common";
 import chai, { expect } from "chai";
 import chaiSubset from "chai-subset";
 import { solidity } from "ethereum-waffle";
+import { Contract, ContractTransaction, Event, Signer } from "ethers";
 import { ethers, network } from "hardhat";
-import { smock } from "@defi-wonderland/smock";
 
 chai.use(chaiSubset);
 chai.use(solidity);
