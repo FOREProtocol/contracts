@@ -18,6 +18,7 @@ contract ForeMarkets is
 {
     using Strings for uint256;
 
+    error MarketAlreadyExists();
 
     event MarketCreated(
         address indexed creator,
@@ -67,14 +68,33 @@ contract ForeMarkets is
     /// @notice Returns token uri for existing token
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         require(tokenId < allMarkets.length, "Non minted token");
-        string memory baseURI = _baseURI();
-        return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, tokenId.toString())) : "";
+        return string(abi.encodePacked(_baseURI(), tokenId.toString()));
     }
 
     /// @notice Returns true if Address is ForeOperator
     /// @dev ForeOperators: ForeMarkets(as factory), ForeMarket contracts and marketplace
     function isForeOperator(address addr) external view returns(bool) {
-        return (addr != address(0) && (addr == address(this) || isForeMarket[addr] || addr == config.marketplace()));
+        return (
+            addr != address(0)
+            && (
+                addr == address(this)
+                || isForeMarket[addr]
+                || addr == config.marketplace()
+            )
+        );
+    }
+
+    /// @dev Allow tokens to be used by market contracts
+    function isApprovedForAll(address owner, address operator)
+        public
+        view
+        override
+        returns (bool)
+    {
+        if (isForeMarket[operator]) {
+            return true;
+        }
+        return super.isApprovedForAll(owner, operator);
     }
 
     /// @notice Returns length of all markets array / nft height
@@ -118,10 +138,9 @@ contract ForeMarkets is
         external
         returns(address createdMarket)
     {
-        require(
-            market[marketHash] == address(0),
-            "ForeFactory: Market exists"
-        );
+        if (market[marketHash] != address(0)) {
+            revert MarketAlreadyExists();
+        }
 
         uint256 creationFee = config.marketCreationPrice();
         if (creationFee != 0) {
@@ -137,28 +156,29 @@ contract ForeMarkets is
             }
         }
 
-        uint256 amountSum = amountA+amountB;
-        if(amountSum!=0)foreToken.transferFrom(msg.sender, createdMarket, amountSum);
-        uint256 len = allMarkets.length;
-        ForeMarket(createdMarket).initialize(marketHash, receiver, amountA, amountB, startPredictionTimestamp, endPredictionTimestamp, uint256(len));
+        uint256 amountSum = amountA + amountB;
+        if (amountSum != 0) {
+            foreToken.transferFrom(msg.sender, createdMarket, amountSum);
+        }
+
+        uint256 marketIdx = allMarkets.length;
+        ForeMarket(createdMarket).initialize(
+            marketHash,
+            receiver,
+            amountA,
+            amountB,
+            startPredictionTimestamp,
+            endPredictionTimestamp,
+            uint256(marketIdx)
+        );
+
         market[marketHash] = createdMarket;
         isForeMarket[createdMarket] = true;
-        _mint(receiver, len);
-        emit MarketCreated(msg.sender, marketHash, createdMarket, len);
-        allMarkets.push(createdMarket);
-    }
 
-    /// @dev Allow tokens to be used by market contracts
-    function isApprovedForAll(address owner, address operator)
-        public
-        view
-        override
-        returns (bool)
-    {
-        if (isForeMarket[operator]) {
-            return true;
-        }
-        return super.isApprovedForAll(owner, operator);
+        _mint(receiver, marketIdx);
+        emit MarketCreated(msg.sender, marketHash, createdMarket, marketIdx);
+
+        allMarkets.push(createdMarket);
     }
 
 }
