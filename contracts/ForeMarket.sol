@@ -343,257 +343,257 @@ contract ForeMarket
         verifications.push(Verification(msg.sender, power, tokenId, side, false));
         emit Verify(msg.sender, verifications.length, power, tokenId, side);
     }
-//
-//    /// @notice Opens a dispute
-//    function openDispute() external {
-//        Market memory m = market;
-//        (
-//            uint256 disputePrice,
-//            uint256 disputePeriod,
-//            uint256 verificationPeriod,
-//            ,
-//            ,
-//            ,
-//            ,
-//
-//        ) = marketConfig.config();
-//        require(m.result == ResultType.NULL, "ForeMarket: Market is closed");
-//        require(
-//            (m.endPredictionTimestamp + verificationPeriod <=
-//                block.timestamp) || _isVerified(m),
-//            "ForeMarket: Dispute not opened"
-//        );
-//        require(
-//            m.endPredictionTimestamp + verificationPeriod + disputePeriod >
-//                block.timestamp,
-//            "ForeMarket: Dispute is closed"
-//        );
-//        require(
-//            dispute.disputeCreator == address(0),
-//            "ForeMarket: Dispute exists"
-//        );
-//        foreToken.transferFrom(msg.sender, address(this), disputePrice);
-//        dispute = Dispute(msg.sender, false, false);
-//        emit OpenDispute(msg.sender);
-//    }
-//
-//    ///@notice Resolves Dispute
-//    ///@dev Only HighGuard
-//    function resolveDispute(ResultType result) external {
-//        require(protocolConfig.highGuard() == msg.sender, "ForeMarket: Only HG");
-//        require(result != ResultType.NULL, "ForeMarket: Cant be NULL");
-//        Dispute memory d = dispute;
-//        require(
-//            d.disputeCreator != address(0),
-//            "ForeMarket: Dispute not opened"
-//        );
-//        require(d.solved == false, "ForeMarket: Already solved");
-//        Market memory m = market;
-//        dispute.solved = true;
-//        if (m.result != result) {
-//            dispute.confirmed = true;
-//            foreToken.transfer(d.disputeCreator, marketConfig.disputePrice());
-//        } else {
-//            dispute.confirmed = false;
-//            foreToken.transfer(msg.sender, marketConfig.disputePrice());
-//        }
-//        _closeMarket(result, m, d);
-//    }
-//
-//    ///@notice Closes market
-//    function closeMarket() external {
-//        Market memory m = market;
-//        require(m.result == ResultType.NULL, "ForeMarket: Market is closed");
-//        Dispute memory d = dispute;
-//        require(d.disputeCreator == address(0), "ForeMarket: Dispute exists");
-//        uint256 disputePeriodEnds = m.endPredictionTimestamp +
-//            marketConfig.verificationPeriod() +
-//            marketConfig.disputePeriod();
-//        require(
-//            disputePeriodEnds <= block.timestamp,
-//            "ForeMarket: Only after dispute"
-//        );
-//        _closeMarket(_calculateMarketResult(m), m, d);
-//    }
-//
-//    ///@dev Closes the market
-//    ///@param result Market Result
-//    ///@param m Market Info
-//    ///@param d Dispute Info
-//    function _closeMarket(
-//        ResultType result,
-//        Market memory m,
-//        Dispute memory d
-//    ) private {
-//        market.result = result;
-//        uint256 fullMarketSize = m.sideA + m.sideB;
-//        uint256 toBurn = (fullMarketSize * marketConfig.burnFee()) / 10000;
-//        uint256 burnAndVerDiv2 = fullMarketSize * (marketConfig.burnFee() + marketConfig.verificationFee()) / 10000;
-//        foreToken.transfer(
-//            protocolConfig.revenueWallet(),
-//            (fullMarketSize * marketConfig.revenueFee()) / 10000
-//        );
-//        foreToken.transfer(
-//            protocolConfig.foundationWallet(),
-//            (fullMarketSize * marketConfig.foundationFee()) / 10000
-//        );
-//        if (m.result == ResultType.DRAW && d.disputeCreator == address(0)) {
-//            foreToken.burn(toBurn);
-//        } else if (
-//            m.result == ResultType.DRAW &&
-//            d.disputeCreator != address(0) &&
-//            !d.confirmed
-//        ) {
-//            foreToken.burn(burnAndVerDiv2);
-//            foreToken.transfer( protocolConfig.highGuard(), burnAndVerDiv2 + marketConfig.disputePrice());
-//        } else if (m.result == ResultType.DRAW && d.confirmed) {
-//            foreToken.transfer( protocolConfig.highGuard(), burnAndVerDiv2);
-//            foreToken.transfer( d.disputeCreator, burnAndVerDiv2 + marketConfig.disputePrice());
-//        } else {
-//            foreToken.burn(toBurn);
-//        }
-//        emit CloseMarket(result);
-//    }
-//
-//    ///@dev Calculates Result for markeet
-//    ///@param m Market Info
-//    function _calculateMarketResult(Market memory m)
-//        private
-//        pure
-//        returns (ResultType)
-//    {
-//        if (m.verifiedA == m.verifiedB) {
-//            return ResultType.DRAW;
-//        } else if (m.verifiedA > m.verifiedB) {
-//            return ResultType.AWON;
-//        } else {
-//            return ResultType.BWON;
-//        }
-//    }
-//
-//    ///@dev Returns prediction reward in ForeToken
-//    ///@param m Market Info
-//    ///@param predictor Predictior address
-//    function _calculatePredictionReward(address predictor, Market memory m)
-//        internal
-//        view
-//        returns (uint256 toWithdraw)
-//    {
-//        uint256 pA = predictionsA[predictor];
-//        uint256 pB = predictionsB[predictor];
-//        uint256 fullMarketSize = m.sideA + m.sideB;
-//        uint256 marketSubFee = fullMarketSize - (fullMarketSize * marketConfig.feesSum()) / 10000;
-//        if (m.result == ResultType.DRAW) {
-//            toWithdraw =
-//                (marketSubFee * (pA + pB)) /
-//                fullMarketSize;
-//        } else if (m.result == ResultType.AWON) {
-//            toWithdraw = (marketSubFee * pA) / m.sideA;
-//        } else if (m.result == ResultType.BWON) {
-//            toWithdraw = (marketSubFee * pB) / m.sideB;
-//        }
-//    }
-//
-//    ///@notice Returns prediction reward in ForeToken
-//    ///@dev Returns full available amount to withdraw(Deposited fund + reward of winnings - Protocol fees)
-//    ///@param predictor Predictior address
-//    function calculatePredictionReward(address predictor) external view returns(uint256){
-//        Market memory m = market;
-//        return(_calculatePredictionReward(predictor, m));
-//    }
-//
-//    ///@notice Withdraw prediction rewards
-//    ///@dev predictor Preictor Address
-//    function withdrawPredictionReward(address predictor) external {
-//        //TODO: Add auto market closing?
-//        Market memory m = market;
-//        require(m.result != ResultType.NULL, "ForeMarket: Market Not closed");
-//        require(
-//            !predictionWithdrawn[predictor],
-//            "ForeMarket: Already Withrawn"
-//        );
-//        predictionWithdrawn[predictor] = true;
-//        uint256 toWithdraw = _calculatePredictionReward(predictor,m);
-//        require(toWithdraw != 0, "ForeMarket: Nothing to withdraw");
-//        foreToken.transfer(predictor, toWithdraw);
-//        emit WithdrawReward(predictor, 1, toWithdraw);
-//    }
-//
-//    ///@notice Withdraw Verificator Reward
-//    ///@dev Verification id
-//    function withdrawVerificationReward(uint256 verificationId) external {
-//        //TODO: Add auto market closing?
-//        Market memory m = market;
-//        require(m.result != ResultType.NULL, "ForeMarket: Market Not closed");
-//
-//        Verification memory v = verifications[verificationId];
-//        require(!v.withdrawn, "ForeMarket: Already withdrawn");
-//        verifications[verificationId].withdrawn = true;
-//
-//        if (m.result == ResultType.DRAW) {
-//            foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
-//            return;
-//        }
-//
-//        PrivilegeNft memory p = privilegeNft;
-//        if (v.tokenId == p.privilegeNftId && !p.privilegeNftUsed) {
-//            uint256 penalty = foreVerifiers.powerOf(p.privilegeNftId) / 10;
-//            foreVerifiers.decreasePower(p.privilegeNftId, penalty);
-//            foreToken.burnFrom(address(this), penalty);
-//            foreVerifiers.transferFrom(
-//                address(this),
-//                p.privilegeNftStaker,
-//                p.privilegeNftId
-//            );
-//            return;
-//        }
-//
-//        uint256 verificatorsFees = ((m.sideA + m.sideB) *
-//            marketConfig.verificationFee()) / 10000;
-//        if (v.side == (m.result == ResultType.AWON)) {
-//            uint256 reward = (v.power * verificatorsFees) / (v.side ? m.verifiedA : m.verifiedB);
-//            foreVerifiers.increasePower(v.tokenId, reward);
-//            foreToken.transferFrom(
-//                address(this),
-//                address(foreVerifiers),
-//                reward
-//            );
-//            foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
-//            emit WithdrawReward(v.verifier, 2, reward);
-//            return;
-//        } else {
-//            uint256 power = foreVerifiers.powerOf(v.tokenId);
-//            if (dispute.confirmed) {
-//                foreVerifiers.decreasePower(v.tokenId, power);
-//                foreToken.transferFrom(
-//                    address(this),
-//                    dispute.disputeCreator,
-//                    power / 2
-//                );
-//                foreToken.transferFrom(
-//                    address(this),
-//                    protocolConfig.highGuard(),
-//                    power / 2
-//                );
-//            }
-//            foreVerifiers.burn(v.tokenId);
-//            return;
-//        }
-//    }
-//
-//    ///@notice Withdraws Market Creators Reward
-//    function marketCreatorFeeWithdraw() external {
-//        Market memory m = market;
-//        require(m.result != ResultType.NULL, "ForeMarket: Market Not closed");
-//        factory.transferFrom(msg.sender, address(this), m.marketTokenId);
-//        factory.burn(m.marketTokenId);
-//        uint256 toWithdraw = ((m.sideA + m.sideB) * marketConfig.marketCreatorFee()) / 10000;
-//        foreToken.transfer(
-//            msg.sender,
-//            toWithdraw
-//        );
-//        emit WithdrawReward(msg.sender, 3, toWithdraw);
-//    }
+
+    /// @notice Opens a dispute
+    function openDispute() external {
+        Market memory m = market;
+        (
+            uint256 disputePrice,
+            uint256 disputePeriod,
+            uint256 verificationPeriod,
+            ,
+            ,
+            ,
+            ,
+
+        ) = marketConfig.config();
+        require(m.result == ResultType.NULL, "ForeMarket: Market is closed");
+        require(
+            (m.endPredictionTimestamp + verificationPeriod <=
+                block.timestamp) || _isVerified(m),
+            "ForeMarket: Dispute not opened"
+        );
+        require(
+            m.endPredictionTimestamp + verificationPeriod + disputePeriod >
+                block.timestamp,
+            "ForeMarket: Dispute is closed"
+        );
+        require(
+            dispute.disputeCreator == address(0),
+            "ForeMarket: Dispute exists"
+        );
+        foreToken.transferFrom(msg.sender, address(this), disputePrice);
+        dispute = Dispute(msg.sender, false, false);
+        emit OpenDispute(msg.sender);
+    }
+
+    ///@notice Resolves Dispute
+    ///@dev Only HighGuard
+    function resolveDispute(ResultType result) external {
+        require(protocolConfig.highGuard() == msg.sender, "ForeMarket: Only HG");
+        require(result != ResultType.NULL, "ForeMarket: Cant be NULL");
+        Dispute memory d = dispute;
+        require(
+            d.disputeCreator != address(0),
+            "ForeMarket: Dispute not opened"
+        );
+        require(d.solved == false, "ForeMarket: Already solved");
+        Market memory m = market;
+        dispute.solved = true;
+        if (m.result != result) {
+            dispute.confirmed = true;
+            foreToken.transfer(d.disputeCreator, marketConfig.disputePrice());
+        } else {
+            dispute.confirmed = false;
+            foreToken.transfer(msg.sender, marketConfig.disputePrice());
+        }
+        _closeMarket(result, m, d);
+    }
+
+    ///@notice Closes market
+    function closeMarket() external {
+        Market memory m = market;
+        require(m.result == ResultType.NULL, "ForeMarket: Market is closed");
+        Dispute memory d = dispute;
+        require(d.disputeCreator == address(0), "ForeMarket: Dispute exists");
+        uint256 disputePeriodEnds = m.endPredictionTimestamp +
+            marketConfig.verificationPeriod() +
+            marketConfig.disputePeriod();
+        require(
+            disputePeriodEnds <= block.timestamp,
+            "ForeMarket: Only after dispute"
+        );
+        _closeMarket(_calculateMarketResult(m), m, d);
+    }
+
+    ///@dev Closes the market
+    ///@param result Market Result
+    ///@param m Market Info
+    ///@param d Dispute Info
+    function _closeMarket(
+        ResultType result,
+        Market memory m,
+        Dispute memory d
+    ) private {
+        market.result = result;
+        uint256 fullMarketSize = m.sideA + m.sideB;
+        uint256 toBurn = (fullMarketSize * marketConfig.burnFee()) / 10000;
+        uint256 burnAndVerDiv2 = fullMarketSize * (marketConfig.burnFee() + marketConfig.verificationFee()) / 10000;
+        foreToken.transfer(
+            protocolConfig.revenueWallet(),
+            (fullMarketSize * marketConfig.revenueFee()) / 10000
+        );
+        foreToken.transfer(
+            protocolConfig.foundationWallet(),
+            (fullMarketSize * marketConfig.foundationFee()) / 10000
+        );
+        if (m.result == ResultType.DRAW && d.disputeCreator == address(0)) {
+            foreToken.burn(toBurn);
+        } else if (
+            m.result == ResultType.DRAW &&
+            d.disputeCreator != address(0) &&
+            !d.confirmed
+        ) {
+            foreToken.burn(burnAndVerDiv2);
+            foreToken.transfer( protocolConfig.highGuard(), burnAndVerDiv2 + marketConfig.disputePrice());
+        } else if (m.result == ResultType.DRAW && d.confirmed) {
+            foreToken.transfer( protocolConfig.highGuard(), burnAndVerDiv2);
+            foreToken.transfer( d.disputeCreator, burnAndVerDiv2 + marketConfig.disputePrice());
+        } else {
+            foreToken.burn(toBurn);
+        }
+        emit CloseMarket(result);
+    }
+
+    ///@dev Calculates Result for markeet
+    ///@param m Market Info
+    function _calculateMarketResult(Market memory m)
+        private
+        pure
+        returns (ResultType)
+    {
+        if (m.verifiedA == m.verifiedB) {
+            return ResultType.DRAW;
+        } else if (m.verifiedA > m.verifiedB) {
+            return ResultType.AWON;
+        } else {
+            return ResultType.BWON;
+        }
+    }
+
+    ///@dev Returns prediction reward in ForeToken
+    ///@param m Market Info
+    ///@param predictor Predictior address
+    function _calculatePredictionReward(address predictor, Market memory m)
+        internal
+        view
+        returns (uint256 toWithdraw)
+    {
+        uint256 pA = predictionsA[predictor];
+        uint256 pB = predictionsB[predictor];
+        uint256 fullMarketSize = m.sideA + m.sideB;
+        uint256 marketSubFee = fullMarketSize - (fullMarketSize * marketConfig.feesSum()) / 10000;
+        if (m.result == ResultType.DRAW) {
+            toWithdraw =
+                (marketSubFee * (pA + pB)) /
+                fullMarketSize;
+        } else if (m.result == ResultType.AWON) {
+            toWithdraw = (marketSubFee * pA) / m.sideA;
+        } else if (m.result == ResultType.BWON) {
+            toWithdraw = (marketSubFee * pB) / m.sideB;
+        }
+    }
+
+    ///@notice Returns prediction reward in ForeToken
+    ///@dev Returns full available amount to withdraw(Deposited fund + reward of winnings - Protocol fees)
+    ///@param predictor Predictior address
+    function calculatePredictionReward(address predictor) external view returns(uint256){
+        Market memory m = market;
+        return(_calculatePredictionReward(predictor, m));
+    }
+
+    ///@notice Withdraw prediction rewards
+    ///@dev predictor Preictor Address
+    function withdrawPredictionReward(address predictor) external {
+        //TODO: Add auto market closing?
+        Market memory m = market;
+        require(m.result != ResultType.NULL, "ForeMarket: Market Not closed");
+        require(
+            !predictionWithdrawn[predictor],
+            "ForeMarket: Already Withrawn"
+        );
+        predictionWithdrawn[predictor] = true;
+        uint256 toWithdraw = _calculatePredictionReward(predictor,m);
+        require(toWithdraw != 0, "ForeMarket: Nothing to withdraw");
+        foreToken.transfer(predictor, toWithdraw);
+        emit WithdrawReward(predictor, 1, toWithdraw);
+    }
+
+    ///@notice Withdraw Verificator Reward
+    ///@dev Verification id
+    function withdrawVerificationReward(uint256 verificationId) external {
+        //TODO: Add auto market closing?
+        Market memory m = market;
+        require(m.result != ResultType.NULL, "ForeMarket: Market Not closed");
+
+        Verification memory v = verifications[verificationId];
+        require(!v.withdrawn, "ForeMarket: Already withdrawn");
+        verifications[verificationId].withdrawn = true;
+
+        if (m.result == ResultType.DRAW) {
+            foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
+            return;
+        }
+
+        PrivilegeNft memory p = privilegeNft;
+        if (v.tokenId == p.privilegeNftId && !p.privilegeNftUsed) {
+            uint256 penalty = foreVerifiers.powerOf(p.privilegeNftId) / 10;
+            foreVerifiers.decreasePower(p.privilegeNftId, penalty);
+            foreToken.burnFrom(address(this), penalty);
+            foreVerifiers.transferFrom(
+                address(this),
+                p.privilegeNftStaker,
+                p.privilegeNftId
+            );
+            return;
+        }
+
+        uint256 verificatorsFees = ((m.sideA + m.sideB) *
+            marketConfig.verificationFee()) / 10000;
+        if (v.side == (m.result == ResultType.AWON)) {
+            uint256 reward = (v.power * verificatorsFees) / (v.side ? m.verifiedA : m.verifiedB);
+            foreVerifiers.increasePower(v.tokenId, reward);
+            foreToken.transferFrom(
+                address(this),
+                address(foreVerifiers),
+                reward
+            );
+            foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
+            emit WithdrawReward(v.verifier, 2, reward);
+            return;
+        } else {
+            uint256 power = foreVerifiers.powerOf(v.tokenId);
+            if (dispute.confirmed) {
+                foreVerifiers.decreasePower(v.tokenId, power);
+                foreToken.transferFrom(
+                    address(this),
+                    dispute.disputeCreator,
+                    power / 2
+                );
+                foreToken.transferFrom(
+                    address(this),
+                    protocolConfig.highGuard(),
+                    power / 2
+                );
+            }
+            foreVerifiers.burn(v.tokenId);
+            return;
+        }
+    }
+
+    ///@notice Withdraws Market Creators Reward
+    function marketCreatorFeeWithdraw() external {
+        Market memory m = market;
+        require(m.result != ResultType.NULL, "ForeMarket: Market Not closed");
+        factory.transferFrom(msg.sender, address(this), m.marketTokenId);
+        factory.burn(m.marketTokenId);
+        uint256 toWithdraw = ((m.sideA + m.sideB) * marketConfig.marketCreatorFee()) / 10000;
+        foreToken.transfer(
+            msg.sender,
+            toWithdraw
+        );
+        emit WithdrawReward(msg.sender, 3, toWithdraw);
+    }
 }
 
 interface IERC20Burnable is IERC20 {

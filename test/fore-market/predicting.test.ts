@@ -10,9 +10,7 @@ import { expect } from "chai";
 import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { ethers } from "hardhat";
 import {
-    assertIsAvailableOnlyForOwner,
     attachContract,
-    deployContractAs,
     deployMockedContract,
     findEvent,
     impersonateContract,
