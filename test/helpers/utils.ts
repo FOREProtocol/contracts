@@ -83,9 +83,9 @@ export async function assertIsAvailableOnlyForOwner(
         owner = ownerOverride;
     }
 
-    const ownerAddress = await owner.getAddress();
+    const ownerAddress = (await owner.getAddress()).toLowerCase();
     const nonOwnerAccounts = allAccounts
-        .filter((account) => account.address !== ownerAddress)
+        .filter((account) => account.address.toLowerCase() !== ownerAddress)
         .slice(0, 2);
 
     for (const account of nonOwnerAccounts) {
@@ -196,9 +196,7 @@ export async function deployContractAs<T extends Contract>(
     ...args: any[]
 ): Promise<T> {
     const contractFactory = await ethers.getContractFactory(name);
-
-    contractFactory.connect(owner);
-    const contract: any = await contractFactory.deploy(...args);
+    const contract: any = await contractFactory.connect(owner).deploy(...args);
 
     await contract.deployed();
 

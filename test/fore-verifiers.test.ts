@@ -232,7 +232,7 @@ describe("Fore NFT Verifiers token", () => {
                                 .increasePower(0, 10);
                         },
                         market,
-                        "OnlyMarketAllowed()"
+                        "OnlyOperatorAllowed()"
                     );
                 });
 

@@ -2,17 +2,14 @@ import { ForeMarkets } from "@/ForeMarkets";
 import { ForeNftMarketplace } from "@/ForeNftMarketplace";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers, TransferEvent } from "@/ForeVerifiers";
-import { IProtocolConfig } from "@/IProtocolConfig";
-import { FakeContract, smock } from "@defi-wonderland/smock";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber, ContractTransaction, Signer } from "ethers";
-import { ethers, network } from "hardhat";
+import { ethers } from "hardhat";
 import {
     deployContract,
-    deployContractAs,
     deployMockedContract,
     findEvent,
     impersonateContract,
