@@ -77,6 +77,9 @@ contract ForeMarket
         /// @notice Nft id (ForeVerifiers)
         uint256 privilegeNftId;
 
+        /// @notice Is token staked?
+        bool staked;
+
         /// @notice Has verification been done
         bool privilegeNftUsed;
     }
@@ -127,7 +130,7 @@ contract ForeMarket
     Verification[] public verifications;
 
     /// @notice Verification array size
-    function verificationHeigth() external view returns (uint256) {
+    function verificationHeight() external view returns (uint256) {
         return verifications.length;
     }
 
@@ -262,11 +265,11 @@ contract ForeMarket
     ///@notice Stakes nft token for the privilege of being a verifier
     ///@param tokenId ForeVerifiers nft id
     function stakeForPrivilege(uint256 tokenId) external {
-        if (privilegeNft.privilegeNftId != 0) {
+        if (privilegeNft.staked) {
             revert("ForeMarket: Privilege nft exists");
         }
         if (block.timestamp < market.endPredictionTimestamp) {
-            revert("ForeMarket: Verification started");
+            revert("ForeMarket: Verification not started");
         }
         if (foreVerifiers.powerOf(tokenId) < protocolConfig.verifierMintPrice()) {
             revert("ForeMarket: Not enough power");
@@ -276,7 +279,7 @@ contract ForeMarket
         uint256 power = foreVerifiers.powerOf(tokenId);
         market.verifiedA = power;
         market.verifiedB = power;
-        privilegeNft = PrivilegeNft(msg.sender, tokenId, false);
+        privilegeNft = PrivilegeNft(msg.sender, tokenId, true, false);
     }
 
     /// @dev Checks if one side of the market is fully verified
@@ -290,10 +293,16 @@ contract ForeMarket
         pure
         returns (uint256)
     {
-        if (_isVerified(m)) return 0;
+        if (_isVerified(m)) {
+            return 0;
+        }
+
         if (side) {
             return m.sideB - m.verifiedA;
-        } else return m.sideA - m.verifiedB;
+        }
+        else {
+            return m.sideA - m.verifiedB;
+        }
     }
 
     /// @notice Returns the maximum value(power) available for verification
@@ -315,33 +324,55 @@ contract ForeMarket
     /// @param side Marketd side (true - positive / false - negative);
     function verify(uint256 tokenId, bool side) external {
         Market memory m = market;
-        require(
-            m.endPredictionTimestamp <= block.timestamp,
-            "ForeMarket: Is not opened"
-        );
-        require(
-            m.endPredictionTimestamp + marketConfig.verificationPeriod() >
-                block.timestamp,
-            "ForeMarket: Is closed"
-        );
+
+        if (block.timestamp < m.endPredictionTimestamp) {
+            revert("ForeMarket: Is not opened");
+        }
+
+        uint256 verificationEndTime = m.endPredictionTimestamp + marketConfig.verificationPeriod();
+        if (block.timestamp > verificationEndTime) {
+            revert("ForeMarket: Is closed");
+        }
+
         PrivilegeNft memory p = privilegeNft;
         uint256 power = foreVerifiers.powerOf(tokenId);
 
-        if (tokenId == p.privilegeNftId) {
-            require(!p.privilegeNftUsed, "ForeMarket: Verify once");
-            privilegeNft.privilegeNftUsed = true;
-            if (side) market.verifiedB -= power;
-            else market.verifiedA -= power;
+        if (p.staked && tokenId == p.privilegeNftId) {
+            if (p.privilegeNftUsed) {
+                revert("ForeMarket: Verify once");
+            }
 
+            privilegeNft.privilegeNftUsed = true;
+
+            if (side) {
+                market.verifiedB -= power;
+            }
+            else {
+                market.verifiedA -= power;
+            }
         } else {
             uint256 powerAvailable = _maxAmountToVerifyForSide(side, m);
-            power = (power < powerAvailable) ? power : powerAvailable;
+            if (powerAvailable == 0) {
+                revert("ForeMarket: Market is fully verified");
+            }
+            if (power > powerAvailable) {
+                power = powerAvailable;
+            }
+
             foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
-            if (side) market.verifiedA += power;
-            else market.verifiedB += power;
+
+            if (side) {
+                market.verifiedA += power;
+            }
+            else {
+                market.verifiedB += power;
+            }
         }
+
+        uint256 verifyId = verifications.length;
         verifications.push(Verification(msg.sender, power, tokenId, side, false));
-        emit Verify(msg.sender, verifications.length, power, tokenId, side);
+
+        emit Verify(msg.sender, verifyId, power, tokenId, side);
     }
 
     /// @notice Opens a dispute
@@ -355,24 +386,31 @@ contract ForeMarket
             ,
             ,
             ,
-
         ) = marketConfig.config();
-        require(m.result == ResultType.NULL, "ForeMarket: Market is closed");
-        require(
-            (m.endPredictionTimestamp + verificationPeriod <=
-                block.timestamp) || _isVerified(m),
-            "ForeMarket: Dispute not opened"
-        );
-        require(
-            m.endPredictionTimestamp + verificationPeriod + disputePeriod >
-                block.timestamp,
-            "ForeMarket: Dispute is closed"
-        );
-        require(
-            dispute.disputeCreator == address(0),
-            "ForeMarket: Dispute exists"
-        );
+
+        if (m.result != ResultType.NULL) {
+            revert("ForeMarket: Market is closed");
+        }
+
+        if (
+            block.timestamp < m.endPredictionTimestamp + verificationPeriod
+            && !_isVerified(m)
+        ) {
+            revert("ForeMarket: Dispute not opened");
+        }
+
+        if (
+            block.timestamp >= m.endPredictionTimestamp + verificationPeriod + disputePeriod
+        ) {
+            revert("ForeMarket: Dispute is closed");
+        }
+
+        if (dispute.disputeCreator != address(0)) {
+            revert("ForeMarket: Dispute exists");
+        }
+
         foreToken.transferFrom(msg.sender, address(this), disputePrice);
+
         dispute = Dispute(msg.sender, false, false);
         emit OpenDispute(msg.sender);
     }
@@ -380,40 +418,37 @@ contract ForeMarket
     ///@notice Resolves Dispute
     ///@dev Only HighGuard
     function resolveDispute(ResultType result) external {
-        require(protocolConfig.highGuard() == msg.sender, "ForeMarket: Only HG");
-        require(result != ResultType.NULL, "ForeMarket: Cant be NULL");
+        if (protocolConfig.highGuard() != msg.sender) {
+            revert("ForeMarket: Only HG");
+        }
+
+        // todo ld 2022-06-01 15:35:23 impossible case??
+        if (result == ResultType.NULL) {
+            revert("ForeMarket: Market in unknown state");
+        }
+
         Dispute memory d = dispute;
-        require(
-            d.disputeCreator != address(0),
-            "ForeMarket: Dispute not opened"
-        );
-        require(d.solved == false, "ForeMarket: Already solved");
-        Market memory m = market;
+        if (d.disputeCreator == address(0)) {
+            revert("ForeMarket: Dispute not opened");
+        }
+
+        if (d.solved) {
+            revert("ForeMarket: Already solved");
+        }
+
         dispute.solved = true;
+        Market memory m = market;
+
         if (m.result != result) {
             dispute.confirmed = true;
             foreToken.transfer(d.disputeCreator, marketConfig.disputePrice());
-        } else {
+        }
+        else {
             dispute.confirmed = false;
             foreToken.transfer(msg.sender, marketConfig.disputePrice());
         }
-        _closeMarket(result, m, d);
-    }
 
-    ///@notice Closes market
-    function closeMarket() external {
-        Market memory m = market;
-        require(m.result == ResultType.NULL, "ForeMarket: Market is closed");
-        Dispute memory d = dispute;
-        require(d.disputeCreator == address(0), "ForeMarket: Dispute exists");
-        uint256 disputePeriodEnds = m.endPredictionTimestamp +
-            marketConfig.verificationPeriod() +
-            marketConfig.disputePeriod();
-        require(
-            disputePeriodEnds <= block.timestamp,
-            "ForeMarket: Only after dispute"
-        );
-        _closeMarket(_calculateMarketResult(m), m, d);
+        _closeMarket(result, m, d);
     }
 
     ///@dev Closes the market
@@ -426,9 +461,13 @@ contract ForeMarket
         Dispute memory d
     ) private {
         market.result = result;
+
         uint256 fullMarketSize = m.sideA + m.sideB;
         uint256 toBurn = (fullMarketSize * marketConfig.burnFee()) / 10000;
-        uint256 burnAndVerDiv2 = fullMarketSize * (marketConfig.burnFee() + marketConfig.verificationFee()) / 10000;
+        uint256 burnAndVerDiv2 = fullMarketSize *
+            (marketConfig.burnFee() + marketConfig.verificationFee()) / 10000
+            / 2;
+
         foreToken.transfer(
             protocolConfig.revenueWallet(),
             (fullMarketSize * marketConfig.revenueFee()) / 10000
@@ -437,22 +476,69 @@ contract ForeMarket
             protocolConfig.foundationWallet(),
             (fullMarketSize * marketConfig.foundationFee()) / 10000
         );
-        if (m.result == ResultType.DRAW && d.disputeCreator == address(0)) {
-            foreToken.burn(toBurn);
-        } else if (
-            m.result == ResultType.DRAW &&
-            d.disputeCreator != address(0) &&
-            !d.confirmed
+
+        if (
+            m.result == ResultType.DRAW
+            && d.disputeCreator == address(0)
         ) {
-            foreToken.burn(burnAndVerDiv2);
-            foreToken.transfer( protocolConfig.highGuard(), burnAndVerDiv2 + marketConfig.disputePrice());
-        } else if (m.result == ResultType.DRAW && d.confirmed) {
-            foreToken.transfer( protocolConfig.highGuard(), burnAndVerDiv2);
-            foreToken.transfer( d.disputeCreator, burnAndVerDiv2 + marketConfig.disputePrice());
-        } else {
+            // simply draw without dispute
             foreToken.burn(toBurn);
         }
+        else if (
+            m.result == ResultType.DRAW
+            && d.disputeCreator != address(0)
+            && !d.confirmed
+        ) {
+            // draw with dispute rejected - result set to draw
+            foreToken.burn(burnAndVerDiv2);
+            foreToken.transfer(
+                protocolConfig.highGuard(),
+                burnAndVerDiv2 + marketConfig.disputePrice()
+            );
+        }
+        else if (
+            m.result == ResultType.DRAW
+            && d.confirmed
+        ) {
+            // draw with dispute confirmed - result set to draw
+            foreToken.transfer(
+                protocolConfig.highGuard(),
+                burnAndVerDiv2
+            );
+            foreToken.transfer(
+                d.disputeCreator,
+                burnAndVerDiv2 + marketConfig.disputePrice()
+            );
+        }
+        else {
+            // simple result
+            foreToken.burn(toBurn);
+        }
+
         emit CloseMarket(result);
+    }
+
+
+    ///@notice Closes market
+    function closeMarket() external {
+        Market memory m = market;
+        if (m.result != ResultType.NULL) {
+            revert("ForeMarket: Market is closed");
+        }
+
+        Dispute memory d = dispute;
+        if (d.disputeCreator != address(0)) {
+            revert("ForeMarket: Dispute exists");
+        }
+
+        uint256 disputePeriodEnds = m.endPredictionTimestamp +
+            marketConfig.verificationPeriod() +
+            marketConfig.disputePeriod();
+        if (block.timestamp < disputePeriodEnds) {
+            revert("ForeMarket: Only after dispute");
+        }
+
+        _closeMarket(_calculateMarketResult(m), m, d);
     }
 
     ///@dev Calculates Result for markeet
@@ -464,9 +550,11 @@ contract ForeMarket
     {
         if (m.verifiedA == m.verifiedB) {
             return ResultType.DRAW;
-        } else if (m.verifiedA > m.verifiedB) {
+        }
+        else if (m.verifiedA > m.verifiedB) {
             return ResultType.AWON;
-        } else {
+        }
+        else {
             return ResultType.BWON;
         }
     }

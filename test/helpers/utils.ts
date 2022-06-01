@@ -6,7 +6,14 @@ import { TypedEvent } from "@typechain/ethers-v5/static/common";
 import chai, { expect } from "chai";
 import chaiSubset from "chai-subset";
 import { solidity } from "ethereum-waffle";
-import { Contract, ContractTransaction, Event, Signer } from "ethers";
+import {
+    BaseContract,
+    BigNumberish,
+    Contract,
+    ContractTransaction,
+    Event,
+    Signer,
+} from "ethers";
 import { ethers, network } from "hardhat";
 
 chai.use(chaiSubset);
@@ -124,7 +131,7 @@ export async function txExec(
 }
 
 export async function executeInSingleBlock(
-    callback: () => Promise<Promise<ContractTransaction>[] | void>,
+    callback: () => Promise<ContractTransaction>[],
     nextBlockDelay = 10,
     additionalWaitTime = 10
 ): Promise<ContractTransaction[]> {
@@ -157,12 +164,13 @@ type TxCheckCallback = (
 ) => void;
 
 export async function waitForTxs(
-    txs: ContractTransaction[],
+    txPromises: Promise<ContractTransaction>[],
     checkCallback?: TxCheckCallback
 ): Promise<ContractReceipt[]> {
     const results = [];
 
-    for (const tx of txs) {
+    for (const txPromise of txPromises) {
+        const tx = await txPromise;
         const result = await tx.wait(0);
         expect(result.status).to.be.equal(1);
 
@@ -252,4 +260,17 @@ export async function impersonateContract(
     ]);
 
     return await ethers.getSigner(contractAddress);
+}
+
+export async function sendERC20Tokens(
+    contract: any,
+    amounts: Record<string, BigNumberish>
+): Promise<ContractReceipt[]> {
+    const [owner] = await ethers.getSigners();
+
+    return await waitForTxs(
+        Object.entries(amounts).map<Promise<ContractTransaction>>((entry) => {
+            return contract.connect(owner).transfer(entry[0], entry[1]);
+        })
+    );
 }

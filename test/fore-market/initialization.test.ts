@@ -191,6 +191,7 @@ describe("ForeMarket / Initialization", () => {
                 "0x0000000000000000000000000000000000000000",
                 BigNumber.from(0),
                 false,
+                false,
             ]);
         });
 
@@ -202,8 +203,8 @@ describe("ForeMarket / Initialization", () => {
             ]);
         });
 
-        it("Should return initial verificationHeigth", async () => {
-            expect(await contract.verificationHeigth()).to.be.equal(0);
+        it("Should return initial verificationHeight", async () => {
+            expect(await contract.verificationHeight()).to.be.equal(0);
         });
     });
 
