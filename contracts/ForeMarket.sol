@@ -595,15 +595,23 @@ contract ForeMarket
     function withdrawPredictionReward(address predictor) external {
         //TODO: Add auto market closing?
         Market memory m = market;
-        require(m.result != ResultType.NULL, "ForeMarket: Market Not closed");
-        require(
-            !predictionWithdrawn[predictor],
-            "ForeMarket: Already Withrawn"
-        );
+
+        if (m.result == ResultType.NULL) {
+            revert("ForeMarket: Market not closed");
+        }
+        if (predictionWithdrawn[predictor]) {
+            revert("ForeMarket: Already withrawn");
+        }
+
         predictionWithdrawn[predictor] = true;
-        uint256 toWithdraw = _calculatePredictionReward(predictor,m);
-        require(toWithdraw != 0, "ForeMarket: Nothing to withdraw");
+
+        uint256 toWithdraw = _calculatePredictionReward(predictor, m);
+        if (toWithdraw == 0) {
+            revert("ForeMarket: Nothing to withdraw");
+        }
+
         foreToken.transfer(predictor, toWithdraw);
+
         emit WithdrawReward(predictor, 1, toWithdraw);
     }
 
@@ -612,22 +620,40 @@ contract ForeMarket
     function withdrawVerificationReward(uint256 verificationId) external {
         //TODO: Add auto market closing?
         Market memory m = market;
-        require(m.result != ResultType.NULL, "ForeMarket: Market Not closed");
+
+        if (m.result == ResultType.NULL) {
+            revert("ForeMarket: Market not closed");
+        }
 
         Verification memory v = verifications[verificationId];
-        require(!v.withdrawn, "ForeMarket: Already withdrawn");
+
+        if (v.withdrawn) {
+            revert("ForeMarket: Already withdrawn");
+        }
+
         verifications[verificationId].withdrawn = true;
 
         if (m.result == ResultType.DRAW) {
-            foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
+            // draw - withdraw verifier token
+            foreVerifiers.transferFrom(
+                address(this),
+                v.verifier,
+                v.tokenId
+            );
+
             return;
         }
 
         PrivilegeNft memory p = privilegeNft;
-        if (v.tokenId == p.privilegeNftId && !p.privilegeNftUsed) {
+        if (
+            v.tokenId == p.privilegeNftId
+            && !p.privilegeNftUsed
+        ) {
+            // apply penalty due to not used privilege NFT
             uint256 penalty = foreVerifiers.powerOf(p.privilegeNftId) / 10;
             foreVerifiers.decreasePower(p.privilegeNftId, penalty);
             foreToken.burnFrom(address(this), penalty);
+
             foreVerifiers.transferFrom(
                 address(this),
                 p.privilegeNftStaker,
@@ -636,9 +662,11 @@ contract ForeMarket
             return;
         }
 
-        uint256 verificatorsFees = ((m.sideA + m.sideB) *
-            marketConfig.verificationFee()) / 10000;
+        uint256 verificatorsFees = (m.sideA + m.sideB)
+            * marketConfig.verificationFee()
+            / 10000;
         if (v.side == (m.result == ResultType.AWON)) {
+            // verifier voted properly
             uint256 reward = (v.power * verificatorsFees) / (v.side ? m.verifiedA : m.verifiedB);
             foreVerifiers.increasePower(v.tokenId, reward);
             foreToken.transferFrom(
@@ -650,6 +678,7 @@ contract ForeMarket
             emit WithdrawReward(v.verifier, 2, reward);
             return;
         } else {
+            // verifier voted wrong
             uint256 power = foreVerifiers.powerOf(v.tokenId);
             if (dispute.confirmed) {
                 foreVerifiers.decreasePower(v.tokenId, power);
@@ -672,14 +701,22 @@ contract ForeMarket
     ///@notice Withdraws Market Creators Reward
     function marketCreatorFeeWithdraw() external {
         Market memory m = market;
-        require(m.result != ResultType.NULL, "ForeMarket: Market Not closed");
+
+        if (m.result == ResultType.NULL) {
+            revert("ForeMarket: Market Not closed");
+        }
+
         factory.transferFrom(msg.sender, address(this), m.marketTokenId);
         factory.burn(m.marketTokenId);
-        uint256 toWithdraw = ((m.sideA + m.sideB) * marketConfig.marketCreatorFee()) / 10000;
+
+        uint256 toWithdraw = (m.sideA + m.sideB)
+            * marketConfig.marketCreatorFee()
+            / 10000;
         foreToken.transfer(
             msg.sender,
             toWithdraw
         );
+
         emit WithdrawReward(msg.sender, 3, toWithdraw);
     }
 }
