@@ -124,22 +124,26 @@ contract ForeMarkets is
     /// @param receiver market creator nft receiver
     /// @param amountA initial prediction for side A
     /// @param amountB initial prediction for side B
-    /// @param startPredictionTimestamp Start predictions unix timestamp
     /// @param endPredictionTimestamp End predictions unix timestamp
+    /// @param startVerificationTimestamp Start Verification unix timestamp
     /// @return createdMarket Address of created market
     function createMarket(
         bytes32 marketHash,
         address receiver,
         uint256 amountA,
         uint256 amountB,
-        uint256 startPredictionTimestamp,
-        uint256 endPredictionTimestamp
+        uint256 endPredictionTimestamp,
+        uint256 startVerificationTimestamp
     )
         external
         returns(address createdMarket)
     {
         if (market[marketHash] != address(0)) {
             revert MarketAlreadyExists();
+        }
+
+        if(endPredictionTimestamp > startVerificationTimestamp){
+            revert ("ForeMarkets: Date error");
         }
 
         uint256 creationFee = config.marketCreationPrice();
@@ -167,8 +171,8 @@ contract ForeMarkets is
             receiver,
             amountA,
             amountB,
-            startPredictionTimestamp,
             endPredictionTimestamp,
+            startVerificationTimestamp,
             uint256(marketIdx)
         );
 
