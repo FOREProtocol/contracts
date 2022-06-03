@@ -33,7 +33,7 @@ describe("Fore NFT Verifiers token", () => {
     let foreMarkets: FakeContract<ForeMarkets>;
 
     beforeEach(async () => {
-        [owner, market, operator, alice, bob] = await ethers.getSigners();
+        [owner, alice, bob, market, operator] = await ethers.getSigners();
 
         contract = await deployContract<ForeVerifiers>("ForeVerifiers");
 

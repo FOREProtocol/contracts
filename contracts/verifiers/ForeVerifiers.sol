@@ -165,6 +165,7 @@ contract ForeVerifiers is
         if (!_exists(id)) {
             revert TokenNotExists();
         }
+
         if (!_factory.isForeOperator(msg.sender)) {
             revert OnlyOperatorAllowed();
         }

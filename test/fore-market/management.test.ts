@@ -10,6 +10,7 @@ import { BigNumber, Signer } from "ethers";
 import { ethers } from "hardhat";
 import {
     deployContractAs,
+    deployLibrary,
     deployMockedContract,
     impersonateContract,
     txExec,
@@ -43,6 +44,9 @@ describe("ForeMarket / Management", () => {
             alice,
             bob,
         ] = await ethers.getSigners();
+
+        // deploy library
+        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");

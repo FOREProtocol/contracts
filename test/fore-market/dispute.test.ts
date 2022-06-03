@@ -109,8 +109,8 @@ describe("ForeMarket / Dispute", () => {
                     alice.address,
                     ethers.utils.parseEther("50"),
                     ethers.utils.parseEther("50"),
-                    blockTimestamp + 200000,
-                    blockTimestamp + 200000
+                    BigNumber.from(blockTimestamp + 200000),
+                    BigNumber.from(blockTimestamp + 300000)
                 )
         );
 
@@ -161,7 +161,7 @@ describe("ForeMarket / Dispute", () => {
 
     describe("after dispute period start", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 1800 + 1);
         });
 
         it("Should fail without required amount of funds", async () => {
@@ -208,7 +208,7 @@ describe("ForeMarket / Dispute", () => {
 
     describe("after market verified (but before dispute period start)", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1);
+            await timetravel(blockTimestamp + 300000 + 1);
             await executeInSingleBlock(() => [
                 contract.connect(alice).verify(0, false),
                 contract.connect(bob).verify(1, false),
@@ -223,7 +223,7 @@ describe("ForeMarket / Dispute", () => {
 
     describe("after dispute period end", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
         });
 
         it("Should revert trying to verify", async () => {
@@ -235,7 +235,7 @@ describe("ForeMarket / Dispute", () => {
 
     describe("with A winning", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1);
+            await timetravel(blockTimestamp + 300000 + 1);
             await executeInSingleBlock(() => [
                 contract.connect(alice).verify(0, true),
                 contract.connect(bob).verify(1, true),
@@ -245,7 +245,7 @@ describe("ForeMarket / Dispute", () => {
 
         describe("with open dispute", () => {
             beforeEach(async () => {
-                await timetravel(blockTimestamp + 200000 + 1800 + 1);
+                await timetravel(blockTimestamp + 300000 + 1800 + 1);
                 await txExec(contract.connect(alice).openDispute());
             });
 
@@ -341,8 +341,8 @@ describe("ForeMarket / Dispute", () => {
                         ethers.utils.parseEther("50"),
                         ethers.utils.parseEther("50"),
                         ethers.utils.parseEther("0"),
-                        BigNumber.from(blockTimestamp),
                         BigNumber.from(blockTimestamp + 200000),
+                        BigNumber.from(blockTimestamp + 300000),
                         BigNumber.from(0),
                         1,
                     ]);
@@ -420,8 +420,8 @@ describe("ForeMarket / Dispute", () => {
                         ethers.utils.parseEther("50"),
                         ethers.utils.parseEther("50"),
                         ethers.utils.parseEther("0"),
-                        BigNumber.from(blockTimestamp),
                         BigNumber.from(blockTimestamp + 200000),
+                        BigNumber.from(blockTimestamp + 300000),
                         BigNumber.from(0),
                         2,
                     ]);
@@ -519,8 +519,8 @@ describe("ForeMarket / Dispute", () => {
                         ethers.utils.parseEther("50"),
                         ethers.utils.parseEther("50"),
                         ethers.utils.parseEther("0"),
-                        BigNumber.from(blockTimestamp),
                         BigNumber.from(blockTimestamp + 200000),
+                        BigNumber.from(blockTimestamp + 300000),
                         BigNumber.from(0),
                         3,
                     ]);
@@ -531,7 +531,7 @@ describe("ForeMarket / Dispute", () => {
 
     describe("with draw", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1);
+            await timetravel(blockTimestamp + 300000 + 1);
             await executeInSingleBlock(() => [
                 contract.connect(alice).verify(0, true),
                 contract.connect(bob).verify(1, false),
@@ -540,7 +540,7 @@ describe("ForeMarket / Dispute", () => {
 
         describe("with open dispute", () => {
             beforeEach(async () => {
-                await timetravel(blockTimestamp + 200000 + 1800 + 1);
+                await timetravel(blockTimestamp + 300000 + 1800 + 1);
                 await txExec(contract.connect(alice).openDispute());
             });
 
@@ -625,8 +625,8 @@ describe("ForeMarket / Dispute", () => {
                         ethers.utils.parseEther("50"),
                         ethers.utils.parseEther("20"),
                         ethers.utils.parseEther("20"),
-                        BigNumber.from(blockTimestamp),
                         BigNumber.from(blockTimestamp + 200000),
+                        BigNumber.from(blockTimestamp + 300000),
                         BigNumber.from(0),
                         3,
                     ]);
@@ -637,7 +637,7 @@ describe("ForeMarket / Dispute", () => {
 
     describe("with closed market", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
             await txExec(contract.connect(bob).closeMarket());
         });
 

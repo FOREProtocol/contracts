@@ -11,6 +11,7 @@ import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { ethers } from "hardhat";
 import {
     attachContract,
+    deployLibrary,
     deployMockedContract,
     executeInSingleBlock,
     findEvent,
@@ -50,6 +51,9 @@ describe("ForeMarket / Closing", () => {
             bob,
             carol,
         ] = await ethers.getSigners();
+
+        // deploy library
+        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
