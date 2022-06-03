@@ -48,6 +48,7 @@ describe("Fore NFT Verifiers token", () => {
         foreMarkets.isForeOperator
             .whenCalledWith(operator.address)
             .returns(true);
+        foreMarkets.isForeOperator.whenCalledWith(market.address).returns(true);
 
         // add some eth to mocked contract
         await txExec(

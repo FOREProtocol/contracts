@@ -384,8 +384,6 @@ describe("ForeMarkets", () => {
         });
 
         it("Should emit token creation event (ERC721 Transfer)", async () => {
-            console.dir(recipt.events);
-
             await expect(tx)
                 .to.emit(contract, "Transfer")
                 .withArgs(
