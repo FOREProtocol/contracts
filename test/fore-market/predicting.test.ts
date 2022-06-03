@@ -11,6 +11,7 @@ import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { ethers } from "hardhat";
 import {
     attachContract,
+    deployLibrary,
     deployMockedContract,
     findEvent,
     impersonateContract,
@@ -46,6 +47,9 @@ describe("ForeMarket / Prediciting", () => {
             alice,
             bob,
         ] = await ethers.getSigners();
+
+        // deploy library
+        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -95,8 +99,8 @@ describe("ForeMarket / Prediciting", () => {
                     alice.address,
                     0,
                     0,
-                    blockTimestamp + 100000,
-                    blockTimestamp + 200000
+                    BigNumber.from(blockTimestamp + 200000),
+                    BigNumber.from(blockTimestamp + 300000)
                 )
         );
 
@@ -121,113 +125,93 @@ describe("ForeMarket / Prediciting", () => {
                 BigNumber.from(0),
                 BigNumber.from(0),
                 BigNumber.from(0),
-                BigNumber.from(blockTimestamp + 100000),
                 BigNumber.from(blockTimestamp + 200000),
+                BigNumber.from(blockTimestamp + 300000),
                 BigNumber.from(0),
                 0,
             ]);
         });
+    });
 
-        it("Should revert if executed before start", async () => {
-            await expect(
+    it("Should revert without sufficient funds", async () => {
+        await expect(
+            contract.connect(bob).predict(ethers.utils.parseEther("2"), true)
+        ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
+    });
+
+    it("Should revert with 0 stake", async () => {
+        await expect(contract.connect(bob).predict(0, true)).to.be.revertedWith(
+            "ForeMarket: Amount cant be zero"
+        );
+    });
+
+    describe("successfully (vote on A)", async () => {
+        let tx: ContractTransaction;
+        let recipt: ContractReceipt;
+
+        beforeEach(async () => {
+            [tx, recipt] = await txExec(
                 contract
                     .connect(alice)
                     .predict(ethers.utils.parseEther("2"), true)
-            ).to.revertedWith("ForeMarket: Not opened yet");
+            );
+        });
+
+        it("Should emit Predict event", async () => {
+            await expect(tx)
+                .to.emit(contract, "Predict")
+                .withArgs(alice.address, true, ethers.utils.parseEther("2"));
+        });
+
+        it("Should emit Transfer (ERC20) event", async () => {
+            await expect(tx)
+                .to.emit(foreToken, "Transfer")
+                .withArgs(
+                    alice.address,
+                    contract.address,
+                    ethers.utils.parseEther("2")
+                );
+        });
+
+        it("Should return proper market state", async () => {
+            expect(await contract.market()).to.be.eql([
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                ethers.utils.parseEther("2"),
+                BigNumber.from(0),
+                BigNumber.from(0),
+                BigNumber.from(0),
+                BigNumber.from(blockTimestamp + 200000),
+                BigNumber.from(blockTimestamp + 300000),
+                BigNumber.from(0),
+                0,
+            ]);
         });
     });
 
-    describe("after predicting period started", () => {
+    describe("successfully (vote on B)", async () => {
+        let tx: ContractTransaction;
+        let recipt: ContractReceipt;
+
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 100000);
-        });
-
-        it("Should revert without sufficient funds", async () => {
-            await expect(
+            [tx, recipt] = await txExec(
                 contract
-                    .connect(bob)
-                    .predict(ethers.utils.parseEther("2"), true)
-            ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
+                    .connect(alice)
+                    .predict(ethers.utils.parseEther("3"), false)
+            );
         });
 
-        it("Should revert with 0 stake", async () => {
-            await expect(
-                contract.connect(bob).predict(0, true)
-            ).to.be.revertedWith("ForeMarket: Amount cant be zero");
-        });
-
-        describe("successfully (vote on A)", async () => {
-            let tx: ContractTransaction;
-            let recipt: ContractReceipt;
-
-            beforeEach(async () => {
-                [tx, recipt] = await txExec(
-                    contract
-                        .connect(alice)
-                        .predict(ethers.utils.parseEther("2"), true)
-                );
-            });
-
-            it("Should emit Predict event", async () => {
-                await expect(tx)
-                    .to.emit(contract, "Predict")
-                    .withArgs(
-                        alice.address,
-                        true,
-                        ethers.utils.parseEther("2")
-                    );
-            });
-
-            it("Should emit Transfer (ERC20) event", async () => {
-                await expect(tx)
-                    .to.emit(foreToken, "Transfer")
-                    .withArgs(
-                        alice.address,
-                        contract.address,
-                        ethers.utils.parseEther("2")
-                    );
-            });
-
-            it("Should return proper market state", async () => {
-                expect(await contract.market()).to.be.eql([
-                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                    ethers.utils.parseEther("2"),
-                    BigNumber.from(0),
-                    BigNumber.from(0),
-                    BigNumber.from(0),
-                    BigNumber.from(blockTimestamp + 100000),
-                    BigNumber.from(blockTimestamp + 200000),
-                    BigNumber.from(0),
-                    0,
-                ]);
-            });
-        });
-
-        describe("successfully (vote on B)", async () => {
-            let tx: ContractTransaction;
-            let recipt: ContractReceipt;
-
-            beforeEach(async () => {
-                [tx, recipt] = await txExec(
-                    contract
-                        .connect(alice)
-                        .predict(ethers.utils.parseEther("3"), false)
-                );
-            });
-
-            it("Should return proper market state", async () => {
-                expect(await contract.market()).to.be.eql([
-                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                    BigNumber.from(0),
-                    ethers.utils.parseEther("3"),
-                    BigNumber.from(0),
-                    BigNumber.from(0),
-                    BigNumber.from(blockTimestamp + 100000),
-                    BigNumber.from(blockTimestamp + 200000),
-                    BigNumber.from(0),
-                    0,
-                ]);
-            });
+        it("Should return proper market state", async () => {
+            expect(await contract.market()).to.be.eql([
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                BigNumber.from(0),
+                ethers.utils.parseEther("3"),
+                BigNumber.from(0),
+                BigNumber.from(0),
+                BigNumber.from(blockTimestamp + 200000),
+                BigNumber.from(blockTimestamp + 300000),
+                BigNumber.from(0),
+                0,
+            ]);
         });
     });
 

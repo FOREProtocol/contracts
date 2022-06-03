@@ -99,7 +99,7 @@ describe("ForeMarket / Closing", () => {
                     alice.address,
                     ethers.utils.parseEther("70"),
                     ethers.utils.parseEther("30"),
-                    blockTimestamp,
+                    blockTimestamp + 200000,
                     blockTimestamp + 200000
                 )
         );
@@ -201,7 +201,7 @@ describe("ForeMarket / Closing", () => {
                     ethers.utils.parseEther("30"),
                     ethers.utils.parseEther("30"),
                     ethers.utils.parseEther("0"),
-                    BigNumber.from(blockTimestamp),
+                    BigNumber.from(blockTimestamp + 200000),
                     BigNumber.from(blockTimestamp + 200000),
                     BigNumber.from(0),
                     1,
@@ -278,7 +278,7 @@ describe("ForeMarket / Closing", () => {
                     ethers.utils.parseEther("30"),
                     ethers.utils.parseEther("20"),
                     ethers.utils.parseEther("20"),
-                    BigNumber.from(blockTimestamp),
+                    BigNumber.from(blockTimestamp + 200000),
                     BigNumber.from(blockTimestamp + 200000),
                     BigNumber.from(0),
                     3,

@@ -103,8 +103,8 @@ describe("ForeMarket / Verification", () => {
                     alice.address,
                     ethers.utils.parseEther("50"),
                     ethers.utils.parseEther("40"),
-                    blockTimestamp,
-                    blockTimestamp + 200000
+                    blockTimestamp + 200000,
+                    blockTimestamp + 300000
                 )
         );
 
@@ -135,15 +135,17 @@ describe("ForeMarket / Verification", () => {
         });
 
         it("Should revert if executed before predicition end", async () => {
+            await timetravel(blockTimestamp + 250000);
+
             await expect(contract.connect(bob).verify(1, true)).to.revertedWith(
                 "ForeMarket: Is not opened"
             );
         });
     });
 
-    describe("after predicting period end", () => {
+    describe("after verification period start", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200001);
+            await timetravel(blockTimestamp + 300001);
         });
 
         // todo ld 2022-06-01 07:45:44
@@ -224,8 +226,8 @@ describe("ForeMarket / Verification", () => {
                             ethers.utils.parseEther("40"),
                             ethers.utils.parseEther(sideValue ? "20" : "0"),
                             ethers.utils.parseEther(sideValue ? "0" : "20"),
-                            BigNumber.from(blockTimestamp),
                             BigNumber.from(blockTimestamp + 200000),
+                            BigNumber.from(blockTimestamp + 300000),
                             BigNumber.from(0),
                             0,
                         ]);
@@ -246,8 +248,8 @@ describe("ForeMarket / Verification", () => {
                             ethers.utils.parseEther("40"),
                             ethers.utils.parseEther("20"),
                             ethers.utils.parseEther("20"),
-                            BigNumber.from(blockTimestamp),
                             BigNumber.from(blockTimestamp + 200000),
+                            BigNumber.from(blockTimestamp + 300000),
                             BigNumber.from(0),
                             0,
                         ]);
@@ -270,8 +272,8 @@ describe("ForeMarket / Verification", () => {
                                 ethers.utils.parseEther("40"),
                                 ethers.utils.parseEther(sideValue ? "20" : "0"),
                                 ethers.utils.parseEther(sideValue ? "0" : "20"),
-                                BigNumber.from(blockTimestamp),
                                 BigNumber.from(blockTimestamp + 200000),
+                                BigNumber.from(blockTimestamp + 300000),
                                 BigNumber.from(0),
                                 0,
                             ]);
@@ -312,8 +314,8 @@ describe("ForeMarket / Verification", () => {
                         ethers.utils.parseEther("40"),
                         ethers.utils.parseEther("0"),
                         ethers.utils.parseEther("50"),
-                        BigNumber.from(blockTimestamp),
                         BigNumber.from(blockTimestamp + 200000),
+                        BigNumber.from(blockTimestamp + 300000),
                         BigNumber.from(0),
                         0,
                     ]);
@@ -342,7 +344,7 @@ describe("ForeMarket / Verification", () => {
 
     describe("after verification period end", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 201801);
+            await timetravel(blockTimestamp + 30000 + 1800 + 1);
         });
 
         it("Should revert trying to verify", async () => {

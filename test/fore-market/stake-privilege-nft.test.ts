@@ -99,8 +99,8 @@ describe("ForeMarket / Staking privilege NFT", () => {
                     alice.address,
                     ethers.utils.parseEther("50"),
                     ethers.utils.parseEther("40"),
-                    blockTimestamp,
-                    blockTimestamp + 200000
+                    BigNumber.from(blockTimestamp + 200000),
+                    BigNumber.from(blockTimestamp + 300000)
                 )
         );
 
@@ -188,8 +188,8 @@ describe("ForeMarket / Staking privilege NFT", () => {
                     ethers.utils.parseEther("40"),
                     ethers.utils.parseEther("20"),
                     ethers.utils.parseEther("20"),
-                    BigNumber.from(blockTimestamp),
                     BigNumber.from(blockTimestamp + 200000),
+                    BigNumber.from(blockTimestamp + 300000),
                     BigNumber.from(0),
                     0,
                 ]);
