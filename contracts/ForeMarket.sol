@@ -434,8 +434,8 @@ contract ForeMarket
         }
 
         dispute.solved = true;
-        Market memory m = market;
 
+        Market memory m = market;
         if (_calculateMarketResult(m) != result) {
             dispute.confirmed = true;
             foreToken.transfer(d.disputeCreator, marketConfig.disputePrice());
@@ -444,19 +444,18 @@ contract ForeMarket
             foreToken.transfer(msg.sender, marketConfig.disputePrice());
         }
 
-        _closeMarket(result, m, d);
+        _closeMarket(result);
     }
 
     ///@dev Closes the market
     ///@param result Market Result
-    ///@param m Market Info
-    ///@param d Dispute Info
     function _closeMarket(
-        ResultType result,
-        Market memory m,
-        Dispute memory d
+        ResultType result
     ) private {
         market.result = result;
+
+        Market memory m = market;
+        Dispute memory d = dispute;
 
         uint256 fullMarketSize = m.sideA + m.sideB;
         uint256 toBurn = (fullMarketSize * marketConfig.burnFee()) / 10000;
@@ -494,12 +493,13 @@ contract ForeMarket
             m.result == ResultType.DRAW
             && d.confirmed
         ) {
-            // draw with dispute confirmed - result set to draw
+            // dispute confirmed - result set to draw
             foreToken.burn(toBurn);
             foreToken.transfer(
                 protocolConfig.highGuard(),
                 toVerifiers/2
             );
+
             foreToken.transfer(
                 d.disputeCreator,
                 toVerifiers/2
@@ -510,7 +510,7 @@ contract ForeMarket
             foreToken.burn(toBurn);
         }
 
-        emit CloseMarket(result);
+        emit CloseMarket(m.result);
     }
 
 
@@ -533,7 +533,7 @@ contract ForeMarket
             revert("ForeMarket: Only after dispute");
         }
 
-        _closeMarket(_calculateMarketResult(m), m, d);
+        _closeMarket(_calculateMarketResult(m));
     }
 
     // function _getVerificationTimestamps(Market memory m) intenal returns (uint256, uint256){
