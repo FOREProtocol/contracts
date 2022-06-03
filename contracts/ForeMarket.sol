@@ -265,7 +265,7 @@ contract ForeMarket
         if (privilegeNft.staked) {
             revert("ForeMarket: Privilege nft exists");
         }
-        if (block.timestamp > market.startVerificationTimestamp) {
+        if (block.timestamp >= market.startVerificationTimestamp) {
             revert("ForeMarket: Verification started");
         }
         if (foreVerifiers.powerOf(tokenId) < protocolConfig.verifierMintPrice()) {
@@ -307,12 +307,21 @@ contract ForeMarket
             revert("ForeMarket: Is closed");
         }
 
-        require(foreVerifiers.ownerOf(tokenId) == msg.sender, "ForeMarket: Incorrect owner");
-
         PrivilegeNft memory p = privilegeNft;
+
+        bool isPrivilegeNft = p.staked
+            && tokenId == p.privilegeNftId
+            && msg.sender == p.privilegeNftStaker;
+        if (
+            foreVerifiers.ownerOf(tokenId) != msg.sender
+            && !isPrivilegeNft
+        ) {
+            revert("ForeMarket: Incorrect owner");
+        }
+
         uint256 power = foreVerifiers.powerOf(tokenId);
 
-        if (p.staked && tokenId == p.privilegeNftId) {
+        if (isPrivilegeNft) {
             if (p.privilegeNftUsed) {
                 revert("ForeMarket: Verify once");
             }
