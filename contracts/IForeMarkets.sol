@@ -21,8 +21,8 @@ interface IForeMarkets is IERC721 {
         address receiver,
         uint256 amountA,
         uint256 amountB,
-        uint64 startPredictionTimestamp,
-        uint64 endPredictionTimestamp
+        uint256 endPredictionTimestamp,
+        uint256 startVerificationTimestamp
     ) external returns (address market);
 
     function foreToken() external view returns (address);

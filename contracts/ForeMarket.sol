@@ -13,7 +13,6 @@ contract ForeMarket
 
     event MarketInitialized(uint256 marketId);
 
-
     /// @notice Factory (ForeMarkets)
     IForeMarkets public factory;
 
@@ -54,11 +53,11 @@ contract ForeMarket
         /// @notice Verification power for positive result
         uint256 verifiedB;
 
-        /// @notice Start predictions unix timestamp
-        uint256 startPredictionTimestamp;
-
         /// @notice End predictions unix timestamp
         uint256 endPredictionTimestamp;
+
+        /// @notice Start verifications unix timestamp
+        uint256 startVerificationTimestamp;
 
         /// @notice Market creator token ID (ForeMarkets)
         uint256 marketTokenId;
@@ -177,8 +176,8 @@ contract ForeMarket
     /// @param receiver market creator nft receiver
     /// @param amountA initial prediction for side A
     /// @param amountB initial prediction for side B
-    /// @param startPredictionTimestamp Start predictions unix timestamp
-    /// @param endPredictionTimestamp End predictions unix timestamp
+    /// @param endPredictionTimestamp End Prediction Timestamp
+    /// @param startVerificationTimestamp Start Verification Timestamp
     /// @param tokenId market creator token id (ForeMarkets)
     /// @dev Possible to call only via the factory
     function initialize(
@@ -186,8 +185,8 @@ contract ForeMarket
         address receiver,
         uint256 amountA,
         uint256 amountB,
-        uint256 startPredictionTimestamp,
         uint256 endPredictionTimestamp,
+        uint256 startVerificationTimestamp,
         uint256 tokenId
     ) external {
         if (msg.sender != address(factory)) {
@@ -212,8 +211,8 @@ contract ForeMarket
             amountB,
             0,
             0,
-            startPredictionTimestamp,
             endPredictionTimestamp,
+            startVerificationTimestamp,
             tokenId,
             ResultType.NULL
         );
@@ -230,9 +229,6 @@ contract ForeMarket
     ) external {
         Market memory m = market;
 
-        if (block.timestamp < m.startPredictionTimestamp) {
-            revert("ForeMarket: Not opened yet");
-        }
         if (block.timestamp >= m.endPredictionTimestamp) {
             revert("ForeMarket: Prediction is closed");
         }
@@ -268,8 +264,8 @@ contract ForeMarket
         if (privilegeNft.staked) {
             revert("ForeMarket: Privilege nft exists");
         }
-        if (block.timestamp < market.endPredictionTimestamp) {
-            revert("ForeMarket: Verification not started");
+        if (block.timestamp > market.startVerificationTimestamp) {
+            revert("ForeMarket: Verification started");
         }
         if (foreVerifiers.powerOf(tokenId) < protocolConfig.verifierMintPrice()) {
             revert("ForeMarket: Not enough power");
@@ -325,14 +321,16 @@ contract ForeMarket
     function verify(uint256 tokenId, bool side) external {
         Market memory m = market;
 
-        if (block.timestamp < m.endPredictionTimestamp) {
+        if (block.timestamp < m.startVerificationTimestamp) {
             revert("ForeMarket: Is not opened");
         }
 
-        uint256 verificationEndTime = m.endPredictionTimestamp + marketConfig.verificationPeriod();
+        uint256 verificationEndTime = m.startVerificationTimestamp + marketConfig.verificationPeriod();
         if (block.timestamp > verificationEndTime) {
             revert("ForeMarket: Is closed");
         }
+
+        require(foreVerifiers.ownerOf(tokenId) == msg.sender, "ForeMarket: Incorrect owner");
 
         PrivilegeNft memory p = privilegeNft;
         uint256 power = foreVerifiers.powerOf(tokenId);
@@ -393,14 +391,14 @@ contract ForeMarket
         }
 
         if (
-            block.timestamp < m.endPredictionTimestamp + verificationPeriod
+            block.timestamp < m.startVerificationTimestamp + verificationPeriod
             && !_isVerified(m)
         ) {
             revert("ForeMarket: Dispute not opened");
         }
 
         if (
-            block.timestamp >= m.endPredictionTimestamp + verificationPeriod + disputePeriod
+            block.timestamp >= m.startVerificationTimestamp + verificationPeriod + disputePeriod
         ) {
             revert("ForeMarket: Dispute is closed");
         }
@@ -422,9 +420,8 @@ contract ForeMarket
             revert("ForeMarket: Only HG");
         }
 
-        // todo ld 2022-06-01 15:35:23 impossible case??
         if (result == ResultType.NULL) {
-            revert("ForeMarket: Market in unknown state");
+            revert("ForeMarket: Result cant be null");
         }
 
         Dispute memory d = dispute;
@@ -439,12 +436,11 @@ contract ForeMarket
         dispute.solved = true;
         Market memory m = market;
 
-        if (m.result != result) {
+        if (_calculateMarketResult(m) != result) {
             dispute.confirmed = true;
             foreToken.transfer(d.disputeCreator, marketConfig.disputePrice());
         }
         else {
-            dispute.confirmed = false;
             foreToken.transfer(msg.sender, marketConfig.disputePrice());
         }
 
@@ -464,9 +460,7 @@ contract ForeMarket
 
         uint256 fullMarketSize = m.sideA + m.sideB;
         uint256 toBurn = (fullMarketSize * marketConfig.burnFee()) / 10000;
-        uint256 burnAndVerDiv2 = fullMarketSize *
-            (marketConfig.burnFee() + marketConfig.verificationFee()) / 10000
-            / 2;
+        uint256 toVerifiers = (fullMarketSize * marketConfig.verificationFee()) / 10000;
 
         foreToken.transfer(
             protocolConfig.revenueWallet(),
@@ -490,10 +484,10 @@ contract ForeMarket
             && !d.confirmed
         ) {
             // draw with dispute rejected - result set to draw
-            foreToken.burn(burnAndVerDiv2);
+            foreToken.burn(toBurn + toVerifiers/2);
             foreToken.transfer(
                 protocolConfig.highGuard(),
-                burnAndVerDiv2 + marketConfig.disputePrice()
+                toVerifiers/2
             );
         }
         else if (
@@ -501,13 +495,14 @@ contract ForeMarket
             && d.confirmed
         ) {
             // draw with dispute confirmed - result set to draw
+            foreToken.burn(toBurn);
             foreToken.transfer(
                 protocolConfig.highGuard(),
-                burnAndVerDiv2
+                toVerifiers/2
             );
             foreToken.transfer(
                 d.disputeCreator,
-                burnAndVerDiv2 + marketConfig.disputePrice()
+                toVerifiers/2
             );
         }
         else {
@@ -531,7 +526,7 @@ contract ForeMarket
             revert("ForeMarket: Dispute exists");
         }
 
-        uint256 disputePeriodEnds = m.endPredictionTimestamp +
+        uint256 disputePeriodEnds = m.startVerificationTimestamp +
             marketConfig.verificationPeriod() +
             marketConfig.disputePeriod();
         if (block.timestamp < disputePeriodEnds) {
@@ -540,6 +535,10 @@ contract ForeMarket
 
         _closeMarket(_calculateMarketResult(m), m, d);
     }
+
+    // function _getVerificationTimestamps(Market memory m) intenal returns (uint256, uint256){
+
+    // }
 
     ///@dev Calculates Result for markeet
     ///@param m Market Info
