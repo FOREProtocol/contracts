@@ -184,13 +184,35 @@ export async function waitForTxs(
     return results;
 }
 
+const deployedLibraries: Record<string, Record<string, string>> = {};
+
+export async function deployLibrary<T extends Contract>(
+    name: string,
+    forContracts: string[],
+    ...args: any[]
+): Promise<T> {
+    const contract = await deployContract(name, ...args);
+
+    for (const forContract of forContracts) {
+        if (!deployedLibraries[forContract]) {
+            deployedLibraries[forContract] = {};
+        }
+
+        deployedLibraries[forContract][name] = contract.address;
+    }
+
+    return contract as any;
+}
+
 export async function deployContract<T extends Contract>(
     name: string,
     ...args: any[]
 ): Promise<T> {
     const [owner] = await ethers.getSigners();
 
-    const contractFactory = await ethers.getContractFactory(name);
+    const contractFactory = await ethers.getContractFactory(name, {
+        libraries: deployedLibraries[name] ?? undefined,
+    });
     const contract: any = await contractFactory.deploy(...args);
 
     await contract.deployed();
@@ -203,7 +225,9 @@ export async function deployContractAs<T extends Contract>(
     name: string,
     ...args: any[]
 ): Promise<T> {
-    const contractFactory = await ethers.getContractFactory(name);
+    const contractFactory = await ethers.getContractFactory(name, {
+        libraries: deployedLibraries[name] ?? undefined,
+    });
     const contract: any = await contractFactory.connect(owner).deploy(...args);
 
     await contract.deployed();
@@ -217,7 +241,9 @@ export async function deployMockedContract<T extends Contract>(
 ): Promise<MockContract<T>> {
     const [owner] = await ethers.getSigners();
 
-    const contractFactory = await smock.mock(name);
+    const contractFactory = await smock.mock(name, {
+        libraries: deployedLibraries[name] ?? undefined,
+    });
     const contract: any = await contractFactory.deploy(...args);
 
     await contract.deployed();
@@ -230,7 +256,10 @@ export async function deployMockedContractAs<T extends Contract>(
     name: string,
     ...args: any[]
 ): Promise<T> {
-    const contractFactory = await smock.mock(name, owner);
+    const contractFactory = await smock.mock(name, {
+        signer: owner,
+        libraries: deployedLibraries[name] ?? undefined,
+    });
     const contract: any = await contractFactory.deploy(...args);
 
     await contract.deployed();
@@ -242,7 +271,9 @@ export async function attachContract<T extends Contract>(
     name: string,
     address: string
 ): Promise<T> {
-    const contractFactory = await ethers.getContractFactory(name);
+    const contractFactory = await ethers.getContractFactory(name, {
+        libraries: deployedLibraries[name] ?? undefined,
+    });
     return <any>await contractFactory.attach(address);
 }
 

@@ -12,6 +12,8 @@ import { ethers } from "hardhat";
 import {
     assertIsAvailableOnlyForOwner,
     attachContract,
+    deployContract,
+    deployLibrary,
     deployMockedContract,
     executeInSingleBlock,
     findEvent,
@@ -54,6 +56,9 @@ describe("ForeMarket / Dispute", () => {
             carol,
             dave,
         ] = await ethers.getSigners();
+
+        // deploy library
+        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -453,23 +458,43 @@ describe("ForeMarket / Dispute", () => {
                         );
                 });
 
-                it("Should transfer fee to high guard", async () => {
+                it("Should burn fee", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            "0x0000000000000000000000000000000000000000",
+                            ethers.utils.parseEther("1")
+                        );
+                });
+
+                it("Should transfer verification fee to high guard", async () => {
                     await expect(tx)
                         .to.emit(foreToken, "Transfer")
                         .withArgs(
                             contract.address,
                             highGuardAccount.address,
-                            ethers.utils.parseEther("1.25")
+                            ethers.utils.parseEther("0.75")
                         );
                 });
 
-                it("Should transfer fee to dispute creator", async () => {
+                it("Should return dispute fee to dispute creator", async () => {
                     await expect(tx)
                         .to.emit(foreToken, "Transfer")
                         .withArgs(
                             contract.address,
                             alice.address,
-                            ethers.utils.parseEther("1001.25")
+                            ethers.utils.parseEther("1000")
+                        );
+                });
+
+                it("Should transfer verification fee to dispute creator", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            alice.address,
+                            ethers.utils.parseEther("0.75")
                         );
                 });
 
@@ -555,7 +580,7 @@ describe("ForeMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             "0x0000000000000000000000000000000000000000",
-                            ethers.utils.parseEther("1.25")
+                            ethers.utils.parseEther("1.75")
                         );
                 });
 
@@ -565,14 +590,24 @@ describe("ForeMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             highGuardAccount.address,
-                            ethers.utils.parseEther("1001.25")
+                            ethers.utils.parseEther("1000")
+                        );
+                });
+
+                it("Should transfer verification fee to HG", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            highGuardAccount.address,
+                            ethers.utils.parseEther("0.75")
                         );
                 });
 
                 it("Should update dispute state", async () => {
                     expect(await contract.dispute()).to.be.eql([
                         alice.address,
-                        true,
+                        false,
                         true,
                     ]);
                 });
@@ -588,8 +623,8 @@ describe("ForeMarket / Dispute", () => {
                         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
                         ethers.utils.parseEther("50"),
                         ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("0"),
+                        ethers.utils.parseEther("20"),
+                        ethers.utils.parseEther("20"),
                         BigNumber.from(blockTimestamp),
                         BigNumber.from(blockTimestamp + 200000),
                         BigNumber.from(0),

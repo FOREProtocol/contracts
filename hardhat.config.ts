@@ -68,6 +68,7 @@ const config: HardhatUserConfig = {
                         ? process.env.MNEMONIC
                         : "",
             },
+            allowUnlimitedContractSize: true,
         },
         rinkeby: {
             url: process.env.RINKEBY_URL || "",
