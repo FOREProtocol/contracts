@@ -6,7 +6,45 @@ import "./verifiers/IForeVerifiers.sol";
 import "./config/IProtocolConfig.sol";
 import "./config/IMarketConfig.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "./library/MarketLib.sol";
+
+
+/// @notice Market closing types
+enum ResultType {
+    NULL,
+    AWON,
+    BWON,
+    DRAW
+}
+
+struct Market {
+    /// @notice Market hash (ipfs hash without first 2 bytes)
+    bytes32 marketHash;
+
+    /// @notice Predctioons token pool for positive result
+    uint256 sideA;
+
+    /// @notice Predictions token pool for negative result
+    uint256 sideB;
+
+    /// @notice Verification power for positive result
+    uint256 verifiedA;
+
+    /// @notice Verification power for positive result
+    uint256 verifiedB;
+
+    /// @notice End predictions unix timestamp
+    uint256 endPredictionTimestamp;
+
+    /// @notice Start verifications unix timestamp
+    uint256 startVerificationTimestamp;
+
+    /// @notice Market creator token ID (ForeMarkets)
+    uint256 marketTokenId;
+
+    /// @notice Market result
+    ResultType result;
+}
 
 contract ForeMarket
 {
@@ -27,44 +65,6 @@ contract ForeMarket
 
     /// @notice Fore Token
     IERC20Burnable public foreToken;
-
-    /// @notice Market closing types
-    enum ResultType {
-        NULL,
-        AWON,
-        BWON,
-        DRAW
-    }
-
-
-    struct Market {
-        /// @notice Market hash (ipfs hash without first 2 bytes)
-        bytes32 marketHash;
-
-        /// @notice Predctioons token pool for positive result
-        uint256 sideA;
-
-        /// @notice Predictions token pool for negative result
-        uint256 sideB;
-
-        /// @notice Verification power for positive result
-        uint256 verifiedA;
-
-        /// @notice Verification power for positive result
-        uint256 verifiedB;
-
-        /// @notice End predictions unix timestamp
-        uint256 endPredictionTimestamp;
-
-        /// @notice Start verifications unix timestamp
-        uint256 startVerificationTimestamp;
-
-        /// @notice Market creator token ID (ForeMarkets)
-        uint256 marketTokenId;
-
-        /// @notice Market result
-        ResultType result;
-    }
 
     /// @notice Market info
     Market public market;
@@ -125,6 +125,7 @@ contract ForeMarket
         /// @notice Is reward + staked token withdrawn
         bool withdrawn;
     }
+
     /// @notice Verification info for verificatioon id
     Verification[] public verifications;
 
@@ -278,29 +279,6 @@ contract ForeMarket
         privilegeNft = PrivilegeNft(msg.sender, tokenId, true, false);
     }
 
-    /// @dev Checks if one side of the market is fully verified
-    function _isVerified(Market memory m) private pure returns (bool result) {
-        result = (m.sideA <= m.verifiedB || m.sideB <= m.verifiedA);
-    }
-
-    /// @dev Returns the maximum value(power) available for verification for side
-    function _maxAmountToVerifyForSide(bool side, Market memory m)
-        internal
-        pure
-        returns (uint256)
-    {
-        if (_isVerified(m)) {
-            return 0;
-        }
-
-        if (side) {
-            return m.sideB - m.verifiedA;
-        }
-        else {
-            return m.sideA - m.verifiedB;
-        }
-    }
-
     /// @notice Returns the maximum value(power) available for verification
     /// @param side Marketd side (true - positive / false - negative);
     function maxAmountToVerifyForSide(bool side)
@@ -308,8 +286,7 @@ contract ForeMarket
         view
         returns (uint256)
     {
-        Market memory m = market;
-        return _maxAmountToVerifyForSide(side, m);
+        return MarketLib.maxAmountToVerifyForSide(market, side);
     }
 
     //TODO: Solve the problem with the possible blocking of voting by a user with privilege
@@ -349,7 +326,7 @@ contract ForeMarket
                 market.verifiedA -= power;
             }
         } else {
-            uint256 powerAvailable = _maxAmountToVerifyForSide(side, m);
+            uint256 powerAvailable = MarketLib.maxAmountToVerifyForSide(m, side);
             if (powerAvailable == 0) {
                 revert("ForeMarket: Market is fully verified");
             }
@@ -392,7 +369,7 @@ contract ForeMarket
 
         if (
             block.timestamp < m.startVerificationTimestamp + verificationPeriod
-            && !_isVerified(m)
+            && !MarketLib.isVerified(m)
         ) {
             revert("ForeMarket: Dispute not opened");
         }
@@ -436,7 +413,7 @@ contract ForeMarket
         dispute.solved = true;
 
         Market memory m = market;
-        if (_calculateMarketResult(m) != result) {
+        if (MarketLib.calculateMarketResult(m) != result) {
             dispute.confirmed = true;
             foreToken.transfer(d.disputeCreator, marketConfig.disputePrice());
         }
@@ -533,30 +510,12 @@ contract ForeMarket
             revert("ForeMarket: Only after dispute");
         }
 
-        _closeMarket(_calculateMarketResult(m));
+        _closeMarket(MarketLib.calculateMarketResult(m));
     }
 
     // function _getVerificationTimestamps(Market memory m) intenal returns (uint256, uint256){
 
     // }
-
-    ///@dev Calculates Result for markeet
-    ///@param m Market Info
-    function _calculateMarketResult(Market memory m)
-        private
-        pure
-        returns (ResultType)
-    {
-        if (m.verifiedA == m.verifiedB) {
-            return ResultType.DRAW;
-        }
-        else if (m.verifiedA > m.verifiedB) {
-            return ResultType.AWON;
-        }
-        else {
-            return ResultType.BWON;
-        }
-    }
 
     ///@dev Returns prediction reward in ForeToken
     ///@param m Market Info
