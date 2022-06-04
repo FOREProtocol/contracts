@@ -71,7 +71,7 @@ contract ForeMarket {
     }
 
     function privilegeNft() external view returns(address, uint256, bool){
-        bool privilegeUsed = (_market.reserved == 0);
+        bool privilegeUsed = (_market.reserved != 0);
         return(_market.privilegeNftStaker, _market.privilegeNftId, privilegeUsed);
     }
 
