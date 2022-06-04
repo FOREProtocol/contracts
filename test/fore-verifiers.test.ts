@@ -33,7 +33,7 @@ describe("Fore NFT Verifiers token", () => {
     let foreMarkets: FakeContract<ForeMarkets>;
 
     beforeEach(async () => {
-        [owner, market, operator, alice, bob] = await ethers.getSigners();
+        [owner, alice, bob, market, operator] = await ethers.getSigners();
 
         contract = await deployContract<ForeVerifiers>("ForeVerifiers");
 
@@ -48,6 +48,7 @@ describe("Fore NFT Verifiers token", () => {
         foreMarkets.isForeOperator
             .whenCalledWith(operator.address)
             .returns(true);
+        foreMarkets.isForeOperator.whenCalledWith(market.address).returns(true);
 
         // add some eth to mocked contract
         await txExec(

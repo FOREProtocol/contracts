@@ -12,6 +12,7 @@ import { ethers } from "hardhat";
 import {
     assertIsAvailableOnlyForOwner,
     deployContractAs,
+    deployLibrary,
     deployMockedContract,
     impersonateContract,
     txExec,
@@ -45,6 +46,9 @@ describe("ForeMarket / Initialization", () => {
             alice,
             bob,
         ] = await ethers.getSigners();
+
+        // deploy library
+        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");

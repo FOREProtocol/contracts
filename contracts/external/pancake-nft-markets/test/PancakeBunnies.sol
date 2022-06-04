@@ -57,7 +57,7 @@ contract PancakeBunnies is ERC721, Ownable {
      */
     function mint(
         address _to,
-        string calldata _tokenURI,
+        string calldata,// _tokenURI,
         uint8 _bunnyId
     ) external onlyOwner returns (uint256) {
         uint256 newId = _tokenIds.current();
