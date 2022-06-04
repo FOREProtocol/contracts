@@ -2,6 +2,7 @@ import { ForeMarket } from "@/ForeMarket";
 import { ForeMarkets, MarketCreatedEvent } from "@/ForeMarkets";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
+import { MarketLib } from "@/MarketLib";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
@@ -33,6 +34,7 @@ describe("ForeMarket / Prediciting", () => {
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreMarkets: MockContract<ForeMarkets>;
+    let marketLib: MarketLib;
     let contract: ForeMarket;
 
     let blockTimestamp: number;
@@ -49,7 +51,10 @@ describe("ForeMarket / Prediciting", () => {
         ] = await ethers.getSigners();
 
         // deploy library
-        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
+        marketLib = await deployLibrary("MarketLib", [
+            "ForeMarket",
+            "ForeMarkets",
+        ]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -159,7 +164,7 @@ describe("ForeMarket / Prediciting", () => {
 
         it("Should emit Predict event", async () => {
             await expect(tx)
-                .to.emit(contract, "Predict")
+                .to.emit({ ...contract, address: marketLib.address }, "Predict")
                 .withArgs(alice.address, true, ethers.utils.parseEther("2"));
         });
 

@@ -149,6 +149,15 @@ describe("ForeMarket / Verification", () => {
                 "ForeMarket: Is not opened"
             );
         });
+
+        it("Returns proper max amount to verify for side", async () => {
+            expect(await contract.maxAmountToVerifyForSide(true)).to.be.equal(
+                ethers.utils.parseEther("40")
+            );
+            expect(await contract.maxAmountToVerifyForSide(false)).to.be.equal(
+                ethers.utils.parseEther("50")
+            );
+        });
     });
 
     describe("after verification period start", () => {
@@ -250,6 +259,15 @@ describe("ForeMarket / Verification", () => {
                 ]);
             });
 
+            it("Returns proper max amount to verify for side", async () => {
+                expect(
+                    await contract.maxAmountToVerifyForSide(true)
+                ).to.be.equal(ethers.utils.parseEther("40"));
+                expect(
+                    await contract.maxAmountToVerifyForSide(false)
+                ).to.be.equal(ethers.utils.parseEther("10"));
+            });
+
             describe("adding verification to almost fully verified market", () => {
                 let tx: ContractTransaction;
                 let recipt: ContractReceipt;
@@ -258,6 +276,15 @@ describe("ForeMarket / Verification", () => {
                     [tx, recipt] = await txExec(
                         contract.connect(carol).verify(2, false)
                     );
+                });
+
+                it("Returns proper max amount to verify for side", async () => {
+                    expect(
+                        await contract.maxAmountToVerifyForSide(true)
+                    ).to.be.equal(ethers.utils.parseEther("0"));
+                    expect(
+                        await contract.maxAmountToVerifyForSide(false)
+                    ).to.be.equal(ethers.utils.parseEther("0"));
                 });
 
                 it("Should increase verfication side with partial token power", async () => {

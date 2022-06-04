@@ -4,6 +4,7 @@ import { HardhatUserConfig, task } from "hardhat/config";
 import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-truffle5";
 import "@nomiclabs/hardhat-waffle";
+import "@nomiclabs/hardhat-web3";
 import "@typechain/hardhat";
 import "hardhat-abi-exporter";
 import "hardhat-contract-sizer";
@@ -68,7 +69,6 @@ const config: HardhatUserConfig = {
                         ? process.env.MNEMONIC
                         : "",
             },
-            allowUnlimitedContractSize: true,
         },
         rinkeby: {
             url: process.env.RINKEBY_URL || "",

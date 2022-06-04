@@ -31,6 +31,7 @@ describe("ForeMarket / Closing", () => {
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
     let carol: SignerWithAddress;
+    let dave: SignerWithAddress;
 
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
@@ -50,6 +51,7 @@ describe("ForeMarket / Closing", () => {
             alice,
             bob,
             carol,
+            dave,
         ] = await ethers.getSigners();
 
         // deploy library
@@ -125,6 +127,7 @@ describe("ForeMarket / Closing", () => {
             foreMarkets.connect(owner).mintVerifier(alice.address),
             foreMarkets.connect(owner).mintVerifier(bob.address),
             foreMarkets.connect(owner).mintVerifier(carol.address),
+            foreMarkets.connect(owner).mintVerifier(dave.address),
         ]);
     });
 
@@ -136,7 +139,7 @@ describe("ForeMarket / Closing", () => {
         });
     });
 
-    describe("verified side won", () => {
+    describe("verified side won (A)", () => {
         beforeEach(async () => {
             await timetravel(blockTimestamp + 200000 + 1);
 
@@ -209,6 +212,50 @@ describe("ForeMarket / Closing", () => {
                     BigNumber.from(blockTimestamp + 200000),
                     BigNumber.from(0),
                     1,
+                ]);
+            });
+        });
+    });
+
+    describe("verified side won (B)", () => {
+        beforeEach(async () => {
+            await timetravel(blockTimestamp + 200000 + 1);
+
+            await executeInSingleBlock(() => [
+                contract.connect(alice).verify(0, false),
+                contract.connect(bob).verify(1, false),
+                contract.connect(carol).verify(2, false),
+                contract.connect(dave).verify(3, false),
+            ]);
+
+            await timetravel(blockTimestamp + 200000 + 1800 + 1800 + 1);
+        });
+
+        describe("successfully", () => {
+            let tx: ContractTransaction;
+            let recipt: ContractReceipt;
+
+            beforeEach(async () => {
+                [tx, recipt] = await txExec(
+                    contract.connect(bob).closeMarket()
+                );
+            });
+
+            it("Should emit CloseMarket event", async () => {
+                await expect(tx).to.emit(contract, "CloseMarket").withArgs(2);
+            });
+
+            it("Should update market state", async () => {
+                expect(await contract.market()).to.be.eql([
+                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                    ethers.utils.parseEther("70"),
+                    ethers.utils.parseEther("30"),
+                    ethers.utils.parseEther("0"),
+                    ethers.utils.parseEther("70"),
+                    BigNumber.from(blockTimestamp + 200000),
+                    BigNumber.from(blockTimestamp + 200000),
+                    BigNumber.from(0),
+                    2,
                 ]);
             });
         });

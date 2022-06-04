@@ -2,6 +2,7 @@ import { ForeMarket } from "@/ForeMarket";
 import { ForeMarkets } from "@/ForeMarkets";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
+import { MarketLib } from "@/MarketLib";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
@@ -11,6 +12,7 @@ import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { ethers } from "hardhat";
 import {
     assertIsAvailableOnlyForOwner,
+    attachContract,
     deployContractAs,
     deployLibrary,
     deployMockedContract,
@@ -28,6 +30,7 @@ describe("ForeMarket / Initialization", () => {
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
 
+    let marketLib: MarketLib;
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
@@ -48,7 +51,10 @@ describe("ForeMarket / Initialization", () => {
         ] = await ethers.getSigners();
 
         // deploy library
-        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
+        marketLib = await deployLibrary("MarketLib", [
+            "ForeMarket",
+            "ForeMarkets",
+        ]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -105,7 +111,7 @@ describe("ForeMarket / Initialization", () => {
                     );
             },
             foreMarketsAccount,
-            "ForeMarket: FORBIDDEN"
+            "OnlyFactory()"
         );
     });
 
@@ -131,7 +137,10 @@ describe("ForeMarket / Initialization", () => {
 
         it("Should emit MarketInitialized event", async () => {
             await expect(tx)
-                .to.emit(contract, "MarketInitialized")
+                .to.emit(
+                    { ...marketLib, address: contract.address },
+                    "MarketInitialized"
+                )
                 .withArgs(BigNumber.from(0));
         });
 
@@ -157,7 +166,7 @@ describe("ForeMarket / Initialization", () => {
             expect(await contract.foreToken()).to.be.equal(foreToken.address);
         });
 
-        it("Should return proper merket struct", async () => {
+        it("Should return proper market struct", async () => {
             expect(await contract.market()).to.be.eql([
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
                 ethers.utils.parseEther("1"),
@@ -173,11 +182,11 @@ describe("ForeMarket / Initialization", () => {
 
         it("Should emit Predict events", async () => {
             await expect(tx)
-                .to.emit(contract, "Predict")
+                .to.emit({ ...marketLib, address: contract.address }, "Predict")
                 .withArgs(owner.address, true, ethers.utils.parseEther("1"));
 
             await expect(tx)
-                .to.emit(contract, "Predict")
+                .to.emit({ ...marketLib, address: contract.address }, "Predict")
                 .withArgs(owner.address, false, ethers.utils.parseEther("2"));
         });
 
@@ -194,7 +203,6 @@ describe("ForeMarket / Initialization", () => {
             expect(await contract.privilegeNft()).to.be.eql([
                 "0x0000000000000000000000000000000000000000",
                 BigNumber.from(0),
-                false,
                 false,
             ]);
         });
@@ -234,7 +242,7 @@ describe("ForeMarket / Initialization", () => {
 
         it("Should emit Predict events", async () => {
             await expect(tx)
-                .to.emit(contract, "Predict")
+                .to.emit({ ...marketLib, address: contract.address }, "Predict")
                 .withArgs(owner.address, false, ethers.utils.parseEther("2"));
         });
 
@@ -268,7 +276,7 @@ describe("ForeMarket / Initialization", () => {
 
         it("Should emit Predict events", async () => {
             await expect(tx)
-                .to.emit(contract, "Predict")
+                .to.emit({ ...marketLib, address: contract.address }, "Predict")
                 .withArgs(owner.address, true, ethers.utils.parseEther("1"));
         });
 

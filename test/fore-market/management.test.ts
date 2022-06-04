@@ -2,6 +2,7 @@ import { ForeMarket } from "@/ForeMarket";
 import { ForeMarkets } from "@/ForeMarkets";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
+import { MarketLib } from "@/MarketLib";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -30,6 +31,7 @@ describe("ForeMarket / Management", () => {
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreMarkets: MockContract<ForeMarkets>;
+    let marketLib: MarketLib;
     let contract: ForeMarket;
 
     let blockTimestamp: number;
@@ -46,7 +48,10 @@ describe("ForeMarket / Management", () => {
         ] = await ethers.getSigners();
 
         // deploy library
-        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
+        marketLib = await deployLibrary("MarketLib", [
+            "ForeMarket",
+            "ForeMarkets",
+        ]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -117,25 +122,14 @@ describe("ForeMarket / Management", () => {
         );
     });
 
-    it("Should return null merket struct", async () => {
-        expect(await contract.market()).to.be.eql([
-            "0x0000000000000000000000000000000000000000000000000000000000000000",
-            BigNumber.from(0),
-            BigNumber.from(0),
-            BigNumber.from(0),
-            BigNumber.from(0),
-            BigNumber.from(0),
-            BigNumber.from(0),
-            BigNumber.from(0),
-            0,
-        ]);
+    it("Should revert trying to get merket struct before intiialization", async () => {
+        await expect(contract.market()).to.be.revertedWith("");
     });
 
     it("Should return null privilege NFT struct", async () => {
         expect(await contract.privilegeNft()).to.be.eql([
             "0x0000000000000000000000000000000000000000",
             BigNumber.from(0),
-            false,
             false,
         ]);
     });

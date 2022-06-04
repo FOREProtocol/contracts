@@ -265,6 +265,21 @@ describe("ForeMarkets", () => {
             ).to.revertedWith("ERC20: burn amount exceeds balance");
         });
 
+        it("Should revert in case inversed dates", async () => {
+            await expect(
+                contract
+                    .connect(alice)
+                    .createMarket(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                        alice.address,
+                        ethers.utils.parseEther("2"),
+                        ethers.utils.parseEther("1"),
+                        1653357334588,
+                        1653327334588
+                    )
+            ).to.revertedWith("ForeMarkets: Date error");
+        });
+
         it("Should allow in case of zero fee", async () => {
             await txExec(
                 protocolConfig.connect(owner).setMarketCreationPrice(0)
