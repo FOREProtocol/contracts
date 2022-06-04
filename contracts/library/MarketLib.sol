@@ -764,7 +764,6 @@ library MarketLib {
         }
 
         market.reserved = 0;
-        market.privilegeNftId = 0;
         market.privilegeNftStaker = address(0);
 
         _verify(

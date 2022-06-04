@@ -104,7 +104,7 @@ contract ForeMarket {
             bool
         )
     {
-        bool privilegeUsed = (_market.reserved != 0);
+        bool privilegeUsed = (_market.reserved == 0 && _market.privilegeNftId != 0);
         return (
             _market.privilegeNftStaker,
             _market.privilegeNftId,
