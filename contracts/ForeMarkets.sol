@@ -8,11 +8,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 
-
-contract ForeMarkets is
-    ERC721,
-    ERC721Burnable
-{
+contract ForeMarkets is ERC721, ERC721Burnable {
     using Strings for uint256;
 
     error MarketAlreadyExists();
@@ -24,19 +20,19 @@ contract ForeMarkets is
         uint256 length
     );
 
-
     /// @notice Init creatin code
     /// @dev Needed to calculate market address
-    bytes32 public constant INIT_CODE_PAIR_HASH = keccak256(abi.encodePacked(type(ForeMarket).creationCode));
+    bytes32 public constant INIT_CODE_PAIR_HASH =
+        keccak256(abi.encodePacked(type(ForeMarket).creationCode));
 
     /// @notice ForeToken
-    IERC20Burnable public foreToken;
+    IERC20Burnable public immutable foreToken;
 
     /// @notice Protocol Config
-    IProtocolConfig public config;
+    IProtocolConfig public immutable config;
 
     /// @notice ForeVerifiers
-    IForeVerifiers public foreVerifiers;
+    IForeVerifiers public immutable foreVerifiers;
 
     /// @notice Market address for hash (ipfs hash without first 2 bytes)
     mapping(bytes32 => address) public market;
@@ -47,14 +43,11 @@ contract ForeMarkets is
     /// @notice All markets array
     address[] public allMarkets;
 
-
     /// @param cfg Protocol Config address
-    constructor(IProtocolConfig cfg)
-        ERC721("Fore Markets", "MFORE")
-    {
+    constructor(IProtocolConfig cfg) ERC721("Fore Markets", "MFORE") {
         config = cfg;
-        foreToken = IERC20Burnable(config.foreToken());
-        foreVerifiers =IForeVerifiers(config.foreVerifiers());
+        foreToken = IERC20Burnable(cfg.foreToken());
+        foreVerifiers = IForeVerifiers(cfg.foreVerifiers());
     }
 
     /// @notice Returns base uri
@@ -63,22 +56,24 @@ contract ForeMarkets is
     }
 
     /// @notice Returns token uri for existing token
-    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        virtual
+        override
+        returns (string memory)
+    {
         require(tokenId < allMarkets.length, "Non minted token");
         return string(abi.encodePacked(_baseURI(), tokenId.toString()));
     }
 
     /// @notice Returns true if Address is ForeOperator
     /// @dev ForeOperators: ForeMarkets(as factory), ForeMarket contracts and marketplace
-    function isForeOperator(address addr) external view returns(bool) {
-        return (
-            addr != address(0)
-            && (
-                addr == address(this)
-                || isForeMarket[addr]
-                || addr == config.marketplace()
-            )
-        );
+    function isForeOperator(address addr) external view returns (bool) {
+        return (addr != address(0) &&
+            (addr == address(this) ||
+                isForeMarket[addr] ||
+                addr == config.marketplace()));
     }
 
     /// @dev Allow tokens to be used by market contracts
@@ -111,7 +106,10 @@ contract ForeMarkets is
     /// @param id token id
     /// @param amount amount to buy
     function buyPower(uint256 id, uint256 amount) external {
-        require(foreVerifiers.powerOf(id) + amount <= config.verifierMintPrice(), "ForeFactory: Buy limit reached");
+        require(
+            foreVerifiers.powerOf(id) + amount <= config.verifierMintPrice(),
+            "ForeFactory: Buy limit reached"
+        );
         foreToken.transferFrom(msg.sender, address(foreVerifiers), amount);
         foreVerifiers.increasePower(id, amount);
     }
@@ -129,18 +127,15 @@ contract ForeMarkets is
         address receiver,
         uint256 amountA,
         uint256 amountB,
-        uint256 endPredictionTimestamp,
-        uint256 startVerificationTimestamp
-    )
-        external
-        returns(address createdMarket)
-    {
+        uint64 endPredictionTimestamp,
+        uint64 startVerificationTimestamp
+    ) external returns (address createdMarket) {
         if (market[marketHash] != address(0)) {
             revert MarketAlreadyExists();
         }
 
-        if(endPredictionTimestamp > startVerificationTimestamp){
-            revert ("ForeMarkets: Date error");
+        if (endPredictionTimestamp > startVerificationTimestamp) {
+            revert("ForeMarkets: Date error");
         }
 
         uint256 creationFee = config.marketCreationPrice();
@@ -151,9 +146,14 @@ contract ForeMarkets is
         bytes memory bytecode = type(ForeMarket).creationCode;
         bytes32 salt = keccak256(abi.encodePacked(marketHash));
         assembly {
-            createdMarket := create2(0, add(bytecode, 32), mload(bytecode), salt)
+            createdMarket := create2(
+                0,
+                add(bytecode, 32),
+                mload(bytecode),
+                salt
+            )
             if iszero(extcodesize(createdMarket)) {
-                 revert(0, 0)
+                revert(0, 0)
             }
         }
 
@@ -170,7 +170,7 @@ contract ForeMarkets is
             amountB,
             endPredictionTimestamp,
             startVerificationTimestamp,
-            uint256(marketIdx)
+            uint64(marketIdx)
         );
 
         market[marketHash] = createdMarket;
@@ -181,5 +181,4 @@ contract ForeMarkets is
 
         allMarkets.push(createdMarket);
     }
-
 }

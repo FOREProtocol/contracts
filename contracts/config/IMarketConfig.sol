@@ -16,7 +16,26 @@ interface IMarketConfig {
             uint256,
             uint256,
             uint256
-        );
+    );
+
+    function fees()
+        external
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256
+    );
+
+    function periods()
+        external
+        view
+        returns (
+            uint256,
+            uint256
+    );
 
     function disputePeriod() external view returns (uint256);
 

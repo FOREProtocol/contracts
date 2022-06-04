@@ -49,7 +49,48 @@ contract MarketConfig {
     }
 
     /**
+     * @notice Returns all period values
+     */
+    function periods()
+        external
+        view
+        returns (
+            uint256,
+            uint256
+        )
+    {
+        return (
+            disputePeriod,
+            verificationPeriod
+        );
+    }
+
+
+    /**
      * @notice Returns all config values
+     */
+    function fees()
+        external
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256
+        )
+    {
+        return (
+            burnFee,
+            foundationFee,
+            revenueFee,
+            marketCreatorFee,
+            verificationFee
+        );
+    }
+
+    /**
+     * @notice Returns all fees values
      */
     function config()
         external

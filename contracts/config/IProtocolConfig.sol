@@ -25,28 +25,7 @@ interface IProtocolConfig {
 
     function marketCreationPrice() external view returns (uint256);
 
-    // function setFoundationWallet(address _newAddr) external;
+    function addresses() external view returns(address, address, address, address, address, address, address);
 
-    // function setHighGuarrd(address _newAddr) external;
-
-    // function setMarketConfig(
-    //     uint256 verifierMintPriceP,
-    //     uint256 disputePriceP,
-    //     uint256 creationPriceP,
-    //     uint32 reportPeriodP,
-    //     uint32 verificationPeriodP,
-    //     uint16 burnFeeP,
-    //     uint16 foundationFeeP,
-    //     uint16 revenueFeeP,
-    //     uint16 marketCreatorFeeP,
-    //     uint16 verificationFeeP
-    // ) external;
-
-    // function setMarketplace(address _newAddr) external;
-
-    // function setRevenueWallett(address _newAddr) external;
-
-    // function setVerifierMintPrice(uint256 _amount) external;
-
-    // function transferOwnership(address newOwner) external
+    function roleAddresses() external view returns(address, address, address);
 }

@@ -52,6 +52,14 @@ contract ProtocolConfig is
     /// @notice Minting verifiers NFT price (FORE)
     uint256 public verifierMintPrice;
 
+    function addresses() external view returns(address, address, address, address, address, address, address){
+        return(address(marketConfig), foundationWallet, revenueWallet, highGuard, marketplace, foreToken, foreVerifiers);
+    }
+
+    function roleAddresses() external view returns(address, address, address){
+        return(foundationWallet, revenueWallet, highGuard);
+    }
+
 
     constructor(
         address foundationWalletP,
