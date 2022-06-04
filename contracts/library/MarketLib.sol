@@ -3,7 +3,7 @@ pragma solidity ^0.8.7;
 
 library MarketLib {
     ///EVENTS
-    event MarketInitialized(uint256 _marketId);
+    event MarketInitialized(uint256 marketId);
     event OpenDispute(address indexed creator);
     event CloseMarket(MarketLib.ResultType result);
     event Verify(
@@ -107,14 +107,14 @@ library MarketLib {
     /// FUNCTIONS
     /// @dev Checks if one side of the market is fully verified
     /// @param m Market info
-    /// @return 0 true if verified 
+    /// @return 0 true if verified
     function _isVerified(Market memory m) internal pure returns (bool) {
         return m.sideA <= m.verifiedB || m.sideB <= m.verifiedA;
     }
 
     /// @notice Checks if one side of the market is fully verified
     /// @param m Market info
-    /// @return 0 true if verified 
+    /// @return 0 true if verified
     function isVerified(Market memory m) external pure returns (bool) {
         return _isVerified(m);
     }
@@ -155,7 +155,7 @@ library MarketLib {
     ///@param m Market Info
     ///@param pA Prediction contribution for side A
     ///@param pA Prediction contribution for side B
-    ///@param feesSum Sum of all fees im perc 
+    ///@param feesSum Sum of all fees im perc
     ///@return toWithdraw amount to withdraw
     function calculatePredictionReward(
         Market memory m,
@@ -239,7 +239,7 @@ library MarketLib {
     /// @param amountB Init size of side B
     /// @param endPredictionTimestamp End Prediction Unix Timestamp
     /// @param startVerificationTimestamp Start Verification Unix Timestamp
-    /// @param tokenId mNFT token id 
+    /// @param tokenId mNFT token id
     function init(
         Market storage market,
         mapping(address => uint256) storage predictionsA,
@@ -453,7 +453,7 @@ library MarketLib {
 
     /// @notice Resolves a dispute
     /// @param market Market storage
-    /// @param result Result type 
+    /// @param result Result type
     /// @param highGuard High Guard address
     /// @param requester Function rerquester address
     /// @return receiverAddress Address receives dispute creration tokens
@@ -546,7 +546,7 @@ library MarketLib {
     }
 
     /// @notice Check market status before closing
-    /// @param m Market info 
+    /// @param m Market info
     /// @param verificationPeriod Verification Period
     /// @param disputePeriod Dispute Period
     function beforeClosingCheck(
@@ -571,7 +571,7 @@ library MarketLib {
     }
 
     /// @notice Withdraws Prediction Reward
-    /// @param m Market info 
+    /// @param m Market info
     /// @param feesSum Sum of all fees
     /// @param predictionWithdrawn Storage of withdraw statuses
     /// @param predictionsA PredictionsA of predictor
@@ -611,7 +611,7 @@ library MarketLib {
     }
 
     /// @notice Withdraws Verification Reward
-    /// @param m Market info 
+    /// @param m Market info
     /// @param v Verification info
     /// @param power Power of vNFT used for verification
     /// @param verificationFee Verification Fee

@@ -60,19 +60,56 @@ contract ForeMarket {
         factory = IForeMarkets(msg.sender);
     }
 
-    function market() external view returns(bytes32, uint256, uint256, uint256, uint256, uint256, uint256, uint256, MarketLib.ResultType){
+    function market()
+        external
+        view
+        returns(
+            bytes32,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            MarketLib.ResultType
+        )
+    {
         MarketLib.Market memory m = _market;
-        if(block.timestamp > m.startVerificationTimestamp + marketConfig.verificationPeriod()){
-            if(MarketLib._isVerificationPeriodExtensionAvailable(m)){
+        if(block.timestamp > m.startVerificationTimestamp + marketConfig.verificationPeriod()) {
+            if(MarketLib.isVerificationPeriodExtensionAvailable(m)) {
                 m.startVerificationTimestamp = m.startVerificationTimestamp + marketConfig.verificationPeriod();
             }
         }
-        return(marketHash, m.sideA, m.sideB, m.verifiedA, m.verifiedB, m.endPredictionTimestamp, m.startVerificationTimestamp, _tokenId, m.result);
+
+        return (
+            marketHash,
+            m.sideA,
+            m.sideB,
+            m.verifiedA,
+            m.verifiedB,
+            m.endPredictionTimestamp,
+            m.startVerificationTimestamp,
+            _tokenId,
+            m.result
+        );
     }
 
-    function privilegeNft() external view returns(address, uint256, bool){
+    function privilegeNft()
+        external
+        view
+        returns(
+            address,
+            uint256,
+            bool
+        )
+    {
         bool privilegeUsed = (_market.reserved != 0);
-        return(_market.privilegeNftStaker, _market.privilegeNftId, privilegeUsed);
+        return (
+            _market.privilegeNftStaker,
+            _market.privilegeNftId,
+            privilegeUsed
+        );
     }
 
     function dispute() external view returns(address, bool, bool){
@@ -98,7 +135,7 @@ contract ForeMarket {
         uint64 tokenId
     ) external {
         if (msg.sender != address(factory)) {
-            revert OnlyFactory();
+            revert("OnlyFactory()");
         }
 
         protocolConfig = IProtocolConfig(factory.config());
@@ -183,7 +220,14 @@ contract ForeMarket {
     /// @notice Doing verification for privilege staked vNFT
     /// @param side Side of verification
     function privilegeVerify(bool side) external {
-        MarketLib.privilegeVerify(_market, verifications, marketConfig.verificationPeriod(), msg.sender, foreVerifiers.powerOf(_market.privilegeNftId), side);
+        MarketLib.privilegeVerify(
+            _market,
+            verifications,
+            marketConfig.verificationPeriod(),
+            msg.sender,
+            foreVerifiers.powerOf(_market.privilegeNftId),
+            side
+        );
     }
 
     /// @notice Opens dispute
