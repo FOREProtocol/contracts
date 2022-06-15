@@ -60,6 +60,10 @@ contract ForeMarket {
         factory = IForeMarkets(msg.sender);
     }
 
+    function marketInfo() external view returns(MarketLib.Market memory){
+        return _market;
+    }
+
     function market()
         external
         view
@@ -86,8 +90,8 @@ contract ForeMarket {
             marketHash,
             m.sideA,
             m.sideB,
-            m.verifiedA,
-            m.verifiedB,
+            m.verifiedA + m.reserved,
+            m.verifiedB + m.reserved,
             m.endPredictionTimestamp,
             m.startVerificationTimestamp,
             _tokenId,
