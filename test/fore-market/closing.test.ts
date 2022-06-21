@@ -3,6 +3,7 @@ import { ForeMarkets, MarketCreatedEvent } from "@/ForeMarkets";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
+import { MarketLib } from "@/MarketLib";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -32,6 +33,7 @@ describe("ForeMarket / Closing", () => {
     let bob: SignerWithAddress;
     let carol: SignerWithAddress;
     let dave: SignerWithAddress;
+    let marketLib: MarketLib;
 
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
@@ -54,8 +56,9 @@ describe("ForeMarket / Closing", () => {
             dave,
         ] = await ethers.getSigners();
 
+        const newLocal = "ForeMarket";
         // deploy library
-        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
+        marketLib = await deployLibrary("MarketLib", [newLocal, "ForeMarkets"]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -106,7 +109,7 @@ describe("ForeMarket / Closing", () => {
                     ethers.utils.parseEther("70"),
                     ethers.utils.parseEther("30"),
                     blockTimestamp + 200000,
-                    blockTimestamp + 200000
+                    blockTimestamp + 300000
                 )
         );
 
@@ -135,20 +138,20 @@ describe("ForeMarket / Closing", () => {
         it("Should revert if executed before dispute period end", async () => {
             await expect(
                 contract.connect(bob).closeMarket()
-            ).to.be.revertedWith("ForeMarket: Only after dispute");
+            ).to.be.revertedWith("DisputePeriodIsNotEndedYet");
         });
     });
 
     describe("verified side won (A)", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1);
+            await timetravel(blockTimestamp + 300000 + 1);
 
             await executeInSingleBlock(() => [
                 contract.connect(alice).verify(0, true),
                 contract.connect(bob).verify(1, true),
             ]);
 
-            await timetravel(blockTimestamp + 200000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
         });
 
         // full market size: 100 FORE
@@ -198,20 +201,30 @@ describe("ForeMarket / Closing", () => {
             });
 
             it("Should emit CloseMarket event", async () => {
-                await expect(tx).to.emit(contract, "CloseMarket").withArgs(1);
+                await expect(tx)
+                    .to.emit(
+                        { ...marketLib, address: contract.address },
+                        "CloseMarket"
+                    )
+                    .withArgs(1);
             });
 
             it("Should update market state", async () => {
-                expect(await contract.market()).to.be.eql([
-                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                    ethers.utils.parseEther("70"),
-                    ethers.utils.parseEther("30"),
-                    ethers.utils.parseEther("30"),
-                    ethers.utils.parseEther("0"),
-                    BigNumber.from(blockTimestamp + 200000),
-                    BigNumber.from(blockTimestamp + 200000),
-                    BigNumber.from(0),
-                    1,
+                expect(await contract.marketInfo()).to.be.eql([
+                    ethers.utils.parseEther("70"), // side A
+                    ethers.utils.parseEther("30"), // side B
+                    ethers.utils.parseEther("30"), // verified A
+                    ethers.utils.parseEther("0"), // verified B
+                    ethers.utils.parseEther("0"), // reserved
+                    ethers.constants.AddressZero, // privilege nft staker
+                    ethers.constants.AddressZero, // dispute creator
+                    BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                    BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                    BigNumber.from(0), // privilege nft id
+                    1, // result
+                    false, // confirmed
+                    false, // solved
+                    false, // extended
                 ]);
             });
         });
@@ -219,7 +232,7 @@ describe("ForeMarket / Closing", () => {
 
     describe("verified side won (B)", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1);
+            await timetravel(blockTimestamp + 300000 + 1);
 
             await executeInSingleBlock(() => [
                 contract.connect(alice).verify(0, false),
@@ -227,8 +240,7 @@ describe("ForeMarket / Closing", () => {
                 contract.connect(carol).verify(2, false),
                 contract.connect(dave).verify(3, false),
             ]);
-
-            await timetravel(blockTimestamp + 200000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
         });
 
         describe("successfully", () => {
@@ -242,20 +254,30 @@ describe("ForeMarket / Closing", () => {
             });
 
             it("Should emit CloseMarket event", async () => {
-                await expect(tx).to.emit(contract, "CloseMarket").withArgs(2);
+                await expect(tx)
+                    .to.emit(
+                        { ...marketLib, address: contract.address },
+                        "CloseMarket"
+                    )
+                    .withArgs(2);
             });
 
             it("Should update market state", async () => {
-                expect(await contract.market()).to.be.eql([
-                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                    ethers.utils.parseEther("70"),
-                    ethers.utils.parseEther("30"),
-                    ethers.utils.parseEther("0"),
-                    ethers.utils.parseEther("70"),
-                    BigNumber.from(blockTimestamp + 200000),
-                    BigNumber.from(blockTimestamp + 200000),
-                    BigNumber.from(0),
-                    2,
+                expect(await contract.marketInfo()).to.be.eql([
+                    ethers.utils.parseEther("70"), // side A
+                    ethers.utils.parseEther("30"), // side B
+                    ethers.utils.parseEther("0"), // verified A
+                    ethers.utils.parseEther("70"), // verified B
+                    ethers.utils.parseEther("0"), // reserved
+                    ethers.constants.AddressZero, // privilege nft staker
+                    ethers.constants.AddressZero, // dispute creator
+                    BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                    BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                    BigNumber.from(0), // privilege nft id
+                    2, // result
+                    false, // confirmed
+                    false, // solved
+                    false, // extended
                 ]);
             });
         });
@@ -263,13 +285,13 @@ describe("ForeMarket / Closing", () => {
 
     describe("with draw", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1);
+            await timetravel(blockTimestamp + 300000 + 1);
+
             await executeInSingleBlock(() => [
                 contract.connect(alice).verify(0, true),
                 contract.connect(bob).verify(1, false),
             ]);
-
-            await timetravel(blockTimestamp + 200000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
         });
 
         // full market size: 100 FORE
@@ -319,20 +341,30 @@ describe("ForeMarket / Closing", () => {
             });
 
             it("Should emit CloseMarket event", async () => {
-                await expect(tx).to.emit(contract, "CloseMarket").withArgs(3);
+                await expect(tx)
+                    .to.emit(
+                        { ...marketLib, address: contract.address },
+                        "CloseMarket"
+                    )
+                    .withArgs(3);
             });
 
             it("Should update market state", async () => {
-                expect(await contract.market()).to.be.eql([
-                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                    ethers.utils.parseEther("70"),
-                    ethers.utils.parseEther("30"),
-                    ethers.utils.parseEther("20"),
-                    ethers.utils.parseEther("20"),
-                    BigNumber.from(blockTimestamp + 200000),
-                    BigNumber.from(blockTimestamp + 200000),
-                    BigNumber.from(0),
-                    3,
+                expect(await contract.marketInfo()).to.be.eql([
+                    ethers.utils.parseEther("70"), // side A
+                    ethers.utils.parseEther("30"), // side B
+                    ethers.utils.parseEther("20"), // verified A
+                    ethers.utils.parseEther("20"), // verified B
+                    ethers.utils.parseEther("0"), // reserved
+                    ethers.constants.AddressZero, // privilege nft staker
+                    ethers.constants.AddressZero, // dispute creator
+                    BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                    BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                    BigNumber.from(0), // privilege nft id
+                    3, // result
+                    false, // confirmed
+                    false, // solved
+                    false, // extended
                 ]);
             });
         });
@@ -340,14 +372,14 @@ describe("ForeMarket / Closing", () => {
 
     describe("with closed market", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 200000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
             await txExec(contract.connect(bob).closeMarket());
         });
 
         it("Should not be possible to close market again", async () => {
             await expect(
                 contract.connect(carol).closeMarket()
-            ).to.be.revertedWith("ForeMarket: Market is closed");
+            ).to.be.revertedWith("MarketIsClosed");
         });
     });
 });

@@ -65,16 +65,19 @@ async function main() {
     await verifiers.setFactory(markets.address);
 
     // test
-    // const previousBlock = await ethers.provider.getBlock("latest");
-    // const blockTimestamp = previousBlock.timestamp;
-    // await markets.createMarket(
-    //     "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-    //     "0x959fd7ef9089b7142b6b908dc3a8af7aa8ff0fa1",
-    //     ethers.utils.parseEther("1"),
-    //     ethers.utils.parseEther("2"),
-    //     blockTimestamp + 100000,
-    //     blockTimestamp + 200000
-    // );
+    const signer = await ethers.provider.getSigner().getAddress();
+    await markets.mintVerifier(signer);
+
+    const previousBlock = await ethers.provider.getBlock("latest");
+    const blockTimestamp = previousBlock.timestamp;
+    const createTx = await markets.createMarket(
+        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+        signer,
+        ethers.utils.parseEther("1"),
+        ethers.utils.parseEther("2"),
+        blockTimestamp + 120,
+        blockTimestamp + 200
+    );
 }
 
 main().catch((error) => {

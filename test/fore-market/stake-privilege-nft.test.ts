@@ -134,7 +134,7 @@ describe("ForeMarket / Staking privilege NFT", () => {
 
         await expect(
             contract.connect(alice).stakeForPrivilege(0)
-        ).to.revertedWith("ForeMarket: Not enough power");
+        ).to.revertedWith("PowerMustBeGreaterThanMintPrice");
     });
 
     it("Should revert if executed with non owned token", async () => {
@@ -160,25 +160,21 @@ describe("ForeMarket / Staking privilege NFT", () => {
         });
 
         it("Should update state of privilegeNft", async () => {
-            expect(await contract.privilegeNft()).to.be.eql([
-                alice.address,
-                BigNumber.from(0),
-                true,
-                false,
-            ]);
-        });
-
-        it("Should update market verification powers", async () => {
-            expect(await contract.market()).to.be.eql([
-                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                ethers.utils.parseEther("50"),
-                ethers.utils.parseEther("40"),
-                ethers.utils.parseEther("20"),
-                ethers.utils.parseEther("20"),
-                BigNumber.from(blockTimestamp + 200000),
-                BigNumber.from(blockTimestamp + 300000),
-                BigNumber.from(0),
-                0,
+            expect(await contract.marketInfo()).to.be.eql([
+                ethers.utils.parseEther("50"), // side A
+                ethers.utils.parseEther("40"), // side B
+                BigNumber.from(0), // verified A
+                BigNumber.from(0), // verified B
+                ethers.utils.parseEther("20"), // reserved
+                alice.address, // privilege nft staker
+                ethers.constants.AddressZero, // dispute creator
+                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                BigNumber.from(0), // privilege nft id
+                0, // result
+                false, // confirmed
+                false, // solved
+                false, // extended
             ]);
         });
 
@@ -188,11 +184,11 @@ describe("ForeMarket / Staking privilege NFT", () => {
             );
             await expect(
                 contract.connect(alice).stakeForPrivilege(2)
-            ).to.be.revertedWith("ForeMarket: Privilege nft exists");
+            ).to.be.revertedWith("PrivilegeNftAlreadyExist");
 
             await expect(
                 contract.connect(bob).stakeForPrivilege(1)
-            ).to.be.revertedWith("ForeMarket: Privilege nft exists");
+            ).to.be.revertedWith("PrivilegeNftAlreadyExist");
         });
     });
 
@@ -204,7 +200,7 @@ describe("ForeMarket / Staking privilege NFT", () => {
         it("Should revert if executed after verification start", async () => {
             await expect(
                 contract.connect(alice).stakeForPrivilege(0)
-            ).to.revertedWith("ForeMarket: Verification started");
+            ).to.revertedWith("VerificationAlreadyStarted");
         });
     });
 });

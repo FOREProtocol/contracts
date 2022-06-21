@@ -122,23 +122,22 @@ describe("ForeMarket / Management", () => {
         );
     });
 
-    it("Should revert trying to get merket struct before intiialization", async () => {
-        await expect(contract.market()).to.be.revertedWith("");
-    });
-
-    it("Should return null privilege NFT struct", async () => {
-        expect(await contract.privilegeNft()).to.be.eql([
-            "0x0000000000000000000000000000000000000000",
-            BigNumber.from(0),
-            false,
-        ]);
-    });
-
-    it("Should return null dispute struct", async () => {
-        expect(await contract.dispute()).to.be.eql([
-            "0x0000000000000000000000000000000000000000",
-            false,
-            false,
+    it("Should return proper market info struct", async () => {
+        expect(await contract.marketInfo()).to.be.eql([
+            ethers.utils.parseEther("0"), // side A
+            ethers.utils.parseEther("0"), // side B
+            ethers.utils.parseEther("0"), // verified A
+            ethers.utils.parseEther("0"), // verified B
+            ethers.utils.parseEther("0"), // reserved
+            ethers.constants.AddressZero, // privilege nft staker
+            ethers.constants.AddressZero, // dispute creator
+            BigNumber.from(0), // endPredictionTimestamp
+            BigNumber.from(0), // startVerificationTimestamp
+            BigNumber.from(0), // privilege nft id
+            0, // result
+            false, // confirmed
+            false, // solved
+            false, // extended
         ]);
     });
 

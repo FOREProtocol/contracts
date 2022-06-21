@@ -111,7 +111,7 @@ describe("ForeMarket / Initialization", () => {
                     );
             },
             foreMarketsAccount,
-            "OnlyFactory()"
+            "ForeMarket: Only Factory"
         );
     });
 
@@ -166,17 +166,28 @@ describe("ForeMarket / Initialization", () => {
             expect(await contract.foreToken()).to.be.equal(foreToken.address);
         });
 
+        it("Should return proper market hash", async () => {
+            expect(await contract.marketHash()).to.be.equal(
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+            );
+        });
+
         it("Should return proper market struct", async () => {
-            expect(await contract.market()).to.be.eql([
-                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                ethers.utils.parseEther("1"),
-                ethers.utils.parseEther("2"),
-                BigNumber.from(0),
-                BigNumber.from(0),
-                BigNumber.from(blockTimestamp + 100000),
-                BigNumber.from(blockTimestamp + 200000),
-                BigNumber.from(0),
-                0,
+            expect(await contract.marketInfo()).to.be.eql([
+                ethers.utils.parseEther("1"), // side A
+                ethers.utils.parseEther("2"), // side B
+                BigNumber.from(0), // verified A
+                BigNumber.from(0), // verified B
+                BigNumber.from(0), // reserved
+                ethers.constants.AddressZero, // privilege nft staker
+                ethers.constants.AddressZero, // dispute creator
+                BigNumber.from(blockTimestamp + 100000), // endPredictionTimestamp
+                BigNumber.from(blockTimestamp + 200000), // startVerificationTimestamp
+                BigNumber.from(0), // privilege nft id
+                0, // result
+                false, // confirmed
+                false, // solved
+                false, // extended
             ]);
         });
 
@@ -197,22 +208,6 @@ describe("ForeMarket / Initialization", () => {
             expect(await contract.predictionsB(owner.address)).to.be.equal(
                 ethers.utils.parseEther("2")
             );
-        });
-
-        it("Should return null privilege NFT struct", async () => {
-            expect(await contract.privilegeNft()).to.be.eql([
-                "0x0000000000000000000000000000000000000000",
-                BigNumber.from(0),
-                false,
-            ]);
-        });
-
-        it("Should return null dispute struct", async () => {
-            expect(await contract.dispute()).to.be.eql([
-                "0x0000000000000000000000000000000000000000",
-                false,
-                false,
-            ]);
         });
 
         it("Should return initial verificationHeight", async () => {

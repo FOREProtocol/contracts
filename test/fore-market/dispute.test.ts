@@ -1,6 +1,7 @@
 import { ForeMarket } from "@/ForeMarket";
 import { ForeMarkets, MarketCreatedEvent } from "@/ForeMarkets";
 import { ForeToken } from "@/ForeToken";
+import { MarketLib } from "@/MarketLib";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
@@ -35,6 +36,7 @@ describe("ForeMarket / Dispute", () => {
     let bob: SignerWithAddress;
     let carol: SignerWithAddress;
     let dave: SignerWithAddress;
+    let marketLib: MarketLib;
 
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
@@ -57,8 +59,9 @@ describe("ForeMarket / Dispute", () => {
             dave,
         ] = await ethers.getSigners();
 
+        const newLocal = "ForeMarket";
         // deploy library
-        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
+        marketLib = await deployLibrary("MarketLib", [newLocal, "ForeMarkets"]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -136,25 +139,28 @@ describe("ForeMarket / Dispute", () => {
     });
 
     describe("initial state", () => {
-        it("Should return proper verifications number", async () => {
-            expect(await contract.dispute()).to.be.eql([
-                "0x0000000000000000000000000000000000000000",
-                false,
-                false,
-            ]);
-        });
-
         it("Should return null dispute", async () => {
-            expect(await contract.dispute()).to.be.eql([
-                "0x0000000000000000000000000000000000000000",
-                false,
-                false,
+            expect(await contract.marketInfo()).to.be.eql([
+                ethers.utils.parseEther("50"), // side A
+                ethers.utils.parseEther("50"), // side B
+                ethers.utils.parseEther("0"), // verified A
+                ethers.utils.parseEther("0"), // verified B
+                ethers.utils.parseEther("0"), // reserved
+                ethers.constants.AddressZero, // privilege nft staker
+                ethers.constants.AddressZero, // dispute creator
+                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                BigNumber.from(0), // privilege nft id
+                0, // result
+                false, // confirmed
+                false, // solved
+                false, // extended
             ]);
         });
 
         it("Should revert if executed before dispute period", async () => {
             await expect(contract.connect(bob).openDispute()).to.revertedWith(
-                "ForeMarket: Dispute not opened"
+                "DisputePeriodIsNotStartedYet"
             );
         });
     });
@@ -192,15 +198,29 @@ describe("ForeMarket / Dispute", () => {
 
             it("Should emit OpenDispute event", async () => {
                 await expect(tx)
-                    .to.emit(contract, "OpenDispute")
+                    .to.emit(
+                        { ...marketLib, address: contract.address },
+                        "OpenDispute"
+                    )
                     .withArgs(alice.address);
             });
 
             it("Should update dispute state", async () => {
-                expect(await contract.dispute()).to.be.eql([
-                    alice.address,
-                    false,
-                    false,
+                expect(await contract.marketInfo()).to.be.eql([
+                    ethers.utils.parseEther("50"), // side A
+                    ethers.utils.parseEther("50"), // side B
+                    ethers.utils.parseEther("0"), // verified A
+                    ethers.utils.parseEther("0"), // verified B
+                    ethers.utils.parseEther("0"), // reserved
+                    ethers.constants.AddressZero, // privilege nft staker
+                    alice.address, // dispute creator
+                    BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                    BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                    BigNumber.from(0), // privilege nft id
+                    0, // result
+                    false, // confirmed
+                    false, // solved
+                    false, // extended
                 ]);
             });
         });
@@ -228,7 +248,7 @@ describe("ForeMarket / Dispute", () => {
 
         it("Should revert trying to verify", async () => {
             await expect(contract.connect(bob).openDispute()).to.revertedWith(
-                "ForeMarket: Dispute is closed"
+                "DisputePeriodIsEnded"
             );
         });
     });
@@ -253,21 +273,21 @@ describe("ForeMarket / Dispute", () => {
                 await assertIsAvailableOnlyForOwner(
                     (account) => contract.connect(account).resolveDispute(1),
                     highGuardAccount,
-                    "ForeMarket: Only HG"
+                    "HighGuardOnly"
                 );
             });
 
             it("Should not be possible to close market before dispute resolved", async () => {
                 await expect(
                     contract.connect(bob).closeMarket()
-                ).to.be.revertedWith("ForeMarket: Dispute exists");
+                ).to.be.revertedWith("DisputeNotSolvedYet");
             });
 
             it("Should not be possible to close market before dispute resolved even after long time", async () => {
                 await timetravel(blockTimestamp + 10000000);
                 await expect(
                     contract.connect(bob).closeMarket()
-                ).to.be.revertedWith("ForeMarket: Dispute exists");
+                ).to.be.revertedWith("DisputeNotSolvedYet");
             });
 
             describe("with resolved dispute (result confirmed - dispute rejected)", () => {
@@ -321,30 +341,49 @@ describe("ForeMarket / Dispute", () => {
                 });
 
                 it("Should update dispute state", async () => {
-                    expect(await contract.dispute()).to.be.eql([
-                        alice.address,
-                        false,
-                        true,
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("50"), // side B
+                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("0"), // verified B
+                        ethers.utils.parseEther("0"), // reserved
+                        ethers.constants.AddressZero, // privilege nft staker
+                        alice.address, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        BigNumber.from(0), // privilege nft id
+                        1, // result
+                        false, // dispute confirmed
+                        true, // dispute solved
+                        false, // extended
                     ]);
                 });
 
                 it("Should emit CloseMarket event", async () => {
                     await expect(tx)
-                        .to.emit(contract, "CloseMarket")
+                        .to.emit(
+                            { ...marketLib, address: contract.address },
+                            "CloseMarket"
+                        )
                         .withArgs(1);
                 });
 
                 it("Should update market state", async () => {
-                    expect(await contract.market()).to.be.eql([
-                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("0"),
-                        BigNumber.from(blockTimestamp + 200000),
-                        BigNumber.from(blockTimestamp + 300000),
-                        BigNumber.from(0),
-                        1,
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("50"), // side B
+                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("0"), // verified B
+                        ethers.utils.parseEther("0"), // reserved
+                        ethers.constants.AddressZero, // privilege nft staker
+                        alice.address, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        BigNumber.from(0), // privilege nft id
+                        1, // result
+                        false, // confirmed
+                        true, // solved
+                        false, // extended
                     ]);
                 });
             });
@@ -400,30 +439,49 @@ describe("ForeMarket / Dispute", () => {
                 });
 
                 it("Should update dispute state", async () => {
-                    expect(await contract.dispute()).to.be.eql([
-                        alice.address,
-                        true,
-                        true,
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("50"), // side B
+                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("0"), // verified B
+                        ethers.utils.parseEther("0"), // reserved
+                        ethers.constants.AddressZero, // privilege nft staker
+                        alice.address, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        BigNumber.from(0), // privilege nft id
+                        2, // result
+                        true, // confirmed
+                        true, // solved
+                        false, // extended
                     ]);
                 });
 
                 it("Should emit CloseMarket event", async () => {
                     await expect(tx)
-                        .to.emit(contract, "CloseMarket")
+                        .to.emit(
+                            { ...marketLib, address: contract.address },
+                            "CloseMarket"
+                        )
                         .withArgs(2);
                 });
 
                 it("Should update market state", async () => {
-                    expect(await contract.market()).to.be.eql([
-                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("0"),
-                        BigNumber.from(blockTimestamp + 200000),
-                        BigNumber.from(blockTimestamp + 300000),
-                        BigNumber.from(0),
-                        2,
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("50"), // side B
+                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("0"), // verified B
+                        ethers.utils.parseEther("0"), // reserved
+                        ethers.constants.AddressZero, // privilege nft staker
+                        alice.address, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        BigNumber.from(0), // privilege nft id
+                        2, // result
+                        true, // confirmed
+                        true, // solved
+                        false, // extended
                     ]);
                 });
             });
@@ -499,30 +557,49 @@ describe("ForeMarket / Dispute", () => {
                 });
 
                 it("Should update dispute state", async () => {
-                    expect(await contract.dispute()).to.be.eql([
-                        alice.address,
-                        true,
-                        true,
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("50"), // side B
+                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("0"), // verified B
+                        ethers.utils.parseEther("0"), // reserved
+                        ethers.constants.AddressZero, // privilege nft staker
+                        alice.address, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        BigNumber.from(0), // privilege nft id
+                        3, // result
+                        true, // confirmed
+                        true, // solved
+                        false, // extended
                     ]);
                 });
 
                 it("Should emit CloseMarket event", async () => {
                     await expect(tx)
-                        .to.emit(contract, "CloseMarket")
+                        .to.emit(
+                            { ...marketLib, address: contract.address },
+                            "CloseMarket"
+                        )
                         .withArgs(3);
                 });
 
                 it("Should update market state", async () => {
-                    expect(await contract.market()).to.be.eql([
-                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("0"),
-                        BigNumber.from(blockTimestamp + 200000),
-                        BigNumber.from(blockTimestamp + 300000),
-                        BigNumber.from(0),
-                        3,
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("50"), // side B
+                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("0"), // verified B
+                        ethers.utils.parseEther("0"), // reserved
+                        ethers.constants.AddressZero, // privilege nft staker
+                        alice.address, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        BigNumber.from(0), // privilege nft id
+                        3, // result
+                        true, // confirmed
+                        true, // solved
+                        false, // extended
                     ]);
                 });
             });
@@ -605,30 +682,49 @@ describe("ForeMarket / Dispute", () => {
                 });
 
                 it("Should update dispute state", async () => {
-                    expect(await contract.dispute()).to.be.eql([
-                        alice.address,
-                        false,
-                        true,
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("50"), // side B
+                        ethers.utils.parseEther("20"), // verified A
+                        ethers.utils.parseEther("20"), // verified B
+                        ethers.utils.parseEther("0"), // reserved
+                        ethers.constants.AddressZero, // privilege nft staker
+                        alice.address, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        BigNumber.from(0), // privilege nft id
+                        3, // result
+                        false, // confirmed
+                        true, // solved
+                        false, // extended
                     ]);
                 });
 
                 it("Should emit CloseMarket event", async () => {
                     await expect(tx)
-                        .to.emit(contract, "CloseMarket")
+                        .to.emit(
+                            { ...marketLib, address: contract.address },
+                            "CloseMarket"
+                        )
                         .withArgs(3);
                 });
 
                 it("Should update market state", async () => {
-                    expect(await contract.market()).to.be.eql([
-                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("20"),
-                        ethers.utils.parseEther("20"),
-                        BigNumber.from(blockTimestamp + 200000),
-                        BigNumber.from(blockTimestamp + 300000),
-                        BigNumber.from(0),
-                        3,
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("50"), // side B
+                        ethers.utils.parseEther("20"), // verified A
+                        ethers.utils.parseEther("20"), // verified B
+                        ethers.utils.parseEther("0"), // reserved
+                        ethers.constants.AddressZero, // privilege nft staker
+                        alice.address, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        BigNumber.from(0), // privilege nft id
+                        3, // result
+                        false, // confirmed
+                        true, // solved
+                        false, // extended
                     ]);
                 });
             });
@@ -644,7 +740,7 @@ describe("ForeMarket / Dispute", () => {
         it("Should not be able to open dispute", async () => {
             await expect(
                 contract.connect(alice).openDispute()
-            ).to.be.revertedWith("ForeMarket: Market is closed");
+            ).to.be.revertedWith("MarketIsClosed");
         });
     });
 });

@@ -7,6 +7,7 @@ import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
+import { MarketLib } from "@/MarketLib";
 import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { ethers } from "hardhat";
 import { deployLibrary, executeInSingleBlock } from "../../test/helpers/utils";
@@ -37,6 +38,7 @@ describe("ForeMarket / Verification", () => {
     let bob: SignerWithAddress;
     let carol: SignerWithAddress;
     let dave: SignerWithAddress;
+    let marketLib: MarketLib;
 
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
@@ -60,7 +62,10 @@ describe("ForeMarket / Verification", () => {
         ] = await ethers.getSigners();
 
         // deploy library
-        await deployLibrary("MarketLib", ["ForeMarket", "ForeMarkets"]);
+        marketLib = await deployLibrary("MarketLib", [
+            "ForeMarket",
+            "ForeMarkets",
+        ]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -146,16 +151,7 @@ describe("ForeMarket / Verification", () => {
             await timetravel(blockTimestamp + 250000);
 
             await expect(contract.connect(bob).verify(1, true)).to.revertedWith(
-                "ForeMarket: Is not opened"
-            );
-        });
-
-        it("Returns proper max amount to verify for side", async () => {
-            expect(await contract.maxAmountToVerifyForSide(true)).to.be.equal(
-                ethers.utils.parseEther("40")
-            );
-            expect(await contract.maxAmountToVerifyForSide(false)).to.be.equal(
-                ethers.utils.parseEther("50")
+                "VerificationHasNotStartedYet"
             );
         });
     });
@@ -208,7 +204,10 @@ describe("ForeMarket / Verification", () => {
 
                     it("Should emit Verify event", async () => {
                         await expect(tx)
-                            .to.emit(contract, "Verify")
+                            .to.emit(
+                                { ...marketLib, address: contract.address },
+                                "Verify"
+                            )
                             .withArgs(
                                 bob.address,
                                 BigNumber.from(0),
@@ -235,16 +234,21 @@ describe("ForeMarket / Verification", () => {
                     });
 
                     it("Should update market verification powers", async () => {
-                        expect(await contract.market()).to.be.eql([
-                            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                            ethers.utils.parseEther("50"),
-                            ethers.utils.parseEther("40"),
-                            ethers.utils.parseEther(sideValue ? "20" : "0"),
-                            ethers.utils.parseEther(sideValue ? "0" : "20"),
-                            BigNumber.from(blockTimestamp + 200000),
-                            BigNumber.from(blockTimestamp + 300000),
-                            BigNumber.from(0),
-                            0,
+                        expect(await contract.marketInfo()).to.be.eql([
+                            ethers.utils.parseEther("50"), // side A
+                            ethers.utils.parseEther("40"), // side B
+                            ethers.utils.parseEther(sideValue ? "20" : "0"), // verified A
+                            ethers.utils.parseEther(sideValue ? "0" : "20"), // verified B
+                            ethers.utils.parseEther("0"), // reserved
+                            ethers.constants.AddressZero, // privilege nft staker
+                            ethers.constants.AddressZero, // dispute creator
+                            BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                            BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                            BigNumber.from(0), // privilege nft id
+                            0, // result
+                            false, // confirmed
+                            false, // solved
+                            false, // extended
                         ]);
                     });
                 });
@@ -259,15 +263,6 @@ describe("ForeMarket / Verification", () => {
                 ]);
             });
 
-            it("Returns proper max amount to verify for side", async () => {
-                expect(
-                    await contract.maxAmountToVerifyForSide(true)
-                ).to.be.equal(ethers.utils.parseEther("40"));
-                expect(
-                    await contract.maxAmountToVerifyForSide(false)
-                ).to.be.equal(ethers.utils.parseEther("10"));
-            });
-
             describe("adding verification to almost fully verified market", () => {
                 let tx: ContractTransaction;
                 let recipt: ContractReceipt;
@@ -278,26 +273,22 @@ describe("ForeMarket / Verification", () => {
                     );
                 });
 
-                it("Returns proper max amount to verify for side", async () => {
-                    expect(
-                        await contract.maxAmountToVerifyForSide(true)
-                    ).to.be.equal(ethers.utils.parseEther("0"));
-                    expect(
-                        await contract.maxAmountToVerifyForSide(false)
-                    ).to.be.equal(ethers.utils.parseEther("0"));
-                });
-
                 it("Should increase verfication side with partial token power", async () => {
-                    expect(await contract.market()).to.be.eql([
-                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                        ethers.utils.parseEther("50"),
-                        ethers.utils.parseEther("40"),
-                        ethers.utils.parseEther("0"),
-                        ethers.utils.parseEther("50"),
-                        BigNumber.from(blockTimestamp + 200000),
-                        BigNumber.from(blockTimestamp + 300000),
-                        BigNumber.from(0),
-                        0,
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("40"), // side B
+                        ethers.utils.parseEther("0"), // verified A
+                        ethers.utils.parseEther("50"), // verified B
+                        ethers.utils.parseEther("0"), // reserved
+                        ethers.constants.AddressZero, // privilege nft staker
+                        ethers.constants.AddressZero, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        BigNumber.from(0), // privilege nft id
+                        0, // result
+                        false, // confirmed
+                        false, // solved
+                        false, // extended
                     ]);
                 });
 
@@ -314,9 +305,7 @@ describe("ForeMarket / Verification", () => {
                 it("Should not allow to verifiy fully verified market", async () => {
                     await expect(
                         contract.connect(dave).verify(3, false)
-                    ).to.be.revertedWith(
-                        "ForeMarket: Market is fully verified"
-                    );
+                    ).to.be.revertedWith("MarketIsFullyVerified");
                 });
             });
         });
@@ -335,16 +324,21 @@ describe("ForeMarket / Verification", () => {
             for (const [sideName, sideValue] of Object.entries(sides)) {
                 describe(`verifing ${sideName} side`, () => {
                     it("Should update market verification powers", async () => {
-                        expect(await contract.market()).to.be.eql([
-                            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                            ethers.utils.parseEther("50"),
-                            ethers.utils.parseEther("40"),
-                            ethers.utils.parseEther("20"),
-                            ethers.utils.parseEther("20"),
-                            BigNumber.from(blockTimestamp + 200000),
-                            BigNumber.from(blockTimestamp + 300000),
-                            BigNumber.from(0),
-                            0,
+                        expect(await contract.marketInfo()).to.be.eql([
+                            ethers.utils.parseEther("50"), // side A
+                            ethers.utils.parseEther("40"), // side B
+                            ethers.utils.parseEther("0"), // verified A
+                            ethers.utils.parseEther("0"), // verified B
+                            ethers.utils.parseEther("20"), // reserved
+                            alice.address, // privilege nft staker
+                            ethers.constants.AddressZero, // dispute creator
+                            BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                            BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                            BigNumber.from(0), // privilege nft id
+                            0, // result
+                            false, // confirmed
+                            false, // solved
+                            false, // extended
                         ]);
                     });
 
@@ -354,28 +348,37 @@ describe("ForeMarket / Verification", () => {
 
                         beforeEach(async () => {
                             [tx, recipt] = await txExec(
-                                contract.connect(alice).verify(0, sideValue)
+                                contract
+                                    .connect(alice)
+                                    .privilegeVerify(sideValue)
                             );
                         });
 
                         it("Should reduce opposite side of verification", async () => {
-                            expect(await contract.market()).to.be.eql([
-                                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                                ethers.utils.parseEther("50"),
-                                ethers.utils.parseEther("40"),
-                                ethers.utils.parseEther(sideValue ? "20" : "0"),
-                                ethers.utils.parseEther(sideValue ? "0" : "20"),
-                                BigNumber.from(blockTimestamp + 200000),
-                                BigNumber.from(blockTimestamp + 300000),
-                                BigNumber.from(0),
-                                0,
+                            expect(await contract.marketInfo()).to.be.eql([
+                                ethers.utils.parseEther("50"), // side A
+                                ethers.utils.parseEther("40"), // side B
+                                ethers.utils.parseEther(sideValue ? "20" : "0"), // verified A
+                                ethers.utils.parseEther(sideValue ? "0" : "20"), // verified B
+                                ethers.utils.parseEther("0"), // reserved
+                                ethers.constants.AddressZero, // privilege nft staker
+                                ethers.constants.AddressZero, // dispute creator
+                                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                                BigNumber.from(0), // privilege nft id
+                                0, // result
+                                false, // confirmed
+                                false, // solved
+                                false, // extended
                             ]);
                         });
 
                         it("Should not be able to stake twice", async () => {
                             await expect(
-                                contract.connect(alice).verify(0, sideValue)
-                            ).to.be.revertedWith("ForeMarket: Verify once");
+                                contract
+                                    .connect(alice)
+                                    .privilegeVerify(sideValue)
+                            ).to.be.revertedWith("IncorrectOwner");
                         });
                     });
                 });
@@ -390,7 +393,7 @@ describe("ForeMarket / Verification", () => {
 
         it("Should revert trying to verify", async () => {
             await expect(contract.connect(bob).verify(1, true)).to.revertedWith(
-                "ForeMarket: Is closed"
+                "VerificationAlreadyClosed"
             );
         });
     });

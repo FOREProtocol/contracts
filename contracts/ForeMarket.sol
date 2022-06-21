@@ -9,12 +9,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./library/MarketLib.sol";
 
 contract ForeMarket {
-    error OnlyFactory();
-    error PredictionPeriodIsAlreadyClosed();
-    error IncorrectOwner();
-    error MarketIsNotClosedYet();
-    error PrivilegeNftNotExist();
-
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
 
@@ -60,64 +54,9 @@ contract ForeMarket {
         factory = IForeMarkets(msg.sender);
     }
 
+    /// @notice Returns market info
     function marketInfo() external view returns(MarketLib.Market memory){
         return _market;
-    }
-
-    function market()
-        external
-        view
-        returns(
-            bytes32,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            MarketLib.ResultType
-        )
-    {
-        MarketLib.Market memory m = _market;
-        if(block.timestamp > m.startVerificationTimestamp + marketConfig.verificationPeriod()) {
-            if(MarketLib.isVerificationPeriodExtensionAvailable(m)) {
-                m.startVerificationTimestamp = m.startVerificationTimestamp + marketConfig.verificationPeriod();
-            }
-        }
-
-        return (
-            marketHash,
-            m.sideA,
-            m.sideB,
-            m.verifiedA + m.reserved,
-            m.verifiedB + m.reserved,
-            m.endPredictionTimestamp,
-            m.startVerificationTimestamp,
-            _tokenId,
-            m.result
-        );
-    }
-
-    function privilegeNft()
-        external
-        view
-        returns(
-            address,
-            uint256,
-            bool
-        )
-    {
-        bool privilegeUsed = (_market.reserved == 0 && _market.privilegeNftId != 0);
-        return (
-            _market.privilegeNftStaker,
-            _market.privilegeNftId,
-            privilegeUsed
-        );
-    }
-
-    function dispute() external view returns(address, bool, bool){
-        return(_market.disputeCreator, _market.confirmed, _market.solved);
     }
 
     /// @notice Initialization function
@@ -139,7 +78,7 @@ contract ForeMarket {
         uint64 tokenId
     ) external {
         if (msg.sender != address(factory)) {
-            revert("OnlyFactory()");
+            revert("ForeMarket: Only Factory");
         }
 
         protocolConfig = IProtocolConfig(factory.config());
@@ -165,12 +104,6 @@ contract ForeMarket {
     /// @param amount Amount of ForeToken
     /// @param side Predicition side (true - positive result, false - negative result)
     function predict(uint256 amount, bool side) external {
-        MarketLib.Market memory m = _market;
-
-        if (block.timestamp >= m.endPredictionTimestamp) {
-            revert PredictionPeriodIsAlreadyClosed();
-        }
-
         foreToken.transferFrom(msg.sender, address(this), amount);
         MarketLib.predict(
             _market,
@@ -201,7 +134,7 @@ contract ForeMarket {
     function verify(uint256 tokenId, bool side) external {
         if(
             foreVerifiers.ownerOf(tokenId)!= msg.sender){
-            revert IncorrectOwner();
+            revert ("ForeMarket: Incorrect owner");
         }
 
         (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
@@ -273,7 +206,7 @@ contract ForeMarket {
 
     ///@dev Closes market
     ///@param result Market close result type
-    ///Is not best optimized becouse of deep stack    //Is not best optimized becouse of deep stack
+    ///Is not best optimized becouse of deep stack
     function _closeMarket(MarketLib.ResultType result) private {
         (uint256 burnFee, uint256 foundationFee, , , ) = marketConfig.fees();
 
@@ -417,11 +350,11 @@ contract ForeMarket {
     function withdrarwUnusedPrivilegeNFT() external{
         MarketLib.Market memory m = _market;
         if (m.result == MarketLib.ResultType.NULL) {
-            revert MarketIsNotClosedYet();
+            revert ("MarketIsNotClosedYet");
         }
 
         if (m.privilegeNftStaker == address(0)) {
-            revert PrivilegeNftNotExist();
+            revert ("PrivilegeNftNotExist");
         }
         uint256 fee = foreVerifiers.powerOf(m.privilegeNftId) / 10;
         foreVerifiers.decreasePower(
@@ -438,7 +371,7 @@ contract ForeMarket {
         uint256 tokenId = _tokenId;
 
         if (m.result == MarketLib.ResultType.NULL) {
-            revert MarketIsNotClosedYet();
+            revert ("MarketIsNotClosedYet");
         }
 
         factory.transferFrom(msg.sender, address(this), tokenId);

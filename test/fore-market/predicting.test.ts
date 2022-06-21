@@ -124,16 +124,21 @@ describe("ForeMarket / Prediciting", () => {
 
     describe("initial state", () => {
         it("Should return proper market state", async () => {
-            expect(await contract.market()).to.be.eql([
-                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                BigNumber.from(0),
-                BigNumber.from(0),
-                BigNumber.from(0),
-                BigNumber.from(0),
-                BigNumber.from(blockTimestamp + 200000),
-                BigNumber.from(blockTimestamp + 300000),
-                BigNumber.from(0),
-                0,
+            expect(await contract.marketInfo()).to.be.eql([
+                BigNumber.from(0), // side A
+                BigNumber.from(0), // side B
+                BigNumber.from(0), // verified A
+                BigNumber.from(0), // verified B
+                BigNumber.from(0), // reserved
+                ethers.constants.AddressZero, // privilege nft staker
+                ethers.constants.AddressZero, // dispute creator
+                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                BigNumber.from(0), // privilege nft id
+                0, // result
+                false, // confirmed
+                false, // solved
+                false, // extended
             ]);
         });
     });
@@ -146,7 +151,7 @@ describe("ForeMarket / Prediciting", () => {
 
     it("Should revert with 0 stake", async () => {
         await expect(contract.connect(bob).predict(0, true)).to.be.revertedWith(
-            "ForeMarket: Amount cant be zero"
+            "AmountCantBeZero"
         );
     });
 
@@ -164,7 +169,7 @@ describe("ForeMarket / Prediciting", () => {
 
         it("Should emit Predict event", async () => {
             await expect(tx)
-                .to.emit({ ...contract, address: marketLib.address }, "Predict")
+                .to.emit({ ...marketLib, address: contract.address }, "Predict")
                 .withArgs(alice.address, true, ethers.utils.parseEther("2"));
         });
 
@@ -179,16 +184,21 @@ describe("ForeMarket / Prediciting", () => {
         });
 
         it("Should return proper market state", async () => {
-            expect(await contract.market()).to.be.eql([
-                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                ethers.utils.parseEther("2"),
-                BigNumber.from(0),
-                BigNumber.from(0),
-                BigNumber.from(0),
-                BigNumber.from(blockTimestamp + 200000),
-                BigNumber.from(blockTimestamp + 300000),
-                BigNumber.from(0),
-                0,
+            expect(await contract.marketInfo()).to.be.eql([
+                ethers.utils.parseEther("2"), // side A
+                BigNumber.from(0), // side B
+                BigNumber.from(0), // verified A
+                BigNumber.from(0), // verified B
+                BigNumber.from(0), // reserved
+                ethers.constants.AddressZero, // privilege nft staker
+                ethers.constants.AddressZero, // dispute creator
+                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                BigNumber.from(0), // privilege nft id
+                0, // result
+                false, // confirmed
+                false, // solved
+                false, // extended
             ]);
         });
     });
@@ -205,17 +215,38 @@ describe("ForeMarket / Prediciting", () => {
             );
         });
 
+        it("Should emit Predict event", async () => {
+            await expect(tx)
+                .to.emit({ ...marketLib, address: contract.address }, "Predict")
+                .withArgs(alice.address, false, ethers.utils.parseEther("3"));
+        });
+
+        it("Should emit Transfer (ERC20) event", async () => {
+            await expect(tx)
+                .to.emit(foreToken, "Transfer")
+                .withArgs(
+                    alice.address,
+                    contract.address,
+                    ethers.utils.parseEther("3")
+                );
+        });
+
         it("Should return proper market state", async () => {
-            expect(await contract.market()).to.be.eql([
-                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-                BigNumber.from(0),
-                ethers.utils.parseEther("3"),
-                BigNumber.from(0),
-                BigNumber.from(0),
-                BigNumber.from(blockTimestamp + 200000),
-                BigNumber.from(blockTimestamp + 300000),
-                BigNumber.from(0),
-                0,
+            expect(await contract.marketInfo()).to.be.eql([
+                ethers.utils.parseEther("0"), // side A
+                ethers.utils.parseEther("3"), // side B
+                BigNumber.from(0), // verified A
+                BigNumber.from(0), // verified B
+                BigNumber.from(0), // reserved
+                ethers.constants.AddressZero, // privilege nft staker
+                ethers.constants.AddressZero, // dispute creator
+                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                BigNumber.from(0), // privilege nft id
+                0, // result
+                false, // confirmed
+                false, // solved
+                false, // extended
             ]);
         });
     });
@@ -230,7 +261,7 @@ describe("ForeMarket / Prediciting", () => {
                 contract
                     .connect(alice)
                     .predict(ethers.utils.parseEther("2"), true)
-            ).to.revertedWith("ForeMarket: Prediction is closed");
+            ).to.revertedWith("PredictionPeriodIsAlreadyClosed");
         });
     });
 });

@@ -25,32 +25,6 @@ library MarketLib {
     );
     event Predict(address indexed sender, bool side, uint256 amount);
 
-    //ERRORS
-    error IncorrectOwner();
-    error VerificationAlreadyStarted();
-    error PowerMustBeGreaterThanMintPrice();
-    error AmountCantBeZero();
-    error VerificationHasNotStartedYet();
-    error VerificationAlreadyClosed();
-    error PrivilegeCanVerifyOnce();
-    error MarketIsFullyVerified();
-    error MarketIsClosed();
-    error DisputePeriodIsNotStartedYet();
-    error DisputePeriodIsEnded();
-    error DisputeAlreadyExists();
-    error HighGuardOnly();
-    error ResultCantBeNull();
-    error DisputeAlreadySolved();
-    error DisputeNotSolvedYet();
-    error DisputePeriodIsNotEndedYet();
-    error MarketIsNotClosedYet();
-    error AlreadyWithdrawn();
-    error NothingToWithdraw();
-    error OnlyFactory();
-    error VerifcationPeriodExtensionAvailable();
-    error NothingReserved();
-    error VerifcationPeriodExtensionUnavailable();
-
     //STRUCTS
     /// @notice Market closing types
     enum ResultType {
@@ -188,11 +162,14 @@ library MarketLib {
         uint256 mintPrice,
         uint64 tokenId
     ) external {
+        if(market.privilegeNftStaker != address(0)){
+            revert ("PrivilegeNftAlreadyExist");
+        }
         if (block.timestamp > market.startVerificationTimestamp) {
-            revert VerificationAlreadyStarted();
+            revert ("VerificationAlreadyStarted");
         }
         if (nftPower < mintPrice) {
-            revert PowerMustBeGreaterThanMintPrice();
+            revert ("PowerMustBeGreaterThanMintPrice");
         }
 
         market.privilegeNftStaker = verifier;
@@ -251,6 +228,8 @@ library MarketLib {
         uint64 startVerificationTimestamp,
         uint256 tokenId
     ) external {
+        market.endPredictionTimestamp = endPredictionTimestamp;
+        market.startVerificationTimestamp = startVerificationTimestamp;
         if (amountA != 0) {
             _predict(
                 market,
@@ -271,10 +250,6 @@ library MarketLib {
                 receiver
             );
         }
-        market.sideA = amountA;
-        market.sideB = amountB;
-        market.endPredictionTimestamp = endPredictionTimestamp;
-        market.startVerificationTimestamp = startVerificationTimestamp;
 
         emit MarketInitialized(tokenId);
     }
@@ -313,7 +288,13 @@ library MarketLib {
         address receiver
     ) internal {
         if (amount == 0) {
-            revert AmountCantBeZero();
+            revert ("AmountCantBeZero");
+        }
+
+        MarketLib.Market memory m = market;
+
+        if (block.timestamp >= m.endPredictionTimestamp) {
+            revert ("PredictionPeriodIsAlreadyClosed");
         }
 
         if (side) {
@@ -346,12 +327,12 @@ library MarketLib {
     ) internal {
         MarketLib.Market memory m = market;
         if (block.timestamp < m.startVerificationTimestamp) {
-            revert VerificationHasNotStartedYet();
+            revert ("VerificationHasNotStartedYet");
         }
         uint256 verificationEndTime = m.startVerificationTimestamp +
             verificationPeriod;
         if (block.timestamp > verificationEndTime) {
-            revert VerificationAlreadyClosed();
+            revert ("VerificationAlreadyClosed");
         }
 
         if (side) {
@@ -391,7 +372,7 @@ library MarketLib {
         }
         uint256 powerAvailable = _maxAmountToVerifyForSide(m, side);
         if (powerAvailable == 0) {
-            revert MarketIsFullyVerified();
+            revert ("MarketIsFullyVerified");
         }
         if (power > powerAvailable) {
             power = powerAvailable;
@@ -421,11 +402,11 @@ library MarketLib {
         Market memory m = market;
 
         if (m.result != ResultType.NULL) {
-            revert MarketIsClosed();
+            revert ("MarketIsClosed");
         }
 
-        if (!_isVerificationPeriodExtensionAvailable(m)) {
-            revert VerifcationPeriodExtensionAvailable();
+        if (_isVerificationPeriodExtensionAvailable(m)) {
+            revert ("VerifcationPeriodExtensionAvailable");
         }
 
         if (
@@ -433,18 +414,18 @@ library MarketLib {
             m.startVerificationTimestamp + verificationPeriod &&
             !_isVerified(m)
         ) {
-            revert DisputePeriodIsNotStartedYet();
+            revert ("DisputePeriodIsNotStartedYet");
         }
 
         if (
             block.timestamp >=
             m.startVerificationTimestamp + verificationPeriod + disputePeriod
         ) {
-            revert DisputePeriodIsEnded();
+            revert ("DisputePeriodIsEnded");
         }
 
         if (m.disputeCreator != address(0)) {
-            revert DisputeAlreadyExists();
+            revert ("DisputeAlreadyExists");
         }
 
         market.disputeCreator = creator;
@@ -464,18 +445,18 @@ library MarketLib {
         address requester
     ) external returns (address receiverAddress) {
         if (highGuard != requester) {
-            revert HighGuardOnly();
+            revert ("HighGuardOnly");
         }
         if (result == MarketLib.ResultType.NULL) {
-            revert ResultCantBeNull();
+            revert ("ResultCantBeNull");
         }
         MarketLib.Market memory m = market;
         if (m.disputeCreator == address(0)) {
-            revert DisputePeriodIsNotStartedYet();
+            revert ("DisputePeriodIsNotStartedYet");
         }
 
         if (m.solved) {
-            revert DisputeAlreadySolved();
+            revert ("DisputeAlreadySolved");
         }
 
         market.solved = true;
@@ -502,7 +483,7 @@ library MarketLib {
     /// @return toDisputeCreator Token to dispute creator
     /// @return disputeCreator Dispute creator address
     function closeMarket(
-        Market memory market,
+        Market storage market,
         uint256 burnFee,
         uint256 verificationFee,
         uint256 revenueFee,
@@ -555,18 +536,18 @@ library MarketLib {
         uint256 disputePeriod
     ) external view {
         if (m.result != MarketLib.ResultType.NULL) {
-            revert MarketIsClosed();
+            revert ("MarketIsClosed");
         }
 
         if (m.disputeCreator != address(0)) {
-            revert DisputeNotSolvedYet();
+            revert ("DisputeNotSolvedYet");
         }
 
         uint256 disputePeriodEnds = m.startVerificationTimestamp +
             verificationPeriod +
             disputePeriod;
         if (block.timestamp < disputePeriodEnds) {
-            revert DisputePeriodIsNotEndedYet();
+            revert ("DisputePeriodIsNotEndedYet");
         }
     }
 
@@ -587,10 +568,10 @@ library MarketLib {
         address predictor
     ) external returns (uint256) {
         if (m.result == MarketLib.ResultType.NULL) {
-            revert MarketIsNotClosedYet();
+            revert ("MarketIsNotClosedYet");
         }
         if (predictionWithdrawn[predictor]) {
-            revert AlreadyWithdrawn();
+            revert ("AlreadyWithdrawn");
         }
 
         predictionWithdrawn[predictor] = true;
@@ -602,7 +583,7 @@ library MarketLib {
             feesSum
         );
         if (toWithdraw == 0) {
-            revert NothingToWithdraw();
+            revert ("NothingToWithdraw");
         }
 
         emit WithdrawReward(predictor, 1, toWithdraw);
@@ -634,11 +615,11 @@ library MarketLib {
         )
     {
         if (m.result == MarketLib.ResultType.NULL) {
-            revert MarketIsNotClosedYet();
+            revert ("MarketIsNotClosedYet");
         }
 
         if (v.withdrawn) {
-            revert AlreadyWithdrawn();
+            revert ("AlreadyWithdrawn");
         }
 
         if (m.result == MarketLib.ResultType.DRAW) {
@@ -673,7 +654,7 @@ library MarketLib {
         returns (bool available)
     {
         if (
-            m.reserved != 0 && (m.reserved >= m.sideA || m.reserved >= m.sideB) && !m.extended
+            (m.reserved != 0) && ((m.reserved >= m.sideA) || (m.reserved >= m.sideB)) && (!m.extended)
         ) {
             available = true;
         }
@@ -710,28 +691,28 @@ library MarketLib {
         Market memory m = market;
 
         if (_isVerified(m)) {
-            revert MarketIsFullyVerified();
+            revert ("MarketIsFullyVerified");
         }
 
         if (m.reserved != 0) {
-            revert NothingReserved();
+            revert ("NothingReserved");
         }
 
         if (
             block.timestamp < m.startVerificationTimestamp + verificationPeriod
         ) {
-            revert DisputePeriodIsNotStartedYet();
+            revert ("DisputePeriodIsNotStartedYet");
         }
 
         if (
             block.timestamp >=
             m.startVerificationTimestamp + verificationPeriod + disputePeriod
         ) {
-            revert DisputePeriodIsEnded();
+            revert ("DisputePeriodIsEnded");
         }
 
         if (!_isVerificationPeriodExtensionAvailable(m)) {
-            revert VerifcationPeriodExtensionUnavailable();
+            revert ("VerifcationPeriodExtensionUnavailable");
         }
 
         market.startVerificationTimestamp =
@@ -757,10 +738,10 @@ library MarketLib {
     ) external {
         MarketLib.Market memory m = market;
         if (m.privilegeNftStaker != requester) {
-            revert MarketLib.IncorrectOwner();
+            revert ("IncorrectOwner");
         }
         if (m.reserved == 0) {
-            revert MarketLib.PrivilegeCanVerifyOnce();
+            revert ("PrivilegeCanVerifyOnce");
         }
 
         market.reserved = 0;
