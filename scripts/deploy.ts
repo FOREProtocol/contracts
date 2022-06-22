@@ -60,9 +60,20 @@ async function main() {
     const markets = await MarketsArtifact.deploy(protocolConfig.address);
     await markets.deployed();
     console.log("ForeMarkets deployed to:", markets.address);
+
     // Initial settings
     await foretoken.setFactory(markets.address);
     await verifiers.setFactory(markets.address);
+
+    // dump addresses for API purpose
+    console.log({
+        foreToken: foretoken.address,
+        foreVesting: vesting.address,
+        foreVerifiers: verifiers.address,
+        protocolConfig: protocolConfig.address,
+        marketLib: marketLib.address,
+        foreMarkets: markets.address,
+    });
 
     // test
     const signer = await ethers.provider.getSigner().getAddress();
