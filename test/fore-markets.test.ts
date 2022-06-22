@@ -2,6 +2,7 @@ import { ForeMarket } from "@/ForeMarket";
 import { ForeMarkets, MarketCreatedEvent } from "@/ForeMarkets";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
+import { MarketLib } from "@/MarketLib";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
@@ -12,6 +13,7 @@ import { ethers } from "hardhat";
 import {
     attachContract,
     deployContract,
+    deployLibrary,
     deployMockedContract,
     findEvent,
     txExec,
@@ -30,6 +32,7 @@ describe("ForeMarkets", () => {
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
     let contract: ForeMarkets;
+    let marketLib: MarketLib;
 
     beforeEach(async () => {
         [
@@ -58,6 +61,11 @@ describe("ForeMarkets", () => {
             ethers.utils.parseEther("10"),
             ethers.utils.parseEther("20")
         );
+
+        marketLib = await deployLibrary("MarketLib", [
+            "ForeMarket",
+            "ForeMarkets",
+        ]);
 
         contract = await deployContract<ForeMarkets>(
             "ForeMarkets",
