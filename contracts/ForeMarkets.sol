@@ -17,7 +17,7 @@ contract ForeMarkets is ERC721, ERC721Burnable {
         address indexed creator,
         bytes32 marketHash,
         address market,
-        uint256 length
+        uint256 marketIdx
     );
 
     /// @notice Init creatin code
