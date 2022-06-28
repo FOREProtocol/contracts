@@ -7,9 +7,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
 contract ForeVerifiers is
     ERC721,
+    ERC721Enumerable,
     ERC721Burnable,
     Ownable
 {
@@ -230,6 +232,22 @@ contract ForeVerifiers is
         emit TokenPowerDecreased(id, powerDelta, _power[id]);
     }
 
+    function _beforeTokenTransfer(address from, address to, uint256 tokenId)
+        internal
+        override(ERC721, ERC721Enumerable)
+    {
+        super._beforeTokenTransfer(from, to, tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721, ERC721Enumerable)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
     /**
      * @inheritdoc ERC721
      * @dev It is always allowed for Fore operator
@@ -237,7 +255,7 @@ contract ForeVerifiers is
     function isApprovedForAll(address owner, address operator)
         public
         view
-        override
+        override(ERC721)
         returns (bool)
     {
         if (_factory.isForeOperator(operator)) {
