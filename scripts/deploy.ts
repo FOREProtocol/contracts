@@ -8,7 +8,6 @@ async function main() {
         foundationWallet: "0x0000000000000000000000000000000000000001",
         revenueWallet: "0x0000000000000000000000000000000000000002",
         highGuard: "0x0000000000000000000000000000000000000003",
-        marketplace: "0x0000000000000000000000000000000000000004",
     };
 
     // Fore Token
@@ -29,13 +28,38 @@ async function main() {
     await verifiers.deployed();
     console.log("ForeVerifiers deployed to:", verifiers.address);
 
+    // NFT Marketplace
+    const MarketplaceArtifact = await ethers.getContractFactory(
+        "ForeNftMarketplace"
+    );
+    const marketplace = await MarketplaceArtifact.deploy(
+        "0x1547dC7E7CB86717F9fB397423EbeF55EF435Aa4",
+        config.revenueWallet,
+        foretoken.address,
+        ethers.utils.parseEther("1"),
+        ethers.utils.parseEther("1000000000")
+    );
+    await marketplace.deployed();
+    console.log("ForeMarketplace deployed to:", marketplace.address);
+
+    // add fore verifiers to marketplace
+    const tx = await marketplace.addCollection(
+        verifiers.address,
+        config.revenueWallet,
+        "0x0000000000000000000000000000000000000000",
+        1000,
+        0,
+        { gasLimit: 5000000 }
+    );
+    await tx.wait();
+
     // Protocol Config
     const ConfigArtifact = await ethers.getContractFactory("ProtocolConfig");
     const protocolConfig = await ConfigArtifact.deploy(
         config.foundationWallet,
         config.revenueWallet,
         config.highGuard,
-        config.marketplace,
+        marketplace.address,
         foretoken.address,
         verifiers.address,
         config.marketCreationPrice,
@@ -73,6 +97,7 @@ async function main() {
         protocolConfig: protocolConfig.address,
         marketLib: marketLib.address,
         foreMarkets: markets.address,
+        marketplace: marketplace.address,
     });
 
     // test
