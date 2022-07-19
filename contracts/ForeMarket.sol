@@ -45,6 +45,8 @@ contract ForeMarket {
     /// @notice Verification info for verificatioon id
     MarketLib.Verification[] public verifications;
 
+    bytes32 public disputeMessage;
+
     /// @notice Verification array size
     function verificationHeight() external view returns (uint256) {
         return verifications.length;
@@ -168,7 +170,7 @@ contract ForeMarket {
     }
 
     /// @notice Opens dispute
-    function openDispute() external {
+    function openDispute(bytes32 messageHash) external {
         (
             uint256 disputePrice,
             uint256 disputePeriod,
@@ -180,6 +182,7 @@ contract ForeMarket {
 
         ) = marketConfig.config();
         foreToken.transferFrom(msg.sender, address(this), disputePrice);
+        disputeMessage = messageHash;
         MarketLib.openDispute(
             _market,
             disputePeriod,

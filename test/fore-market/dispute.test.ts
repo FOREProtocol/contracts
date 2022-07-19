@@ -159,9 +159,13 @@ describe("ForeMarket / Dispute", () => {
         });
 
         it("Should revert if executed before dispute period", async () => {
-            await expect(contract.connect(bob).openDispute()).to.revertedWith(
-                "DisputePeriodIsNotStartedYet"
-            );
+            await expect(
+                contract
+                    .connect(bob)
+                    .openDispute(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                    )
+            ).to.revertedWith("DisputePeriodIsNotStartedYet");
         });
     });
 
@@ -172,7 +176,11 @@ describe("ForeMarket / Dispute", () => {
 
         it("Should fail without required amount of funds", async () => {
             await expect(
-                contract.connect(dave).openDispute()
+                contract
+                    .connect(dave)
+                    .openDispute(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                    )
             ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
         });
 
@@ -182,7 +190,11 @@ describe("ForeMarket / Dispute", () => {
 
             beforeEach(async () => {
                 [tx, recipt] = await txExec(
-                    contract.connect(alice).openDispute()
+                    contract
+                        .connect(alice)
+                        .openDispute(
+                            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                        )
                 );
             });
 
@@ -237,7 +249,13 @@ describe("ForeMarket / Dispute", () => {
         });
 
         it("Should be able to open dispute", async () => {
-            await txExec(contract.connect(alice).openDispute());
+            await txExec(
+                contract
+                    .connect(alice)
+                    .openDispute(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                    )
+            );
         });
     });
 
@@ -247,9 +265,13 @@ describe("ForeMarket / Dispute", () => {
         });
 
         it("Should revert trying to verify", async () => {
-            await expect(contract.connect(bob).openDispute()).to.revertedWith(
-                "DisputePeriodIsEnded"
-            );
+            await expect(
+                contract
+                    .connect(bob)
+                    .openDispute(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                    )
+            ).to.revertedWith("DisputePeriodIsEnded");
         });
     });
 
@@ -266,7 +288,13 @@ describe("ForeMarket / Dispute", () => {
         describe("with open dispute", () => {
             beforeEach(async () => {
                 await timetravel(blockTimestamp + 300000 + 1800 + 1);
-                await txExec(contract.connect(alice).openDispute());
+                await txExec(
+                    contract
+                        .connect(alice)
+                        .openDispute(
+                            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                        )
+                );
             });
 
             it("Only HG can resolve dispute", async () => {
@@ -618,7 +646,13 @@ describe("ForeMarket / Dispute", () => {
         describe("with open dispute", () => {
             beforeEach(async () => {
                 await timetravel(blockTimestamp + 300000 + 1800 + 1);
-                await txExec(contract.connect(alice).openDispute());
+                await txExec(
+                    contract
+                        .connect(alice)
+                        .openDispute(
+                            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                        )
+                );
             });
 
             describe("with resolved dispute (result DRAW - dispute rejected)", () => {
@@ -739,7 +773,11 @@ describe("ForeMarket / Dispute", () => {
 
         it("Should not be able to open dispute", async () => {
             await expect(
-                contract.connect(alice).openDispute()
+                contract
+                    .connect(alice)
+                    .openDispute(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                    )
             ).to.be.revertedWith("MarketIsClosed");
         });
     });
