@@ -128,6 +128,7 @@ describe("Protocol configuration", () => {
                     BigNumber.from(100),
                     BigNumber.from(50),
                     BigNumber.from(150),
+                    false,
                 ]);
             });
 
@@ -184,7 +185,8 @@ describe("Protocol configuration", () => {
                         70,
                         80,
                         90,
-                        100
+                        100,
+                        false
                     );
             });
         });
@@ -203,7 +205,8 @@ describe("Protocol configuration", () => {
                         100,
                         100,
                         100,
-                        101
+                        101,
+                        false
                     )
             ).to.revertedWith("ForeFactory: Config limit");
         });
@@ -222,7 +225,8 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10
+                        10,
+                        false
                     )
             ).to.revertedWith("ForeFactory: Config limit");
         });
@@ -241,7 +245,8 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10
+                        10,
+                        false
                     )
             ).to.revertedWith("ForeFactory: Config limit");
         });
@@ -260,7 +265,8 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10
+                        10,
+                        false
                     )
             ).to.revertedWith("ForeFactory: Config limit");
         });
@@ -284,7 +290,8 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10
+                        10,
+                        false
                     )
             );
 
@@ -297,6 +304,7 @@ describe("Protocol configuration", () => {
                 BigNumber.from(100),
                 BigNumber.from(50),
                 BigNumber.from(150),
+                false,
             ]);
         });
 
@@ -316,7 +324,8 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10
+                        10,
+                        false
                     )
             );
 
@@ -341,7 +350,8 @@ describe("Protocol configuration", () => {
                             70,
                             80,
                             90,
-                            100
+                            100,
+                            false
                         )
                 );
             });

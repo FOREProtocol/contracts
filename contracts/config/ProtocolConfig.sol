@@ -81,7 +81,8 @@ contract ProtocolConfig is
             100,
             100,
             50,
-            150
+            150,
+            false
         );
 
         foundationWallet = foundationWalletP;
@@ -110,7 +111,8 @@ contract ProtocolConfig is
         uint256 foundationFeeP,
         uint256 revenueFeeP,
         uint256 marketCreatorFeeP,
-        uint256 verificationFeeP
+        uint256 verificationFeeP,
+        bool isPrivilegeVerifierEnabledP
     ) internal {
         uint256 feesSum = burnFeeP
             + foundationFeeP
@@ -139,7 +141,8 @@ contract ProtocolConfig is
                 foundationFeeP,
                 revenueFeeP,
                 marketCreatorFeeP,
-                verificationFeeP
+                verificationFeeP,
+                isPrivilegeVerifierEnabledP
             )
         );
 
@@ -171,7 +174,8 @@ contract ProtocolConfig is
         uint256 foundationFeeP,
         uint256 revenueFeeP,
         uint256 marketCreatorFeeP,
-        uint256 verificationFeeP
+        uint256 verificationFeeP,
+        bool isPrivilegeVerifierEnabledP
     )
         external
         onlyOwner
@@ -186,7 +190,8 @@ contract ProtocolConfig is
             foundationFeeP,
             revenueFeeP,
             marketCreatorFeeP,
-            verificationFeeP
+            verificationFeeP,
+            isPrivilegeVerifierEnabledP
         );
     }
 

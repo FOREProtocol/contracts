@@ -120,6 +120,9 @@ contract ForeMarket {
     ///@notice Stakes nft token for the privilege of being a verifier
     ///@param tokenId ForeVerifiers nft id
     function stakeForPrivilege(uint64 tokenId) external {
+        if(!marketConfig.isPrivilegeVerifierEnabled()){
+            revert("ForeMarket: Privilege disabled");
+        }
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
         MarketLib.stakeForPrivilege(
             _market,
@@ -179,7 +182,7 @@ contract ForeMarket {
             ,
             ,
             ,
-
+            ,
         ) = marketConfig.config();
         foreToken.transferFrom(msg.sender, address(this), disputePrice);
         disputeMessage = messageHash;

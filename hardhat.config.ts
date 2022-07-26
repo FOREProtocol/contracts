@@ -109,7 +109,29 @@ const config: HardhatUserConfig = {
         coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     },
     etherscan: {
-        apiKey: process.env.ETHERSCAN_API_KEY,
+        apiKey: {
+            fantom: process.env.FTMSCAN_API_KEY,
+            fantomtestnet: process.env.FTMSCAN_API_KEY,
+            rinkeby: process.env.ETHERSCAN_API_KEY,
+        },
+        customChains: [
+            {
+                network: "fantomtestnet",
+                chainId: 4002,
+                urls: {
+                    apiURL: "https://api-testnet.ftmscan.com/api",
+                    browserURL: "https://testnet.ftmscan.com",
+                },
+            },
+            {
+                network: "fantom",
+                chainId: 250,
+                urls: {
+                    apiURL: "https://api.ftmscan.com/api",
+                    browserURL: "https://ftmscan.com",
+                },
+            },
+        ],
     },
     docgen: {
         path: "./docs",
