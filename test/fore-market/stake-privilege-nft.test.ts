@@ -99,7 +99,7 @@ describe("ForeMarket / Staking privilege NFT", () => {
             foreMarkets
                 .connect(alice)
                 .createMarket(
-                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abaa",
                     alice.address,
                     ethers.utils.parseEther("50"),
                     ethers.utils.parseEther("40"),
@@ -125,82 +125,136 @@ describe("ForeMarket / Staking privilege NFT", () => {
         await txExec(foreMarkets.connect(owner).mintVerifier(bob.address));
     });
 
-    it("Should revert if executed with non powerful token", async () => {
-        await txExec(
-            protocolConfig
-                .connect(owner)
-                .setVerifierMintPrice(ethers.utils.parseEther("50"))
-        );
-
-        await expect(
-            contract.connect(alice).stakeForPrivilege(0)
-        ).to.revertedWith("PowerMustBeGreaterThanMintPrice");
-    });
-
-    it("Should revert if executed with non owned token", async () => {
-        await expect(
-            contract.connect(alice).stakeForPrivilege(1)
-        ).to.revertedWith("ERC721: transfer from incorrect owner");
-    });
-
-    describe("sucessfully", () => {
+    describe("With enabled PV", () => {
         let tx: ContractTransaction;
         let recipt: ContractReceipt;
 
         beforeEach(async () => {
-            [tx, recipt] = await txExec(
-                contract.connect(alice).stakeForPrivilege(0)
-            );
-        });
-
-        it("Should emit Transfer (ERC721) event", async () => {
-            await expect(tx)
-                .to.emit(foreVerifiers, "Transfer")
-                .withArgs(alice.address, contract.address, BigNumber.from(0));
-        });
-
-        it("Should update state of privilegeNft", async () => {
-            expect(await contract.marketInfo()).to.be.eql([
-                ethers.utils.parseEther("50"), // side A
-                ethers.utils.parseEther("40"), // side B
-                BigNumber.from(0), // verified A
-                BigNumber.from(0), // verified B
-                ethers.utils.parseEther("20"), // reserved
-                alice.address, // privilege nft staker
-                ethers.constants.AddressZero, // dispute creator
-                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
-                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                BigNumber.from(0), // privilege nft id
-                0, // result
-                false, // confirmed
-                false, // solved
-                false, // extended
-            ]);
-        });
-
-        it("Should not be possible to stake for privilege again", async () => {
             await txExec(
-                foreMarkets.connect(owner).mintVerifier(alice.address)
+                protocolConfig
+                    .connect(owner)
+                    .setMarketConfig(
+                        ethers.utils.parseEther("1000"),
+                        ethers.utils.parseEther("1000"),
+                        ethers.utils.parseEther("1000"),
+                        1800,
+                        1800,
+                        100,
+                        100,
+                        100,
+                        50,
+                        150,
+                        true
+                    )
             );
-            await expect(
-                contract.connect(alice).stakeForPrivilege(2)
-            ).to.be.revertedWith("PrivilegeNftAlreadyExist");
+            // creating market
+            const [tx, recipt] = await txExec(
+                foreMarkets
+                    .connect(alice)
+                    .createMarket(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                        alice.address,
+                        ethers.utils.parseEther("50"),
+                        ethers.utils.parseEther("40"),
+                        BigNumber.from(blockTimestamp + 200000),
+                        BigNumber.from(blockTimestamp + 300000)
+                    )
+            );
 
-            await expect(
-                contract.connect(bob).stakeForPrivilege(1)
-            ).to.be.revertedWith("PrivilegeNftAlreadyExist");
+            // attach to market
+            const marketCreatedEvent = findEvent<MarketCreatedEvent>(
+                recipt,
+                "MarketCreated"
+            );
+            const marketAddress = marketCreatedEvent.args.market;
+
+            contract = await attachContract<ForeMarket>(
+                "ForeMarket",
+                marketAddress
+            );
         });
-    });
 
-    describe("after verification stage started", () => {
-        beforeEach(async () => {
-            await timetravel(blockTimestamp + 300000);
-        });
+        it("Should revert if executed with non powerful token", async () => {
+            await txExec(
+                protocolConfig
+                    .connect(owner)
+                    .setVerifierMintPrice(ethers.utils.parseEther("50"))
+            );
 
-        it("Should revert if executed after verification start", async () => {
             await expect(
                 contract.connect(alice).stakeForPrivilege(0)
-            ).to.revertedWith("VerificationAlreadyStarted");
+            ).to.revertedWith("PowerMustBeGreaterThanMintPrice");
+        });
+
+        it("Should revert if executed with non owned token", async () => {
+            await expect(
+                contract.connect(alice).stakeForPrivilege(1)
+            ).to.revertedWith("ERC721: transfer from incorrect owner");
+        });
+
+        describe("sucessfully", () => {
+            let tx: ContractTransaction;
+            let recipt: ContractReceipt;
+
+            beforeEach(async () => {
+                [tx, recipt] = await txExec(
+                    contract.connect(alice).stakeForPrivilege(0)
+                );
+            });
+
+            it("Should emit Transfer (ERC721) event", async () => {
+                await expect(tx)
+                    .to.emit(foreVerifiers, "Transfer")
+                    .withArgs(
+                        alice.address,
+                        contract.address,
+                        BigNumber.from(0)
+                    );
+            });
+
+            it("Should update state of privilegeNft", async () => {
+                expect(await contract.marketInfo()).to.be.eql([
+                    ethers.utils.parseEther("50"), // side A
+                    ethers.utils.parseEther("40"), // side B
+                    BigNumber.from(0), // verified A
+                    BigNumber.from(0), // verified B
+                    ethers.utils.parseEther("20"), // reserved
+                    alice.address, // privilege nft staker
+                    ethers.constants.AddressZero, // dispute creator
+                    BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                    BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                    BigNumber.from(0), // privilege nft id
+                    0, // result
+                    false, // confirmed
+                    false, // solved
+                    false, // extended
+                ]);
+            });
+
+            it("Should not be possible to stake for privilege again", async () => {
+                await txExec(
+                    foreMarkets.connect(owner).mintVerifier(alice.address)
+                );
+                await expect(
+                    contract.connect(alice).stakeForPrivilege(2)
+                ).to.be.revertedWith("PrivilegeNftAlreadyExist");
+
+                await expect(
+                    contract.connect(bob).stakeForPrivilege(1)
+                ).to.be.revertedWith("PrivilegeNftAlreadyExist");
+            });
+        });
+
+        describe("after verification stage started", () => {
+            beforeEach(async () => {
+                await timetravel(blockTimestamp + 300000);
+            });
+
+            it("Should revert if executed after verification start", async () => {
+                await expect(
+                    contract.connect(alice).stakeForPrivilege(0)
+                ).to.revertedWith("VerificationAlreadyStarted");
+            });
         });
     });
 });
