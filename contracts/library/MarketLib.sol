@@ -517,7 +517,7 @@ library MarketLib {
             toBurn += toVerifiers / 2;
             toHighGuard = toVerifiers / 2;
         } else if (m.result == MarketLib.ResultType.DRAW && m.confirmed) {
-            // dispute confirmed - result set to dra
+            // dispute confirmed - result set to draw
             toHighGuard = toVerifiers / 2;
             toDisputeCreator = toVerifiers - toHighGuard;
             disputeCreator = m.disputeCreator;
