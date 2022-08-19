@@ -345,7 +345,7 @@ library MarketLib {
 
         verifications.push(Verification(verifier, power, tokenId, side, false));
 
-        emit Verify(verifier, verifyId, power, tokenId, side);
+        emit Verify(verifier, power, verifyId, tokenId, side);
     }
 
     /// @notice Verifies the side with maximum available power
