@@ -266,6 +266,7 @@ contract ForeMarket {
         view
         returns (uint256)
     {
+        if(predictionWithdrawn[predictor]) return(0);
         MarketLib.Market memory m = _market;
         return (
             MarketLib.calculatePredictionReward(
