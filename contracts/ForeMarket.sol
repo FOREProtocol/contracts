@@ -100,6 +100,7 @@ contract ForeMarket {
             startVerificationTimestamp,
             tokenId
         );
+        _tokenId = tokenId;
     }
 
     /// @notice Add new prediction
