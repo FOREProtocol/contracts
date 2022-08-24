@@ -181,9 +181,9 @@ contract ProtocolConfig is
         onlyOwner
     {
         _setConfig(
+            creationPriceP,
             verifierMintPriceP,
             disputePriceP,
-            creationPriceP,
             reportPeriodP,
             verificationPeriodP,
             burnFeeP,
