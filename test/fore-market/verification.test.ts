@@ -107,6 +107,24 @@ describe("ForeMarket / Verification", () => {
         const previousBlock = await ethers.provider.getBlock("latest");
         blockTimestamp = previousBlock.timestamp;
 
+        await txExec(
+            protocolConfig
+                .connect(owner)
+                .setMarketConfig(
+                    ethers.utils.parseEther("1000"),
+                    ethers.utils.parseEther("1000"),
+                    ethers.utils.parseEther("1000"),
+                    1800,
+                    1800,
+                    100,
+                    100,
+                    100,
+                    50,
+                    150,
+                    true
+                )
+        );
+
         // creating market
         const [tx, recipt] = await txExec(
             foreMarkets
@@ -210,8 +228,8 @@ describe("ForeMarket / Verification", () => {
                             )
                             .withArgs(
                                 bob.address,
-                                BigNumber.from(0),
                                 ethers.utils.parseEther("20"),
+                                BigNumber.from(0),
                                 BigNumber.from(1),
                                 sideValue
                             );

@@ -324,10 +324,6 @@ contract ForeMarket {
             );
         }
         if (toDisputeCreator != 0) {
-            foreVerifiers.decreasePower(
-                v.tokenId,
-                toDisputeCreator + toHighGuard
-            );
             foreToken.transferFrom(
                 address(this),
                 m.disputeCreator,
@@ -338,6 +334,7 @@ contract ForeMarket {
                 protocolConfig.highGuard(),
                 toHighGuard
             );
+            foreToken.burn(power - toDisputeCreator -toHighGuard);
         }
 
         if (vNftBurn) {
