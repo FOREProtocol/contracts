@@ -13,7 +13,7 @@ contract ForeMarket {
     bytes32 public marketHash;
 
     /// @notice Market token id
-    uint256 internal _tokenId;
+    uint256 public marketId;
 
     /// @notice Factory (ForeMarkets)
     IForeMarkets public factory;
@@ -100,7 +100,7 @@ contract ForeMarket {
             startVerificationTimestamp,
             tokenId
         );
-        _tokenId = tokenId;
+        marketId = tokenId;
     }
 
     /// @notice Add new prediction
@@ -373,7 +373,7 @@ contract ForeMarket {
     ///@notice Withdraw Market Creators Reward
     function marketCreatorFeeWithdraw() external {
         MarketLib.Market memory m = _market;
-        uint256 tokenId = _tokenId;
+        uint256 tokenId = marketId;
 
         if (m.result == MarketLib.ResultType.NULL) {
             revert ("MarketIsNotClosedYet");
