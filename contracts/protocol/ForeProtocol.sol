@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "./ForeMarket.sol";
-import "./verifiers/IForeVerifiers.sol";
+import "../verifiers/IForeVerifiers.sol";
 import "./config/IProtocolConfig.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "../token/IERC20Burnable.sol";
 
-contract ForeMarkets is ERC721, ERC721Enumerable, ERC721Burnable {
+contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
     using Strings for uint256;
 
     error MarketAlreadyExists();
+    error FactoryIsNotWhitelisted();
 
     event MarketCreated(
         address indexed creator,
@@ -20,11 +21,6 @@ contract ForeMarkets is ERC721, ERC721Enumerable, ERC721Burnable {
         address market,
         uint256 marketIdx
     );
-
-    /// @notice Init creatin code
-    /// @dev Needed to calculate market address
-    bytes32 public constant INIT_CODE_PAIR_HASH =
-        keccak256(abi.encodePacked(type(ForeMarket).creationCode));
 
     /// @notice ForeToken
     IERC20Burnable public immutable foreToken;
@@ -133,26 +129,20 @@ contract ForeMarkets is ERC721, ERC721Enumerable, ERC721Burnable {
 
     /// @notice Creates Market
     /// @param marketHash market hash
-    /// @param receiver market creator nft receiver
-    /// @param amountA initial prediction for side A
-    /// @param amountB initial prediction for side B
-    /// @param endPredictionTimestamp End predictions unix timestamp
-    /// @param startVerificationTimestamp Start Verification unix timestamp
-    /// @return createdMarket Address of created market
+    /// @param receiver Receiver of market token
+    /// @param marketAddress Created market address
+    /// @return marketId Created market id
     function createMarket(
         bytes32 marketHash,
         address receiver,
-        uint256 amountA,
-        uint256 amountB,
-        uint64 endPredictionTimestamp,
-        uint64 startVerificationTimestamp
-    ) external returns (address createdMarket) {
+        address marketAddress
+    ) external returns(uint256 marketId){
         if (market[marketHash] != address(0)) {
             revert MarketAlreadyExists();
         }
 
-        if (endPredictionTimestamp > startVerificationTimestamp) {
-            revert("ForeMarkets: Date error");
+        if (!config.isFactoryWhitelisted(msg.sender)){
+            revert FactoryIsNotWhitelisted();
         }
 
         uint256 creationFee = config.marketCreationPrice();
@@ -160,42 +150,16 @@ contract ForeMarkets is ERC721, ERC721Enumerable, ERC721Burnable {
             foreToken.burnFrom(msg.sender, creationFee);
         }
 
-        bytes memory bytecode = type(ForeMarket).creationCode;
-        bytes32 salt = keccak256(abi.encodePacked(marketHash));
-        assembly {
-            createdMarket := create2(
-                0,
-                add(bytecode, 32),
-                mload(bytecode),
-                salt
-            )
-            if iszero(extcodesize(createdMarket)) {
-                revert(0, 0)
-            }
-        }
-
-        uint256 amountSum = amountA + amountB;
-        if (amountSum != 0) {
-            foreToken.transferFrom(msg.sender, createdMarket, amountSum);
-        }
+        market[marketHash] = marketAddress;
+        isForeMarket[marketAddress] = true;
 
         uint256 marketIdx = allMarkets.length;
-        ForeMarket(createdMarket).initialize(
-            marketHash,
-            receiver,
-            amountA,
-            amountB,
-            endPredictionTimestamp,
-            startVerificationTimestamp,
-            uint64(marketIdx)
-        );
-
-        market[marketHash] = createdMarket;
-        isForeMarket[createdMarket] = true;
 
         _mint(receiver, marketIdx);
-        emit MarketCreated(msg.sender, marketHash, createdMarket, marketIdx);
+        emit MarketCreated(msg.sender, marketHash, marketAddress, marketIdx);
 
-        allMarkets.push(createdMarket);
+        allMarkets.push(marketAddress);
+
+        return(marketIdx);
     }
 }

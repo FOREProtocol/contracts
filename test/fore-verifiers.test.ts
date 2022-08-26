@@ -1,5 +1,5 @@
 import { TransferEvent } from "@/ERC721";
-import { ForeMarkets } from "@/ForeMarkets";
+import { ForeProtocol } from "@/ForeProtocol";
 import { ForeToken } from "@/ForeToken";
 import {
     FactoryChangedEvent,
@@ -30,7 +30,7 @@ describe("Fore NFT Verifiers token", () => {
 
     let contract: ForeVerifiers;
     let foreToken: FakeContract<ForeToken>;
-    let foreMarkets: FakeContract<ForeMarkets>;
+    let foreProtocol: FakeContract<ForeProtocol>;
 
     beforeEach(async () => {
         [owner, alice, bob, market, operator] = await ethers.getSigners();
@@ -40,21 +40,23 @@ describe("Fore NFT Verifiers token", () => {
         foreToken = await smock.fake<ForeToken>("ForeToken");
         foreToken.transfer.returns(true);
 
-        foreMarkets = await smock.fake<ForeMarkets>("ForeMarkets");
-        foreMarkets.foreToken.returns(foreToken.address);
-        foreMarkets.isForeMarket.returns(false);
-        foreMarkets.isForeMarket.whenCalledWith(market.address).returns(true);
-        foreMarkets.isForeOperator.returns(false);
-        foreMarkets.isForeOperator
+        foreProtocol = await smock.fake<ForeProtocol>("ForeProtocol");
+        foreProtocol.foreToken.returns(foreToken.address);
+        foreProtocol.isForeMarket.returns(false);
+        foreProtocol.isForeMarket.whenCalledWith(market.address).returns(true);
+        foreProtocol.isForeOperator.returns(false);
+        foreProtocol.isForeOperator
             .whenCalledWith(operator.address)
             .returns(true);
-        foreMarkets.isForeOperator.whenCalledWith(market.address).returns(true);
+        foreProtocol.isForeOperator
+            .whenCalledWith(market.address)
+            .returns(true);
 
         // add some eth to mocked contract
         await txExec(
             owner.sendTransaction({
                 value: ethers.utils.parseEther("10"),
-                to: foreMarkets.address,
+                to: foreProtocol.address,
             })
         );
     });
@@ -120,36 +122,36 @@ describe("Fore NFT Verifiers token", () => {
             await assertIsAvailableOnlyForOwner(async (account) => {
                 return contract
                     .connect(account)
-                    .setFactory(foreMarkets.address);
+                    .setFactory(foreProtocol.address);
             });
         });
 
         it("Should emit FactoryChanged event", async () => {
             const [tx, recipt] = await txExec(
-                contract.connect(owner).setFactory(foreMarkets.address)
+                contract.connect(owner).setFactory(foreProtocol.address)
             );
 
             assertEvent<FactoryChangedEvent>(recipt, "FactoryChanged", {
-                addr: foreMarkets.address,
+                addr: foreProtocol.address,
             });
         });
 
         describe("successfully", () => {
             beforeEach(async () => {
                 await txExec(
-                    contract.connect(owner).setFactory(foreMarkets.address)
+                    contract.connect(owner).setFactory(foreProtocol.address)
                 );
             });
 
             it("Should not allow to change factory again", async () => {
                 await expect(
-                    contract.connect(owner).setFactory(foreMarkets.address)
+                    contract.connect(owner).setFactory(foreProtocol.address)
                 ).to.be.revertedWith("FactoryAlreadySet()");
             });
 
             it("Should return proper factory address", async () => {
                 expect(await contract.factory()).to.be.equal(
-                    foreMarkets.address
+                    foreProtocol.address
                 );
             });
         });
@@ -158,7 +160,7 @@ describe("Fore NFT Verifiers token", () => {
     describe("with factory configured", () => {
         beforeEach(async () => {
             await txExec(
-                contract.connect(owner).setFactory(foreMarkets.address)
+                contract.connect(owner).setFactory(foreProtocol.address)
             );
         });
 
@@ -170,7 +172,7 @@ describe("Fore NFT Verifiers token", () => {
                             .connect(account)
                             .mintWithPower(alice.address, 10);
                     },
-                    foreMarkets.wallet,
+                    foreProtocol.wallet,
                     "OnlyFactoryAllowed()"
                 );
             });
@@ -182,7 +184,7 @@ describe("Fore NFT Verifiers token", () => {
                 beforeEach(async () => {
                     [tx, recipt] = await txExec(
                         contract
-                            .connect(foreMarkets.wallet)
+                            .connect(foreProtocol.wallet)
                             .mintWithPower(alice.address, 10)
                     );
                 });
@@ -213,7 +215,7 @@ describe("Fore NFT Verifiers token", () => {
             beforeEach(async () => {
                 await txExec(
                     contract
-                        .connect(foreMarkets.wallet)
+                        .connect(foreProtocol.wallet)
                         .mintWithPower(alice.address, 10)
                 );
             });
@@ -404,7 +406,7 @@ describe("Fore NFT Verifiers token", () => {
                 beforeEach(async () => {
                     await txExec(
                         contract
-                            .connect(foreMarkets.wallet)
+                            .connect(foreProtocol.wallet)
                             .mintWithPower(operator.address, 10)
                     );
                 });

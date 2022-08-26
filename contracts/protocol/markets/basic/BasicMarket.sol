@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "./IForeMarkets.sol";
-import "./verifiers/IForeVerifiers.sol";
-import "./config/IProtocolConfig.sol";
-import "./config/IMarketConfig.sol";
+import "./IBasicFactory.sol";
+import "../../../verifiers/IForeVerifiers.sol";
+import "../../config/IProtocolConfig.sol";
+import "../../config/IMarketConfig.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./library/MarketLib.sol";
 
-contract ForeMarket {
+contract BasicMarket {
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
 
     /// @notice Market token id
-    uint256 internal _tokenId;
+    uint256 public marketId;
 
     /// @notice Factory (ForeMarkets)
-    IForeMarkets public factory;
+    IBasicFactory public factory;
 
     /// @notice Protocol config
     IProtocolConfig public protocolConfig;
@@ -53,7 +53,7 @@ contract ForeMarket {
     }
 
     constructor() {
-        factory = IForeMarkets(msg.sender);
+        factory = IBasicFactory(msg.sender);
     }
 
     /// @notice Returns market info
@@ -100,7 +100,7 @@ contract ForeMarket {
             startVerificationTimestamp,
             tokenId
         );
-        _tokenId = tokenId;
+        marketId = tokenId;
     }
 
     /// @notice Add new prediction
@@ -324,10 +324,6 @@ contract ForeMarket {
             );
         }
         if (toDisputeCreator != 0) {
-            foreVerifiers.decreasePower(
-                v.tokenId,
-                toDisputeCreator + toHighGuard
-            );
             foreToken.transferFrom(
                 address(this),
                 m.disputeCreator,
@@ -338,6 +334,7 @@ contract ForeMarket {
                 protocolConfig.highGuard(),
                 toHighGuard
             );
+            foreToken.burn(power - toDisputeCreator - toHighGuard);
         }
 
         if (vNftBurn) {
@@ -376,7 +373,7 @@ contract ForeMarket {
     ///@notice Withdraw Market Creators Reward
     function marketCreatorFeeWithdraw() external {
         MarketLib.Market memory m = _market;
-        uint256 tokenId = _tokenId;
+        uint256 tokenId = marketId;
 
         if (m.result == MarketLib.ResultType.NULL) {
             revert ("MarketIsNotClosedYet");
@@ -395,6 +392,5 @@ contract ForeMarket {
 
 interface IERC20Burnable is IERC20 {
     function burnFrom(address account, uint256 amount) external;
-
     function burn(uint256 amount) external;
 }

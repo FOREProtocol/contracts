@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "../IForeMarkets.sol";
+import "../protocol/IForeProtocol.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -26,14 +26,14 @@ contract ForeVerifiers is
     error TransferAllowedOnlyForOperator();
     error NotAuthorized();
 
-    event FactoryChanged(IForeMarkets addr);
+    event FactoryChanged(IForeProtocol addr);
     event TransferAllowanceChanged(bool status);
     event TokenPowerIncreased(uint id, uint powerDelta, uint newPower);
     event TokenPowerDecreased(uint id, uint powerDelta, uint newPower);
 
 
     /// @notice Markets factory contract
-    IForeMarkets internal _factory;
+    IForeProtocol internal _factory;
 
     /// @dev Tokens counter
     uint256 internal _height;
@@ -104,7 +104,7 @@ contract ForeVerifiers is
      * @notice Changes factory contract
      * @param addr New contract
      */
-    function setFactory(IForeMarkets addr)
+    function setFactory(IForeProtocol addr)
         external
         onlyOwner
     {

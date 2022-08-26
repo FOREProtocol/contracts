@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "./external/pancake-nft-markets/ERC721NFTMarketV1.sol";
+import "../external/pancake-nft-markets/ERC721NFTMarketV1.sol";
 
 
 contract ForeNftMarketplace is

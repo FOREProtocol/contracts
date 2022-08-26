@@ -15,7 +15,7 @@ contract ProtocolConfig is
     event MarketplaceChanged(address addr);
     event VerifierMintPriceChanged(uint256 amount);
     event MarketCreationChanged(uint256 amount);
-
+    event SetStatusForFactory(address indexed add, bool status);
 
     /// @notice Max fee (1 = 0.01%)
     uint public constant MAX_FEE = 500;
@@ -52,6 +52,8 @@ contract ProtocolConfig is
     /// @notice Minting verifiers NFT price (FORE)
     uint256 public verifierMintPrice;
 
+    mapping(address => bool) public isFactoryWhitelisted;
+
     function addresses() external view returns(address, address, address, address, address, address, address){
         return(address(marketConfig), foundationWallet, revenueWallet, highGuard, marketplace, foreToken, foreVerifiers);
     }
@@ -60,6 +62,14 @@ contract ProtocolConfig is
         return(foundationWallet, revenueWallet, highGuard);
     }
 
+    function setFactoryStatus(address[] memory factoryAddresses, bool[] memory statuses) external onlyOwner{
+        uint256 len = factoryAddresses.length;
+        require(len == statuses.length, "ProtocoConfig: Len mismatch ");
+        for(uint256 i = 0; i < len; i++){
+            isFactoryWhitelisted[factoryAddresses[i]] = statuses[i];
+            emit SetStatusForFactory(factoryAddresses[i], statuses[i]);
+        }
+    }
 
     constructor(
         address foundationWalletP,

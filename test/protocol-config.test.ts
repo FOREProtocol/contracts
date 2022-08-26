@@ -8,6 +8,7 @@ import {
     ProtocolConfig,
     RevenueWalletChangedEvent,
     VerifierMintPriceChangedEvent,
+    SetStatusForFactoryEvent,
 } from "@/ProtocolConfig";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -106,6 +107,12 @@ describe("Protocol configuration", () => {
             expect(await contract.verifierMintPrice()).to.be.equal(
                 ethers.utils.parseEther("3")
             );
+        });
+
+        it("Should return proper whitelist status", async () => {
+            expect(
+                await contract.isFactoryWhitelisted(owner.address)
+            ).to.be.equal(false);
         });
 
         describe("Market configuration", () => {
@@ -361,6 +368,66 @@ describe("Protocol configuration", () => {
                     recipt,
                     "MarketConfigurationUpdated"
                 );
+            });
+        });
+    });
+
+    describe("Set whitelist status", () => {
+        let tx: ContractTransaction;
+        let recipt: ContractReceipt;
+
+        beforeEach(async () => {
+            [tx, recipt] = await txExec(
+                contract
+                    .connect(owner)
+                    .setFactoryStatus([alice.address], [true])
+            );
+        });
+
+        it("Should allow to execute only by owner", async () => {
+            await assertIsAvailableOnlyForOwner(async (account) => {
+                return contract
+                    .connect(account)
+                    .setFactoryStatus([foundationWallet.address], [true]);
+            });
+        });
+
+        it("Should emit SetStatusForFactory event", async () => {
+            assertEvent<SetStatusForFactoryEvent>(
+                recipt,
+                "SetStatusForFactory",
+                {
+                    add: alice.address,
+                    status: true,
+                }
+            );
+        });
+
+        it("Should have enabled status", async () => {
+            expect(
+                await contract.isFactoryWhitelisted(alice.address)
+            ).to.be.equal(true);
+        });
+
+        describe("Edit few statuses", () => {
+            beforeEach(async () => {
+                [tx, recipt] = await txExec(
+                    contract
+                        .connect(owner)
+                        .setFactoryStatus(
+                            [alice.address, owner.address],
+                            [false, true]
+                        )
+                );
+            });
+
+            it("Should properly change statuses", async () => {
+                expect(
+                    await contract.isFactoryWhitelisted(alice.address)
+                ).to.be.equal(false);
+                expect(
+                    await contract.isFactoryWhitelisted(owner.address)
+                ).to.be.equal(true);
             });
         });
     });

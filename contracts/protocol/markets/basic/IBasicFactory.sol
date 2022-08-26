@@ -3,7 +3,7 @@ pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-interface IForeMarkets is IERC721 {
+interface IBasicFactory is IERC721 {
     function INIT_CODE_PAIR_HASH() external view returns (bytes32);
 
     function allMarketLength() external view returns (uint256);
