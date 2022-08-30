@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 interface IForeVerifiers is IERC721{
     function decreasePower(uint256 id, uint256 amount) external;
 
-    function factory() external view returns (address);
+    function protocol() external view returns (address);
 
     function height() external view returns (uint256);
 

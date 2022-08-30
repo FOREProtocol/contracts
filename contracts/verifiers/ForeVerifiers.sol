@@ -17,23 +17,23 @@ contract ForeVerifiers is
 {
     using Strings for uint256;
 
-    error FactoryAlreadySet();
+    error ProtocolAlreadySet();
     error TokenNotExists();
-    error OnlyFactoryAllowed();
+    error OnlyProtocolAllowed();
     error OnlyOperatorAllowed();
     error NothingToWithdraw();
     error AmountExceedLimit(uint256 limit);
     error TransferAllowedOnlyForOperator();
     error NotAuthorized();
 
-    event FactoryChanged(IForeProtocol addr);
+    event ProtocolChanged(IForeProtocol addr);
     event TransferAllowanceChanged(bool status);
     event TokenPowerIncreased(uint id, uint powerDelta, uint newPower);
     event TokenPowerDecreased(uint id, uint powerDelta, uint newPower);
 
 
     /// @notice Markets factory contract
-    IForeProtocol internal _factory;
+    IForeProtocol public protocol;
 
     /// @dev Tokens counter
     uint256 internal _height;
@@ -82,13 +82,6 @@ contract ForeVerifiers is
     }
 
     /**
-     * @notice Returns market factory contract address
-     */
-    function factory() external view returns (address) {
-        return address(_factory);
-    }
-
-    /**
      * @inheritdoc ERC721
      */
     function _baseURI()
@@ -104,17 +97,17 @@ contract ForeVerifiers is
      * @notice Changes factory contract
      * @param addr New contract
      */
-    function setFactory(IForeProtocol addr)
+    function setProtocol(IForeProtocol addr)
         external
         onlyOwner
     {
-        if (address(_factory) != address(0)) {
-            revert FactoryAlreadySet();
+        if (address(protocol) != address(0)) {
+            revert ProtocolAlreadySet();
         }
 
-        _factory = addr;
+        protocol = addr;
 
-        emit FactoryChanged(addr);
+        emit ProtocolChanged(addr);
     }
 
     /**
@@ -141,8 +134,8 @@ contract ForeVerifiers is
     )
         external
     {
-        if (address(_factory) != msg.sender) {
-            revert OnlyFactoryAllowed();
+        if (address(protocol) != msg.sender) {
+            revert OnlyProtocolAllowed();
         }
 
         _power[_height] = power;
@@ -168,7 +161,7 @@ contract ForeVerifiers is
             revert TokenNotExists();
         }
 
-        if (!_factory.isForeOperator(msg.sender)) {
+        if (!protocol.isForeOperator(msg.sender)) {
             revert OnlyOperatorAllowed();
         }
 
@@ -200,7 +193,7 @@ contract ForeVerifiers is
         // limit withdraw value
         uint256 maxAmount = 0;
 
-        if (_factory.isForeMarket(msg.sender)) {
+        if (protocol.isForeMarket(msg.sender)) {
             // market can ultimately reduce power
             maxAmount = currentPower;
         }
@@ -226,7 +219,7 @@ contract ForeVerifiers is
             _burn(id);
         }
 
-        IERC20 foreToken = IERC20(_factory.foreToken());
+        IERC20 foreToken = IERC20(protocol.foreToken());
         foreToken.transfer(msg.sender, powerDelta);
 
         emit TokenPowerDecreased(id, powerDelta, _power[id]);
@@ -258,7 +251,7 @@ contract ForeVerifiers is
         override(ERC721)
         returns (bool)
     {
-        if (_factory.isForeOperator(operator)) {
+        if (protocol.isForeOperator(operator)) {
             return true;
         }
 
@@ -276,8 +269,8 @@ contract ForeVerifiers is
     ) internal override {
         if (!_transfersAllowed) {
             if (
-                !_factory.isForeOperator(to)
-                && !_factory.isForeOperator(from)
+                !protocol.isForeOperator(to)
+                && !protocol.isForeOperator(from)
             ) {
                 revert TransferAllowedOnlyForOperator();
             }

@@ -1,9 +1,9 @@
 import { BasicMarket } from "@/BasicMarket";
 import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
+import { MarketLib } from "@/MarketLib";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
-import { MarketLib } from "@/MarketLib";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
@@ -81,7 +81,7 @@ describe("ForeProtocol", () => {
         );
 
         await txExec(foreToken.setProtocol(protocol.address));
-        await txExec(foreVerifiers.setFactory(protocol.address));
+        await txExec(foreVerifiers.setProtocol(protocol.address));
 
         await txExec(
             foreToken
