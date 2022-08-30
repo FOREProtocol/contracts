@@ -4,7 +4,6 @@ pragma solidity ^0.8.7;
 import "./BasicMarket.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
-import "../../IForeProtocol.sol";
 
 contract BasicFactory{
 
@@ -50,21 +49,16 @@ contract BasicFactory{
         uint64 startVerificationTimestamp
     ) external returns (address createdMarket) {
         if (endPredictionTimestamp > startVerificationTimestamp) {
-            revert("ForeMarkets: Date error");
+            revert("BasicFactory: Date error");
         }
 
-        bytes memory bytecode = type(BasicMarket).creationCode;
-        bytes32 salt = keccak256(abi.encodePacked(marketHash));
-        assembly {
-            createdMarket := create2(
-                0,
-                add(bytecode, 32),
-                mload(bytecode),
-                salt
-            )
-            if iszero(extcodesize(createdMarket)) {
-                revert(0, 0)
-            }
+        createdMarket =  address(new BasicMarket{
+            salt: marketHash
+        }());
+
+        uint256 creationFee = config.marketCreationPrice();
+        if (creationFee != 0) {
+            foreToken.burnFrom(msg.sender, creationFee);
         }
 
         uint256 amountSum = amountA + amountB;
@@ -79,6 +73,7 @@ contract BasicFactory{
             receiver,
             amountA,
             amountB,
+            address(this),
             endPredictionTimestamp,
             startVerificationTimestamp,
             uint64(marketIdx)

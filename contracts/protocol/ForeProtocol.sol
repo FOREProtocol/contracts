@@ -66,10 +66,11 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
 
     /// @notice Returns true if Address is ForeOperator
     /// @dev ForeOperators: ForeMarkets(as factory), ForeMarket contracts and marketplace
-    function isForeOperator(address addr) external view returns (bool) {
+    function isForeOperator(address addr) public view returns (bool) {
         return (addr != address(0) &&
             (addr == address(this) ||
                 isForeMarket[addr] ||
+                config.isFactoryWhitelisted(addr) ||
                 addr == config.marketplace()));
     }
 
@@ -143,11 +144,6 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
 
         if (!config.isFactoryWhitelisted(msg.sender)){
             revert FactoryIsNotWhitelisted();
-        }
-
-        uint256 creationFee = config.marketCreationPrice();
-        if (creationFee != 0) {
-            foreToken.burnFrom(msg.sender, creationFee);
         }
 
         market[marketHash] = marketAddress;

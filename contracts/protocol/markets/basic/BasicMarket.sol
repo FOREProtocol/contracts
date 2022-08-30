@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "./IBasicFactory.sol";
+import "../../IForeProtocol.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
@@ -15,8 +15,11 @@ contract BasicMarket {
     /// @notice Market token id
     uint256 public marketId;
 
-    /// @notice Factory (ForeMarkets)
-    IBasicFactory public factory;
+   /// @notice Protocol
+    IForeProtocol public protocol;
+
+    /// @notice Factory
+    address public factory;
 
     /// @notice Protocol config
     IProtocolConfig public protocolConfig;
@@ -53,7 +56,7 @@ contract BasicMarket {
     }
 
     constructor() {
-        factory = IBasicFactory(msg.sender);
+        factory = msg.sender;
     }
 
     /// @notice Returns market info
@@ -75,6 +78,7 @@ contract BasicMarket {
         address receiver,
         uint256 amountA,
         uint256 amountB,
+        address protocolAddress,
         uint64 endPredictionTimestamp,
         uint64 startVerificationTimestamp,
         uint64 tokenId
@@ -82,11 +86,12 @@ contract BasicMarket {
         if (msg.sender != address(factory)) {
             revert("ForeMarket: Only Factory");
         }
-
-        protocolConfig = IProtocolConfig(factory.config());
+        
+        protocol = IForeProtocol(protocolAddress);
+        protocolConfig = IProtocolConfig(protocol.config());
         marketConfig = IMarketConfig(protocolConfig.marketConfig());
-        foreToken = IERC20Burnable(factory.foreToken());
-        foreVerifiers = IForeVerifiers(factory.foreVerifiers());
+        foreToken = IERC20Burnable(protocol.foreToken());
+        foreVerifiers = IForeVerifiers(protocol.foreVerifiers());
 
         marketHash = mHash;
         MarketLib.init(
@@ -101,6 +106,7 @@ contract BasicMarket {
             tokenId
         );
         marketId = tokenId;
+
     }
 
     /// @notice Add new prediction
@@ -379,8 +385,8 @@ contract BasicMarket {
             revert ("MarketIsNotClosedYet");
         }
 
-        factory.transferFrom(msg.sender, address(this), tokenId);
-        factory.burn(tokenId);
+        protocol.transferFrom(msg.sender, address(this), tokenId);
+        protocol.burn(tokenId);
 
         uint256 toWithdraw = ((m.sideA + m.sideB) *
             marketConfig.marketCreatorFee()) / 10000;

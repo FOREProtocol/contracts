@@ -14,6 +14,8 @@ interface IForeProtocol is IERC721 {
 
     function config() external view returns (address);
 
+    function market(bytes32 mHash) external view returns(address);
+
     function createMarket(
         bytes32 marketHash,
         address receiver,
@@ -29,4 +31,11 @@ interface IForeProtocol is IERC721 {
     function isForeOperator(address addr) external view returns (bool);
 
     function mintVerifier(address receiver) external;
+
+    event MarketCreated(
+        address indexed creator,
+        bytes32 marketHash,
+        address market,
+        uint256 marketIdx
+    );
 }
