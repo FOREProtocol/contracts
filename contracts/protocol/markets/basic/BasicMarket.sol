@@ -7,10 +7,8 @@ import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./library/MarketLib.sol";
-import "../IMarket.sol";
 
-contract BasicMarket is
-    IMarket
+contract BasicMarket
 {
 
     /// @notice Market hash (ipfs hash without first 2 bytes)
@@ -61,10 +59,6 @@ contract BasicMarket is
 
     constructor() {
         factory = msg.sender;
-    }
-
-    function marketType() public pure override returns(uint8) {
-        return 1;
     }
 
     /// @notice Returns market info

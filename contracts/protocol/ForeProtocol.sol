@@ -17,11 +17,11 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
     error FactoryIsNotWhitelisted();
 
     event MarketCreated(
+        address indexed factory,
         address indexed creator,
         bytes32 marketHash,
         address market,
-        uint256 marketIdx,
-        uint8 marketType
+        uint256 marketIdx
     );
 
     /// @notice ForeToken
@@ -137,9 +137,9 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
     /// @return marketId Created market id
     function createMarket(
         bytes32 marketHash,
+        address creator,
         address receiver,
-        address marketAddress,
-        uint8 marketType
+        address marketAddress
     ) external returns(uint256 marketId){
         if (market[marketHash] != address(0)) {
             revert MarketAlreadyExists();
@@ -157,10 +157,10 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
         _mint(receiver, marketIdx);
         emit MarketCreated(
             msg.sender,
+            creator,
             marketHash,
             marketAddress,
-            marketIdx,
-            marketType
+            marketIdx
         );
 
         allMarkets.push(marketAddress);

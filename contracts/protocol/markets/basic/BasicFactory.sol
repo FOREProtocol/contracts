@@ -70,9 +70,9 @@ contract BasicFactory{
 
         uint256 marketIdx = foreProtocol.createMarket(
             marketHash,
+            msg.sender,
             receiver,
-            createdMarket,
-            createdMarketContract.marketType()
+            createdMarket
         );
 
         createdMarketContract.initialize(
