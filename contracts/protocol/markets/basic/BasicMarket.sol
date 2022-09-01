@@ -7,8 +7,12 @@ import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./library/MarketLib.sol";
+import "../IMarket.sol";
 
-contract BasicMarket {
+contract BasicMarket is
+    IMarket
+{
+
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
 
@@ -59,6 +63,10 @@ contract BasicMarket {
         factory = msg.sender;
     }
 
+    function marketType() public pure override returns(uint8) {
+        return 1;
+    }
+
     /// @notice Returns market info
     function marketInfo() external view returns(MarketLib.Market memory){
         return _market;
@@ -86,7 +94,7 @@ contract BasicMarket {
         if (msg.sender != address(factory)) {
             revert("ForeMarket: Only Factory");
         }
-        
+
         protocol = IForeProtocol(protocolAddress);
         protocolConfig = IProtocolConfig(protocol.config());
         marketConfig = IMarketConfig(protocolConfig.marketConfig());

@@ -52,9 +52,11 @@ contract BasicFactory{
             revert("BasicFactory: Date error");
         }
 
-        createdMarket =  address(new BasicMarket{
+        BasicMarket createdMarketContract = new BasicMarket{
             salt: marketHash
-        }());
+        }();
+
+        createdMarket = address(createdMarketContract);
 
         uint256 creationFee = config.marketCreationPrice();
         if (creationFee != 0) {
@@ -66,9 +68,14 @@ contract BasicFactory{
             foreToken.transferFrom(msg.sender, createdMarket, amountSum);
         }
 
-        uint256 marketIdx = foreProtocol.createMarket(marketHash, receiver, createdMarket);
+        uint256 marketIdx = foreProtocol.createMarket(
+            marketHash,
+            receiver,
+            createdMarket,
+            createdMarketContract.marketType()
+        );
 
-        BasicMarket(createdMarket).initialize(
+        createdMarketContract.initialize(
             marketHash,
             receiver,
             amountA,

@@ -19,7 +19,8 @@ interface IForeProtocol is IERC721 {
     function createMarket(
         bytes32 marketHash,
         address receiver,
-        address marketAddress
+        address marketAddress,
+        uint8 marketType
     ) external returns(uint256);
 
     function foreToken() external view returns (address);
@@ -36,6 +37,7 @@ interface IForeProtocol is IERC721 {
         address indexed creator,
         bytes32 marketHash,
         address market,
-        uint256 marketIdx
+        uint256 marketIdx,
+        uint8 marketType
     );
 }

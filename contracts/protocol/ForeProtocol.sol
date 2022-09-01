@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "../token/IERC20Burnable.sol";
+import "./IForeProtocol.sol";
 
 contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
     using Strings for uint256;
@@ -19,7 +20,8 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
         address indexed creator,
         bytes32 marketHash,
         address market,
-        uint256 marketIdx
+        uint256 marketIdx,
+        uint8 marketType
     );
 
     /// @notice ForeToken
@@ -136,7 +138,8 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
     function createMarket(
         bytes32 marketHash,
         address receiver,
-        address marketAddress
+        address marketAddress,
+        uint8 marketType
     ) external returns(uint256 marketId){
         if (market[marketHash] != address(0)) {
             revert MarketAlreadyExists();
@@ -152,7 +155,13 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
         uint256 marketIdx = allMarkets.length;
 
         _mint(receiver, marketIdx);
-        emit MarketCreated(msg.sender, marketHash, marketAddress, marketIdx);
+        emit MarketCreated(
+            msg.sender,
+            marketHash,
+            marketAddress,
+            marketIdx,
+            marketType
+        );
 
         allMarkets.push(marketAddress);
 
