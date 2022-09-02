@@ -116,7 +116,7 @@ describe("NFTMarketplace / NFT integration", () => {
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         await txExec(foreToken.setProtocol(foreProtocol.address));
-        await txExec(nftToken.setFactory(foreProtocol.address));
+        await txExec(nftToken.setProtocol(foreProtocol.address));
 
         await txExec(
             protocolConfig

@@ -1,5 +1,6 @@
-import { ForeMarket } from "@/ForeMarket";
-import { ForeMarkets, MarketCreatedEvent } from "@/ForeMarkets";
+import { BasicMarket } from "@/BasicMarket";
+import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLib } from "@/MarketLib";
@@ -20,22 +21,24 @@ import {
     txExec,
 } from "../helpers/utils";
 
-describe("ForeMarket / Prediciting", () => {
+describe("BasicMarket / Prediciting", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
     let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreMarketsAccount: Signer;
+    let foreProtocolAccount: Signer;
+    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
 
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
-    let foreMarkets: MockContract<ForeMarkets>;
+    let foreProtocol: MockContract<ForeProtocol>;
+    let basicFactory: MockContract<BasicFactory>;
     let marketLib: MarketLib;
-    let contract: ForeMarket;
+    let contract: BasicMarket;
 
     let blockTimestamp: number;
 
@@ -52,8 +55,8 @@ describe("ForeMarket / Prediciting", () => {
 
         // deploy library
         marketLib = await deployLibrary("MarketLib", [
-            "ForeMarket",
-            "ForeMarkets",
+            "BasicMarket",
+            "BasicFactory",
         ]);
 
         // preparing dependencies
@@ -75,15 +78,21 @@ describe("ForeMarket / Prediciting", () => {
         );
 
         // preparing fore markets (factory)
-        foreMarkets = await deployMockedContract<ForeMarkets>(
-            "ForeMarkets",
+        foreProtocol = await deployMockedContract<ForeProtocol>(
+            "ForeProtocol",
             protocolConfig.address
         );
-        foreMarketsAccount = await impersonateContract(foreMarkets.address);
+        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        basicFactory = await deployMockedContract<BasicFactory>(
+            "BasicFactory",
+            foreProtocol.address
+        );
+        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setFactory(foreMarkets.address));
-        await txExec(foreVerifiers.setFactory(foreMarkets.address));
+        await txExec(foreToken.setProtocol(foreProtocol.address));
+        await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         // sending funds to Alice
         await txExec(
@@ -92,15 +101,23 @@ describe("ForeMarket / Prediciting", () => {
                 .transfer(alice.address, ethers.utils.parseEther("1000"))
         );
 
+        await txExec(
+            protocolConfig
+                .connect(owner)
+                .setFactoryStatus([basicFactory.address], [true])
+        );
+
         const previousBlock = await ethers.provider.getBlock("latest");
         blockTimestamp = previousBlock.timestamp;
 
         // creating market
+        const marketHash =
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
         const [tx, recipt] = await txExec(
-            foreMarkets
+            basicFactory
                 .connect(alice)
                 .createMarket(
-                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                    marketHash,
                     alice.address,
                     0,
                     0,
@@ -109,17 +126,16 @@ describe("ForeMarket / Prediciting", () => {
                 )
         );
 
-        // attach to market
-        const marketCreatedEvent = findEvent<MarketCreatedEvent>(
-            recipt,
-            "MarketCreated"
-        );
-        const marketAddress = marketCreatedEvent.args.market;
+        const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
 
-        contract = await attachContract<ForeMarket>(
-            "ForeMarket",
-            marketAddress
+        const salt = marketHash;
+        const newAddress = ethers.utils.getCreate2Address(
+            basicFactory.address,
+            salt,
+            initCode
         );
+
+        contract = await attachContract<BasicMarket>("BasicMarket", newAddress);
     });
 
     describe("initial state", () => {

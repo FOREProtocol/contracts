@@ -80,7 +80,7 @@ contract BasicFactory{
             receiver,
             amountA,
             amountB,
-            address(this),
+            address(foreProtocol),
             endPredictionTimestamp,
             startVerificationTimestamp,
             uint64(marketIdx)

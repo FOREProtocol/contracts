@@ -1,5 +1,6 @@
-import { ForeMarket } from "@/ForeMarket";
-import { ForeMarkets } from "@/ForeMarkets";
+import { BasicMarket } from "@/BasicMarket";
+import { ForeProtocol } from "@/ForeProtocol";
+import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLib } from "@/MarketLib";
@@ -23,16 +24,18 @@ describe("ForeMarket / Management", () => {
     let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreMarketsAccount: Signer;
+    let foreProtocolAccount: Signer;
+    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
 
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
-    let foreMarkets: MockContract<ForeMarkets>;
+    let foreProtocol: MockContract<ForeProtocol>;
+    let basicFactory: MockContract<BasicFactory>;
     let marketLib: MarketLib;
-    let contract: ForeMarket;
+    let contract: BasicMarket;
 
     let blockTimestamp: number;
 
@@ -49,8 +52,8 @@ describe("ForeMarket / Management", () => {
 
         // deploy library
         marketLib = await deployLibrary("MarketLib", [
-            "ForeMarket",
-            "ForeMarkets",
+            "BasicMarket",
+            "BasicFactory",
         ]);
 
         // preparing dependencies
@@ -71,21 +74,27 @@ describe("ForeMarket / Management", () => {
             ethers.utils.parseEther("20")
         );
 
-        // preparing fore markets (factory)
-        foreMarkets = await deployMockedContract<ForeMarkets>(
-            "ForeMarkets",
+        // preparing fore protocol
+        foreProtocol = await deployMockedContract<ForeProtocol>(
+            "ForeProtocol",
             protocolConfig.address
         );
-        foreMarketsAccount = await impersonateContract(foreMarkets.address);
+        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        basicFactory = await deployMockedContract<BasicFactory>(
+            "BasicFactory",
+            foreProtocol.address
+        );
+        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setFactory(foreMarkets.address));
-        await txExec(foreVerifiers.setFactory(foreMarkets.address));
+        await txExec(foreToken.setProtocol(foreProtocol.address));
+        await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         // deployment of market using factory account
-        contract = await deployContractAs<ForeMarket>(
-            foreMarketsAccount,
-            "ForeMarket"
+        contract = await deployContractAs<BasicMarket>(
+            basicFactoryAccount,
+            "BasicMarket"
         );
 
         const previousBlock = await ethers.provider.getBlock("latest");
@@ -94,7 +103,7 @@ describe("ForeMarket / Management", () => {
 
     it("Should return proper factory address", async () => {
         expect(await contract.factory()).to.be.equal(
-            await foreMarketsAccount.getAddress()
+            await basicFactoryAccount.getAddress()
         );
     });
 

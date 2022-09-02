@@ -1,5 +1,6 @@
-import { ForeMarket } from "@/ForeMarket";
-import { ForeMarkets, MarketCreatedEvent } from "@/ForeMarkets";
+import { BasicMarket } from "@/BasicMarket";
+import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { MarketLib } from "@/MarketLib";
 import { ForeVerifiers } from "@/ForeVerifiers";
@@ -25,13 +26,14 @@ import {
     waitForTxs,
 } from "../helpers/utils";
 
-describe("ForeMarket / Dispute", () => {
+describe("BasicMarket / Dispute", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
     let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreMarketsAccount: Signer;
+    let foreProtocolAccount: Signer;
+    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
     let carol: SignerWithAddress;
@@ -41,8 +43,9 @@ describe("ForeMarket / Dispute", () => {
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
-    let foreMarkets: MockContract<ForeMarkets>;
-    let contract: ForeMarket;
+    let foreProtocol: MockContract<ForeProtocol>;
+    let basicFactory: MockContract<BasicFactory>;
+    let contract: BasicMarket;
 
     let blockTimestamp: number;
 
@@ -59,9 +62,12 @@ describe("ForeMarket / Dispute", () => {
             dave,
         ] = await ethers.getSigners();
 
-        const newLocal = "ForeMarket";
+        const newLocal = "BasicMarket";
         // deploy library
-        marketLib = await deployLibrary("MarketLib", [newLocal, "ForeMarkets"]);
+        marketLib = await deployLibrary("MarketLib", [
+            newLocal,
+            "BasicFactory",
+        ]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -82,15 +88,27 @@ describe("ForeMarket / Dispute", () => {
         );
 
         // preparing fore markets (factory)
-        foreMarkets = await deployMockedContract<ForeMarkets>(
-            "ForeMarkets",
+        foreProtocol = await deployMockedContract<ForeProtocol>(
+            "ForeProtocol",
             protocolConfig.address
         );
-        foreMarketsAccount = await impersonateContract(foreMarkets.address);
+        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        basicFactory = await deployMockedContract<BasicFactory>(
+            "BasicFactory",
+            foreProtocol.address
+        );
+        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setFactory(foreMarkets.address));
-        await txExec(foreVerifiers.setFactory(foreMarkets.address));
+        await txExec(foreToken.setProtocol(foreProtocol.address));
+        await txExec(foreVerifiers.setProtocol(foreProtocol.address));
+
+        await txExec(
+            protocolConfig
+                .connect(owner)
+                .setFactoryStatus([basicFactory.address], [true])
+        );
 
         // sending funds
         await sendERC20Tokens(foreToken, {
@@ -104,11 +122,13 @@ describe("ForeMarket / Dispute", () => {
         blockTimestamp = previousBlock.timestamp;
 
         // creating market
+        const marketHash =
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
         const [tx, recipt] = await txExec(
-            foreMarkets
+            basicFactory
                 .connect(alice)
                 .createMarket(
-                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                    marketHash,
                     alice.address,
                     ethers.utils.parseEther("50"),
                     ethers.utils.parseEther("50"),
@@ -117,24 +137,23 @@ describe("ForeMarket / Dispute", () => {
                 )
         );
 
-        // attach to market
-        const marketCreatedEvent = findEvent<MarketCreatedEvent>(
-            recipt,
-            "MarketCreated"
-        );
-        const marketAddress = marketCreatedEvent.args.market;
+        const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
 
-        contract = await attachContract<ForeMarket>(
-            "ForeMarket",
-            marketAddress
+        const salt = marketHash;
+        const newAddress = ethers.utils.getCreate2Address(
+            basicFactory.address,
+            salt,
+            initCode
         );
+
+        contract = await attachContract<BasicMarket>("BasicMarket", newAddress);
 
         // create verifiers tokens
         await executeInSingleBlock(() => [
-            foreMarkets.connect(owner).mintVerifier(alice.address),
-            foreMarkets.connect(owner).mintVerifier(bob.address),
-            foreMarkets.connect(owner).mintVerifier(carol.address),
-            foreMarkets.connect(owner).mintVerifier(dave.address),
+            foreProtocol.connect(owner).mintVerifier(alice.address),
+            foreProtocol.connect(owner).mintVerifier(bob.address),
+            foreProtocol.connect(owner).mintVerifier(carol.address),
+            foreProtocol.connect(owner).mintVerifier(dave.address),
         ]);
     });
 

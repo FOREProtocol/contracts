@@ -86,7 +86,7 @@ contract BasicMarket
         uint64 tokenId
     ) external {
         if (msg.sender != address(factory)) {
-            revert("ForeMarket: Only Factory");
+            revert("BasicMarket: Only Factory");
         }
 
         protocol = IForeProtocol(protocolAddress);
@@ -130,7 +130,7 @@ contract BasicMarket
     ///@param tokenId ForeVerifiers nft id
     function stakeForPrivilege(uint64 tokenId) external {
         if(!marketConfig.isPrivilegeVerifierEnabled()){
-            revert("ForeMarket: Privilege disabled");
+            revert("BasicMarket: Privilege disabled");
         }
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
         MarketLib.stakeForPrivilege(
@@ -148,7 +148,7 @@ contract BasicMarket
     function verify(uint256 tokenId, bool side) external {
         if(
             foreVerifiers.ownerOf(tokenId)!= msg.sender){
-            revert ("ForeMarket: Incorrect owner");
+            revert ("BasicMarket: Incorrect owner");
         }
 
         (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
@@ -383,11 +383,12 @@ contract BasicMarket
         MarketLib.Market memory m = _market;
         uint256 tokenId = marketId;
 
+        require(protocol.ownerOf(tokenId)==msg.sender,"BasicMarket: Only Market Creator");
+
         if (m.result == MarketLib.ResultType.NULL) {
             revert ("MarketIsNotClosedYet");
         }
 
-        protocol.transferFrom(msg.sender, address(this), tokenId);
         protocol.burn(tokenId);
 
         uint256 toWithdraw = ((m.sideA + m.sideB) *

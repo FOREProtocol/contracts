@@ -83,7 +83,7 @@ library MarketLib {
     /// @param m Market info
     /// @return 0 true if verified
     function _isVerified(Market memory m) internal pure returns (bool) {
-        return m.sideA <= m.verifiedB || m.sideB <= m.verifiedA;
+        return (((m.sideA <= m.verifiedB) && m.sideA != 0) || ((m.sideB <= m.verifiedA) && m.sideB != 0));
     }
 
     /// @notice Checks if one side of the market is fully verified
