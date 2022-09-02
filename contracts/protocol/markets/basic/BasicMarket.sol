@@ -191,7 +191,6 @@ contract BasicMarket
             ,
             ,
             ,
-            ,
         ) = marketConfig.config();
         foreToken.transferFrom(msg.sender, address(this), disputePrice);
         disputeMessage = messageHash;
@@ -223,12 +222,10 @@ contract BasicMarket
     ///@param result Market close result type
     ///Is not best optimized becouse of deep stack
     function _closeMarket(MarketLib.ResultType result) private {
-        (uint256 burnFee, uint256 foundationFee, , , ) = marketConfig.fees();
-
+        (uint256 burnFee, uint256 foundationFee, , ) = marketConfig.fees();
         (
             uint256 toBurn,
             uint256 toFoundation,
-            uint256 toRevenue,
             uint256 toHighGuard,
             uint256 toDisputeCreator,
             address disputeCreator
@@ -236,7 +233,6 @@ contract BasicMarket
                 _market,
                 burnFee,
                 marketConfig.verificationFee(),
-                marketConfig.revenueFee(),
                 foundationFee,
                 result
             );
@@ -245,9 +241,6 @@ contract BasicMarket
         }
         if (toFoundation != 0) {
             foreToken.transfer(protocolConfig.foundationWallet(), toFoundation);
-        }
-        if (toRevenue != 0) {
-            foreToken.transfer(protocolConfig.revenueWallet(), toRevenue);
         }
         if (toHighGuard != 0) {
             foreToken.transfer(protocolConfig.highGuard(), toHighGuard);

@@ -24,7 +24,6 @@ import {
 describe("BasicMarket / Initialization", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let foreProtocolAccount: Signer;
@@ -46,7 +45,6 @@ describe("BasicMarket / Initialization", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -68,7 +66,6 @@ describe("BasicMarket / Initialization", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,

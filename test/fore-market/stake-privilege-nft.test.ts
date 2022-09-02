@@ -23,7 +23,6 @@ import {
 describe("BasicMarket / Staking privilege NFT", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let foreProtocolAccount: Signer;
@@ -46,7 +45,6 @@ describe("BasicMarket / Staking privilege NFT", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -67,7 +65,6 @@ describe("BasicMarket / Staking privilege NFT", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,
@@ -155,7 +152,6 @@ describe("BasicMarket / Staking privilege NFT", () => {
                         ethers.utils.parseEther("1000"),
                         1800,
                         1800,
-                        100,
                         100,
                         100,
                         50,

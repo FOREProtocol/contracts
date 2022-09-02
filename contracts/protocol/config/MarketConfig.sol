@@ -1,35 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-contract MarketConfig {
+import "./IMarketConfig.sol";
+
+contract MarketConfig is IMarketConfig{
 
     /// @notice Opening dispute price (FORE)
     /// @dev Used in order to disincentive spam
-    uint256 public immutable disputePrice;
+    uint256 public immutable override disputePrice;
 
     /// @notice Dispute period (in seconds)
-    uint256 public immutable disputePeriod;
+    uint256 public immutable override disputePeriod;
 
     /// @notice Verification period (in seconds)
-    uint256 public immutable verificationPeriod;
+    uint256 public immutable override verificationPeriod;
 
     /// @notice Burn fee (1 = 0.01%)
-    uint256 public immutable burnFee;
+    uint256 public immutable override burnFee;
 
     /// @notice Foundation fee (1 = 0.01%)
-    uint256 public immutable foundationFee;
-
-    /// @notice Revenue fee (1 = 0.01%)
-    uint256 public immutable revenueFee;
+    uint256 public immutable override foundationFee;
 
     /// @notice Market creator fee (1 = 0.01%)
-    uint256 public immutable marketCreatorFee;
+    uint256 public immutable override marketCreatorFee;
 
     /// @notice Verification fee (1 = 0.01%)
-    uint256 public immutable verificationFee;
+    uint256 public immutable override verificationFee;
 
     /// @notice Is Privilege Verifier Feature Enabled
-    bool public immutable isPrivilegeVerifierEnabled;
+    bool public immutable override isPrivilegeVerifierEnabled;
 
     constructor(
         uint256 disputePriceP,
@@ -37,7 +36,6 @@ contract MarketConfig {
         uint256 verificationPeriodP,
         uint256 burnFeeP,
         uint256 foundationFeeP,
-        uint256 revenueFeeP,
         uint256 marketCreatorFeeP,
         uint256 verificationFeeP,
         bool isPrivilegeVerifierEnabledP
@@ -47,7 +45,6 @@ contract MarketConfig {
         verificationPeriod = verificationPeriodP;
         burnFee = burnFeeP;
         foundationFee = foundationFeeP;
-        revenueFee = revenueFeeP;
         marketCreatorFee = marketCreatorFeeP;
         verificationFee = verificationFeeP;
         isPrivilegeVerifierEnabled = isPrivilegeVerifierEnabledP;
@@ -59,6 +56,7 @@ contract MarketConfig {
     function periods()
         external
         view
+        override
         returns (
             uint256,
             uint256
@@ -77,8 +75,8 @@ contract MarketConfig {
     function fees()
         external
         view
+        override
         returns (
-            uint256,
             uint256,
             uint256,
             uint256,
@@ -88,7 +86,6 @@ contract MarketConfig {
         return (
             burnFee,
             foundationFee,
-            revenueFee,
             marketCreatorFee,
             verificationFee
         );
@@ -100,8 +97,8 @@ contract MarketConfig {
     function config()
         external
         view
+        override
         returns (
-            uint256,
             uint256,
             uint256,
             uint256,
@@ -118,7 +115,6 @@ contract MarketConfig {
             verificationPeriod,
             burnFee,
             foundationFee,
-            revenueFee,
             marketCreatorFee,
             verificationFee,
             isPrivilegeVerifierEnabled
@@ -128,10 +124,9 @@ contract MarketConfig {
     /**
      * @notice Returns sum of all fees (1 = 0.01%)
      */
-    function feesSum() external view returns(uint256){
+    function feesSum() external override view returns(uint256){
         return burnFee
             + foundationFee
-            + revenueFee
             + marketCreatorFee
             + verificationFee;
     }

@@ -473,12 +473,10 @@ library MarketLib {
     /// @param market Market storage
     /// @param burnFee Burn fee
     /// @param verificationFee Verification Fee
-    /// @param revenueFee Revenue Fee
     /// @param foundationFee Foundation Fee
     /// @param result Result type
     /// @return toBurn Token to burn
     /// @return toFoundation Token to foundation
-    /// @return toRevenue Token to revenue
     /// @return toHighGuard Token to HG
     /// @return toDisputeCreator Token to dispute creator
     /// @return disputeCreator Dispute creator address
@@ -486,7 +484,6 @@ library MarketLib {
         Market storage market,
         uint256 burnFee,
         uint256 verificationFee,
-        uint256 revenueFee,
         uint256 foundationFee,
         MarketLib.ResultType result
     )
@@ -494,7 +491,6 @@ library MarketLib {
         returns (
             uint256 toBurn,
             uint256 toFoundation,
-            uint256 toRevenue,
             uint256 toHighGuard,
             uint256 toDisputeCreator,
             address disputeCreator
@@ -506,7 +502,6 @@ library MarketLib {
         uint256 fullMarketSize = m.sideA + m.sideB;
         toBurn = (fullMarketSize * burnFee) / 10000;
         uint256 toVerifiers = (fullMarketSize * verificationFee) / 10000;
-        toRevenue = (fullMarketSize * revenueFee) / 10000;
         toFoundation = (fullMarketSize * foundationFee) / 10000;
         if (
             m.result == MarketLib.ResultType.DRAW &&

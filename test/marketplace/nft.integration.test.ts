@@ -92,7 +92,6 @@ describe("NFTMarketplace / NFT integration", () => {
         const protocolConfig = await deployMockedContract(
             "ProtocolConfig",
             "0x0000000000000000000000000000000000000001",
-            "0x0000000000000000000000000000000000000002",
             "0x0000000000000000000000000000000000000003",
             contract.address,
             foreToken.address,

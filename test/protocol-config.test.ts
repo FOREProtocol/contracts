@@ -6,7 +6,6 @@ import {
     MarketCreationChangedEvent,
     MarketplaceChangedEvent,
     ProtocolConfig,
-    RevenueWalletChangedEvent,
     VerifierMintPriceChangedEvent,
     SetStatusForFactoryEvent,
 } from "@/ProtocolConfig";
@@ -26,7 +25,6 @@ import {
 describe("Protocol configuration", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let foreTokenContract: SignerWithAddress;
@@ -39,7 +37,6 @@ describe("Protocol configuration", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             foreTokenContract,
@@ -50,7 +47,6 @@ describe("Protocol configuration", () => {
         contract = await deployContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreTokenContract.address,
@@ -64,12 +60,6 @@ describe("Protocol configuration", () => {
         it("Should expose proper foundation wallet", async () => {
             expect(await contract.foundationWallet()).to.be.equal(
                 foundationWallet.address
-            );
-        });
-
-        it("Should expose proper revenue wallet", async () => {
-            expect(await contract.revenueWallet()).to.be.equal(
-                revenueWallet.address
             );
         });
 
@@ -132,7 +122,6 @@ describe("Protocol configuration", () => {
                     BigNumber.from(1800),
                     BigNumber.from(100),
                     BigNumber.from(100),
-                    BigNumber.from(100),
                     BigNumber.from(50),
                     BigNumber.from(150),
                     false,
@@ -163,10 +152,6 @@ describe("Protocol configuration", () => {
                 expect(await marketConfig.foundationFee()).to.be.equal(100);
             });
 
-            it("Should expose proper revenue fee", async () => {
-                expect(await marketConfig.revenueFee()).to.be.equal(100);
-            });
-
             it("Should expose proper market creation fee", async () => {
                 expect(await marketConfig.marketCreatorFee()).to.be.equal(50);
             });
@@ -190,7 +175,6 @@ describe("Protocol configuration", () => {
                         50,
                         60,
                         70,
-                        80,
                         90,
                         100,
                         false
@@ -210,8 +194,7 @@ describe("Protocol configuration", () => {
                         50,
                         100,
                         100,
-                        100,
-                        100,
+                        200,
                         101,
                         false
                     )
@@ -228,7 +211,6 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("1001"),
                         40,
                         50,
-                        10,
                         10,
                         10,
                         10,
@@ -252,7 +234,6 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10,
                         false
                     )
             ).to.revertedWith("ForeFactory: Config limit");
@@ -268,7 +249,6 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("10"),
                         40,
                         50,
-                        10,
                         10,
                         10,
                         10,
@@ -297,7 +277,6 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10,
                         false
                     )
             );
@@ -306,7 +285,6 @@ describe("Protocol configuration", () => {
                 ethers.utils.parseEther("1000"),
                 BigNumber.from(1800),
                 BigNumber.from(1800),
-                BigNumber.from(100),
                 BigNumber.from(100),
                 BigNumber.from(100),
                 BigNumber.from(50),
@@ -327,7 +305,6 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("10"),
                         40,
                         50,
-                        10,
                         10,
                         10,
                         10,
@@ -355,7 +332,6 @@ describe("Protocol configuration", () => {
                             50,
                             60,
                             70,
-                            80,
                             90,
                             100,
                             false
@@ -449,30 +425,6 @@ describe("Protocol configuration", () => {
             assertEvent<FoundationWalletChangedEvent>(
                 recipt,
                 "FoundationWalletChanged",
-                {
-                    addr: alice.address,
-                }
-            );
-        });
-    });
-
-    describe("Change revenue wallet", () => {
-        it("Should allow to execute only by owner", async () => {
-            await assertIsAvailableOnlyForOwner(async (account) => {
-                return contract
-                    .connect(account)
-                    .setRevenueWallet(alice.address);
-            });
-        });
-
-        it("Should emit RevenueWalletChanged event", async () => {
-            const [tx, recipt] = await txExec(
-                contract.connect(owner).setRevenueWallet(alice.address)
-            );
-
-            assertEvent<RevenueWalletChangedEvent>(
-                recipt,
-                "RevenueWalletChanged",
                 {
                     addr: alice.address,
                 }

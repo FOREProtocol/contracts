@@ -31,7 +31,6 @@ const sides = {
 describe("BasicMarket / Verification", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let foreProtocolAccount: Signer;
@@ -55,7 +54,6 @@ describe("BasicMarket / Verification", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -79,7 +77,6 @@ describe("BasicMarket / Verification", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,
@@ -131,7 +128,6 @@ describe("BasicMarket / Verification", () => {
                     ethers.utils.parseEther("1000"),
                     1800,
                     1800,
-                    100,
                     100,
                     100,
                     50,

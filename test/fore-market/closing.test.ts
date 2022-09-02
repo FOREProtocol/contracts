@@ -26,7 +26,7 @@ import {
 describe("BasicMarket / Closing", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
+
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let foreProtocolAccount: Signer;
@@ -50,7 +50,6 @@ describe("BasicMarket / Closing", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -75,7 +74,6 @@ describe("BasicMarket / Closing", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,
@@ -190,22 +188,12 @@ describe("BasicMarket / Closing", () => {
                 );
             });
 
-            it("Should emit ERC20 transfer event (revenue)", async () => {
-                await expect(tx)
-                    .to.emit(foreToken, "Transfer")
-                    .withArgs(
-                        contract.address,
-                        revenueWallet.address,
-                        ethers.utils.parseEther("1")
-                    );
-            });
-
             it("Should emit ERC20 transfer event (foundation)", async () => {
                 await expect(tx)
                     .to.emit(foreToken, "Transfer")
                     .withArgs(
                         contract.address,
-                        revenueWallet.address,
+                        foundationWallet.address,
                         ethers.utils.parseEther("1")
                     );
             });
@@ -317,7 +305,6 @@ describe("BasicMarket / Closing", () => {
         // full market size: 100 FORE
         // to burn (1%) = 1 FORE
         // burn and ver (1% + 1.5%) / 2 = 1.25 FORE
-        // revenue (1%) = 1 FORE
         // fundation (1%) = 1 FORE
 
         describe("successfully", () => {
@@ -330,22 +317,12 @@ describe("BasicMarket / Closing", () => {
                 );
             });
 
-            it("Should emit ERC20 transfer event (revenue)", async () => {
-                await expect(tx)
-                    .to.emit(foreToken, "Transfer")
-                    .withArgs(
-                        contract.address,
-                        revenueWallet.address,
-                        ethers.utils.parseEther("1")
-                    );
-            });
-
             it("Should emit ERC20 transfer event (foundation)", async () => {
                 await expect(tx)
                     .to.emit(foreToken, "Transfer")
                     .withArgs(
                         contract.address,
-                        revenueWallet.address,
+                        foundationWallet.address,
                         ethers.utils.parseEther("1")
                     );
             });

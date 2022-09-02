@@ -27,7 +27,6 @@ import {
 describe("BasicMarket / Rewards", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let foreProtocolAccount: Signer;
@@ -56,7 +55,6 @@ describe("BasicMarket / Rewards", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             predictorSideA1,
@@ -86,7 +84,6 @@ describe("BasicMarket / Rewards", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,
@@ -197,7 +194,7 @@ describe("BasicMarket / Rewards", () => {
     // full market size: 5000
     // market creator reward: 0.5% = 25
     // validators creator reward: 1.5% = 75
-    // burn, revenue, foundation: 1% each = 50
+    // burn, foundation: 1% each = 50
 
     describe("Market creator reward", () => {
         it("Should revert when market not closed", async () => {

@@ -4,13 +4,9 @@ pragma solidity ^0.8.7;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./MarketConfig.sol";
 
-contract ProtocolConfig is
-    Ownable
-{
-
+contract ProtocolConfig is Ownable {
     event MarketConfigurationUpdated(MarketConfig marketConfig);
     event FoundationWalletChanged(address addr);
-    event RevenueWalletChanged(address addr);
     event HighGuardChanged(address addr);
     event MarketplaceChanged(address addr);
     event VerifierMintPriceChanged(uint256 amount);
@@ -18,11 +14,10 @@ contract ProtocolConfig is
     event SetStatusForFactory(address indexed add, bool status);
 
     /// @notice Max fee (1 = 0.01%)
-    uint public constant MAX_FEE = 500;
+    uint256 public constant MAX_FEE = 500;
 
     /// @notice Max price (FORE)
-    uint public constant MAX_PRICE = 1000 ether;
-
+    uint256 public constant MAX_PRICE = 1000 ether;
 
     /// @notice Current market configuration
     /// @dev Configuration for created market is immutable. New configuration will be used only in newly created markets
@@ -31,9 +26,6 @@ contract ProtocolConfig is
     /// @notice Foundation account
     address public foundationWallet;
 
-    /// @notice Revenue account
-    address public revenueWallet;
-
     /// @notice High guard account
     address public highGuard;
 
@@ -41,10 +33,10 @@ contract ProtocolConfig is
     address public marketplace;
 
     /// @notice FORE token contract address
-    address immutable public foreToken;
+    address public immutable foreToken;
 
     /// @notice FORE verifiers NFT contract address
-    address immutable public foreVerifiers;
+    address public immutable foreVerifiers;
 
     /// @notice Market creation price (FORE)
     uint256 public marketCreationPrice;
@@ -54,18 +46,46 @@ contract ProtocolConfig is
 
     mapping(address => bool) public isFactoryWhitelisted;
 
-    function addresses() external view returns(address, address, address, address, address, address, address){
-        return(address(marketConfig), foundationWallet, revenueWallet, highGuard, marketplace, foreToken, foreVerifiers);
+    function addresses()
+        external
+        view
+        returns (
+            address,
+            address,
+            address,
+            address,
+            address,
+            address
+        )
+    {
+        return (
+            address(marketConfig),
+            foundationWallet,
+            highGuard,
+            marketplace,
+            foreToken,
+            foreVerifiers
+        );
     }
 
-    function roleAddresses() external view returns(address, address, address){
-        return(foundationWallet, revenueWallet, highGuard);
+    function roleAddresses()
+        external
+        view
+        returns (
+            address,
+            address
+        )
+    {
+        return (foundationWallet, highGuard);
     }
 
-    function setFactoryStatus(address[] memory factoryAddresses, bool[] memory statuses) external onlyOwner{
+    function setFactoryStatus(
+        address[] memory factoryAddresses,
+        bool[] memory statuses
+    ) external onlyOwner {
         uint256 len = factoryAddresses.length;
         require(len == statuses.length, "ProtocoConfig: Len mismatch ");
-        for(uint256 i = 0; i < len; i++){
+        for (uint256 i = 0; i < len; i++) {
             isFactoryWhitelisted[factoryAddresses[i]] = statuses[i];
             emit SetStatusForFactory(factoryAddresses[i], statuses[i]);
         }
@@ -73,7 +93,6 @@ contract ProtocolConfig is
 
     constructor(
         address foundationWalletP,
-        address revenueWalletP,
         address highGuardP,
         address marketplaceP,
         address foreTokenP,
@@ -89,14 +108,12 @@ contract ProtocolConfig is
             1800,
             100,
             100,
-            100,
             50,
             150,
             false
         );
 
         foundationWallet = foundationWalletP;
-        revenueWallet = revenueWalletP;
 
         highGuard = highGuardP;
 
@@ -119,57 +136,38 @@ contract ProtocolConfig is
         uint256 verificationPeriodP,
         uint256 burnFeeP,
         uint256 foundationFeeP,
-        uint256 revenueFeeP,
         uint256 marketCreatorFeeP,
         uint256 verificationFeeP,
         bool isPrivilegeVerifierEnabledP
     ) internal {
-        uint256 feesSum = burnFeeP
-            + foundationFeeP
-            + revenueFeeP
-            + marketCreatorFeeP
-            + verificationFeeP;
+        uint256 feesSum = burnFeeP +
+            foundationFeeP +
+            marketCreatorFeeP +
+            verificationFeeP;
 
         require(
-            feesSum <= MAX_FEE
-                && disputePriceP <= MAX_PRICE
-                && creationPriceP <= MAX_PRICE
-                && verifierMintPriceP <= MAX_PRICE
-            ,
+            feesSum <= MAX_FEE &&
+                disputePriceP <= MAX_PRICE &&
+                creationPriceP <= MAX_PRICE &&
+                verifierMintPriceP <= MAX_PRICE,
             "ForeFactory: Config limit"
         );
 
-        // deploy MarketConfig contract
-        bytes memory configCreationCode = type(MarketConfig).creationCode;
-        bytes memory encoded = abi.encodePacked(
-            configCreationCode,
-            abi.encode(
-                disputePriceP,
-                disputePeriodP,
-                verificationPeriodP,
-                burnFeeP,
-                foundationFeeP,
-                revenueFeeP,
-                marketCreatorFeeP,
-                verificationFeeP,
-                isPrivilegeVerifierEnabledP
-            )
+        MarketConfig createdMarketConfig = new MarketConfig(
+            disputePriceP,
+            disputePeriodP,
+            verificationPeriodP,
+            burnFeeP,
+            foundationFeeP,
+            marketCreatorFeeP,
+            verificationFeeP,
+            isPrivilegeVerifierEnabledP
         );
 
-        bytes32 salt = keccak256(abi.encodePacked(true, address(marketConfig)));
-        address cfg;
-        assembly {
-            cfg := create2(0, add(encoded, 0x20), mload(encoded), salt)
-            if iszero(extcodesize(cfg)) {
-                revert(0, 0)
-            }
-        }
-
-        marketConfig = MarketConfig(cfg);
+        marketConfig = createdMarketConfig;
 
         emit MarketConfigurationUpdated(marketConfig);
     }
-
 
     /**
      * @notice Updates current configuration
@@ -182,14 +180,10 @@ contract ProtocolConfig is
         uint256 verificationPeriodP,
         uint256 burnFeeP,
         uint256 foundationFeeP,
-        uint256 revenueFeeP,
         uint256 marketCreatorFeeP,
         uint256 verificationFeeP,
         bool isPrivilegeVerifierEnabledP
-    )
-        external
-        onlyOwner
-    {
+    ) external onlyOwner {
         _setConfig(
             creationPriceP,
             verifierMintPriceP,
@@ -198,7 +192,6 @@ contract ProtocolConfig is
             verificationPeriodP,
             burnFeeP,
             foundationFeeP,
-            revenueFeeP,
             marketCreatorFeeP,
             verificationFeeP,
             isPrivilegeVerifierEnabledP
@@ -212,15 +205,6 @@ contract ProtocolConfig is
     function setFoundationWallet(address _newAddr) external onlyOwner {
         foundationWallet = _newAddr;
         emit FoundationWalletChanged(_newAddr);
-    }
-
-    /**
-     * @notice Changes revenue account
-     * @param _newAddr New address
-     */
-    function setRevenueWallet(address _newAddr) external onlyOwner {
-        revenueWallet = _newAddr;
-        emit RevenueWalletChanged(_newAddr);
     }
 
     /**
@@ -246,10 +230,7 @@ contract ProtocolConfig is
      * @param _amount Price (FORE)
      */
     function setVerifierMintPrice(uint256 _amount) external onlyOwner {
-        require(
-            _amount <= 1000 ether,
-            "ProtocoConfig: Max price exceed"
-        );
+        require(_amount <= 1000 ether, "ProtocoConfig: Max price exceed");
         verifierMintPrice = _amount;
         emit VerifierMintPriceChanged(_amount);
     }
@@ -259,12 +240,8 @@ contract ProtocolConfig is
      * @param _amount Price (FORE)
      */
     function setMarketCreationPrice(uint256 _amount) external onlyOwner {
-        require(
-            _amount <= 1000 ether,
-            "ProtocoConfig: Max price exceed"
-        );
+        require(_amount <= 1000 ether, "ProtocoConfig: Max price exceed");
         marketCreationPrice = _amount;
         emit MarketCreationChanged(_amount);
     }
-
 }

@@ -21,14 +21,12 @@ import {
 describe("ForeMarket / Management", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let foreProtocolAccount: Signer;
     let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
-
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
@@ -43,7 +41,6 @@ describe("ForeMarket / Management", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -65,7 +62,6 @@ describe("ForeMarket / Management", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,

@@ -29,7 +29,6 @@ import {
 describe("BasicMarket / Dispute", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let foreProtocolAccount: Signer;
@@ -53,7 +52,6 @@ describe("BasicMarket / Dispute", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -78,7 +76,6 @@ describe("BasicMarket / Dispute", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,
@@ -347,22 +344,12 @@ describe("BasicMarket / Dispute", () => {
                     );
                 });
 
-                it("Should transfer revenue", async () => {
-                    await expect(tx)
-                        .to.emit(foreToken, "Transfer")
-                        .withArgs(
-                            contract.address,
-                            revenueWallet.address,
-                            ethers.utils.parseEther("1")
-                        );
-                });
-
                 it("Should transfer fee to foundation", async () => {
                     await expect(tx)
                         .to.emit(foreToken, "Transfer")
                         .withArgs(
                             contract.address,
-                            revenueWallet.address,
+                            foundationWallet.address,
                             ethers.utils.parseEther("1")
                         );
                 });
@@ -445,22 +432,12 @@ describe("BasicMarket / Dispute", () => {
                     );
                 });
 
-                it("Should transfer revenue fee", async () => {
-                    await expect(tx)
-                        .to.emit(foreToken, "Transfer")
-                        .withArgs(
-                            contract.address,
-                            revenueWallet.address,
-                            ethers.utils.parseEther("1")
-                        );
-                });
-
                 it("Should transfer fee to foundation", async () => {
                     await expect(tx)
                         .to.emit(foreToken, "Transfer")
                         .withArgs(
                             contract.address,
-                            revenueWallet.address,
+                            foundationWallet.address,
                             ethers.utils.parseEther("1")
                         );
                 });
@@ -543,22 +520,12 @@ describe("BasicMarket / Dispute", () => {
                     );
                 });
 
-                it("Should transfer fee to revenue", async () => {
-                    await expect(tx)
-                        .to.emit(foreToken, "Transfer")
-                        .withArgs(
-                            contract.address,
-                            revenueWallet.address,
-                            ethers.utils.parseEther("1")
-                        );
-                });
-
                 it("Should transfer fee to foundation", async () => {
                     await expect(tx)
                         .to.emit(foreToken, "Transfer")
                         .withArgs(
                             contract.address,
-                            revenueWallet.address,
+                            foundationWallet.address,
                             ethers.utils.parseEther("1")
                         );
                 });
@@ -684,22 +651,12 @@ describe("BasicMarket / Dispute", () => {
                     );
                 });
 
-                it("Should transfer revenue", async () => {
-                    await expect(tx)
-                        .to.emit(foreToken, "Transfer")
-                        .withArgs(
-                            contract.address,
-                            revenueWallet.address,
-                            ethers.utils.parseEther("1")
-                        );
-                });
-
                 it("Should transfer foundation", async () => {
                     await expect(tx)
                         .to.emit(foreToken, "Transfer")
                         .withArgs(
                             contract.address,
-                            revenueWallet.address,
+                            foundationWallet.address,
                             ethers.utils.parseEther("1")
                         );
                 });

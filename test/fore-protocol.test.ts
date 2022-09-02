@@ -24,7 +24,6 @@ import { config } from "dotenv";
 describe("ForeProtocol", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let alice: SignerWithAddress;
@@ -41,7 +40,6 @@ describe("ForeProtocol", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -56,7 +54,6 @@ describe("ForeProtocol", () => {
         protocolConfig = await deployContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,

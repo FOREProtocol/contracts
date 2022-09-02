@@ -15,7 +15,6 @@ interface IMarketConfig {
             uint256,
             uint256,
             uint256,
-            uint256,
             bool
     );
 
@@ -23,7 +22,6 @@ interface IMarketConfig {
         external
         view
         returns (
-            uint256,
             uint256,
             uint256,
             uint256,
@@ -48,11 +46,9 @@ interface IMarketConfig {
 
     function marketCreatorFee() external view returns (uint256);
 
-    function revenueFee() external view returns (uint256);
-
     function verificationFee() external view returns (uint256);
 
-    function verificationPeriod() external view returns (uint32);
+    function verificationPeriod() external view returns (uint256);
 
     function isPrivilegeVerifierEnabled() external view returns(bool);
 }
