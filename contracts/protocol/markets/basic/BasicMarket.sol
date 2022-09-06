@@ -151,6 +151,13 @@ contract BasicMarket
             revert ("BasicMarket: Incorrect owner");
         }
 
+        MarketLib.Market memory m = _market;
+
+        if(m.sideA == 0 || m.sideB == 0){
+            _closeMarket(MarketLib.ResultType.INVALID);
+            return;
+        }
+
         (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
             .periods();
 
@@ -171,6 +178,11 @@ contract BasicMarket
     /// @notice Doing verification for privilege staked vNFT
     /// @param side Side of verification
     function privilegeVerify(bool side) external {
+        MarketLib.Market memory m = _market;
+        if(m.sideA == 0 || m.sideB == 0){
+            _closeMarket(MarketLib.ResultType.INVALID);
+            return;
+        }
         MarketLib.privilegeVerify(
             _market,
             verifications,
@@ -183,6 +195,11 @@ contract BasicMarket
 
     /// @notice Opens dispute
     function openDispute(bytes32 messageHash) external {
+        MarketLib.Market memory m = _market;
+        if(m.sideA == 0 || m.sideB == 0){
+            _closeMarket(MarketLib.ResultType.INVALID);
+            return;
+        }
         (
             uint256 disputePrice,
             uint256 disputePeriod,
@@ -253,6 +270,10 @@ contract BasicMarket
     ///@notice Closes _market
     function closeMarket() external {
         MarketLib.Market memory m = _market;
+        if(m.sideA == 0 || m.sideB == 0){
+            _closeMarket(MarketLib.ResultType.INVALID);
+            return;
+        }
         (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
             .periods();
         MarketLib.beforeClosingCheck(m, verificationPeriod, disputePeriod);

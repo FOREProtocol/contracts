@@ -31,7 +31,8 @@ library MarketLib {
         NULL,
         AWON,
         BWON,
-        DRAW
+        DRAW,
+        INVALID
     }
 
     struct Verification {
@@ -137,6 +138,9 @@ library MarketLib {
         uint256 pB,
         uint256 feesSum
     ) internal pure returns (uint256 toWithdraw) {
+        if(m.result == ResultType.INVALID){
+            return pA+pB;
+        }
         uint256 fullMarketSize = m.sideA + m.sideB;
         uint256 _marketSubFee = fullMarketSize -
             (fullMarketSize * feesSum) /
@@ -198,7 +202,9 @@ library MarketLib {
         pure
         returns (ResultType)
     {
-        if (m.verifiedA == m.verifiedB) {
+        if(m.sideA == 0 || m.sideB == 0){
+            return ResultType.INVALID;
+        } else if (m.verifiedA == m.verifiedB) {
             return ResultType.DRAW;
         } else if (m.verifiedA > m.verifiedB) {
             return ResultType.AWON;
@@ -401,10 +407,6 @@ library MarketLib {
     ) external {
         Market memory m = market;
 
-        if (m.result != ResultType.NULL) {
-            revert ("MarketIsClosed");
-        }
-
         if (_isVerificationPeriodExtensionAvailable(m)) {
             revert ("VerifcationPeriodExtensionAvailable");
         }
@@ -503,6 +505,11 @@ library MarketLib {
         toBurn = (fullMarketSize * burnFee) / 10000;
         uint256 toVerifiers = (fullMarketSize * verificationFee) / 10000;
         toFoundation = (fullMarketSize * foundationFee) / 10000;
+        if (
+            m.result ==  MarketLib.ResultType.INVALID
+        ){
+            return(0, 0, 0, 0, m.disputeCreator);
+        }
         if (
             m.result == MarketLib.ResultType.DRAW &&
             m.disputeCreator != address(0) &&
@@ -617,7 +624,7 @@ library MarketLib {
             revert ("AlreadyWithdrawn");
         }
 
-        if (m.result == MarketLib.ResultType.DRAW) {
+        if (m.result == MarketLib.ResultType.DRAW || m.result == MarketLib.ResultType.INVALID) {
             // draw - withdraw verifier token
             return (0, 0, 0, false);
         }

@@ -754,7 +754,7 @@ describe("BasicMarket / Dispute", () => {
                     .openDispute(
                         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
                     )
-            ).to.be.revertedWith("MarketIsClosed");
+            ).to.be.revertedWith("DisputePeriodIsEnded");
         });
     });
 });
