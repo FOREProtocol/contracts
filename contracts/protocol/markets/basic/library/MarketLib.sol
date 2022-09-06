@@ -498,8 +498,13 @@ library MarketLib {
             address disputeCreator
         )
     {
-        market.result = result;
         Market memory m = market;
+        if (m.result != ResultType.NULL) {
+            revert ("MarketIsClosed");
+        }
+        market.result = result;
+        m.result = result;
+        emit CloseMarket(m.result);
 
         uint256 fullMarketSize = m.sideA + m.sideB;
         toBurn = (fullMarketSize * burnFee) / 10000;
@@ -524,8 +529,6 @@ library MarketLib {
             toDisputeCreator = toVerifiers - toHighGuard;
             disputeCreator = m.disputeCreator;
         }
-
-        emit CloseMarket(m.result);
     }
 
     /// @notice Check market status before closing
@@ -537,10 +540,6 @@ library MarketLib {
         uint256 verificationPeriod,
         uint256 disputePeriod
     ) external view {
-        if (m.result != MarketLib.ResultType.NULL) {
-            revert ("MarketIsClosed");
-        }
-
         if (m.disputeCreator != address(0)) {
             revert ("DisputeNotSolvedYet");
         }
