@@ -319,7 +319,7 @@ contract BasicMarket
 
     ///@notice Withdrawss Verification Reward
     ///@param verificationId Id of verification
-    function withdrawVerificationReward(uint256 verificationId) external {
+    function withdrawVerificationReward(uint256 verificationId, bool withdrawAsTokens) external {
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
         uint256 power = foreVerifiers.powerOf(
@@ -338,12 +338,21 @@ contract BasicMarket
             );
         verifications[verificationId].withdrawn = true;
         if (toVerifier != 0) {
-            foreVerifiers.increasePower(v.tokenId, toVerifier);
-            foreToken.transferFrom(
-                address(this),
-                address(foreVerifiers),
-                toVerifier
-            );
+            if(withdrawAsTokens){
+                foreToken.transferFrom(
+                    address(this),
+                    v.verifier,
+                    toVerifier
+                );
+            }
+            else{
+                foreVerifiers.increasePower(v.tokenId, toVerifier);
+                foreToken.transferFrom(
+                    address(this),
+                    address(foreVerifiers),
+                    toVerifier
+                );
+            }
         }
         if (toDisputeCreator != 0) {
             foreToken.transferFrom(
