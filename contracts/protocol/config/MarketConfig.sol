@@ -27,9 +27,6 @@ contract MarketConfig is IMarketConfig{
     /// @notice Verification fee (1 = 0.01%)
     uint256 public immutable override verificationFee;
 
-    /// @notice Is Privilege Verifier Feature Enabled
-    bool public immutable override isPrivilegeVerifierEnabled;
-
     constructor(
         uint256 disputePriceP,
         uint256 disputePeriodP,
@@ -37,8 +34,7 @@ contract MarketConfig is IMarketConfig{
         uint256 burnFeeP,
         uint256 foundationFeeP,
         uint256 marketCreatorFeeP,
-        uint256 verificationFeeP,
-        bool isPrivilegeVerifierEnabledP
+        uint256 verificationFeeP
     ) {
         disputePrice = disputePriceP;
         disputePeriod = disputePeriodP;
@@ -47,7 +43,6 @@ contract MarketConfig is IMarketConfig{
         foundationFee = foundationFeeP;
         marketCreatorFee = marketCreatorFeeP;
         verificationFee = verificationFeeP;
-        isPrivilegeVerifierEnabled = isPrivilegeVerifierEnabledP;
     }
 
     /**
@@ -105,8 +100,7 @@ contract MarketConfig is IMarketConfig{
             uint256,
             uint256,
             uint256,
-            uint256,
-            bool
+            uint256
         )
     {
         return (
@@ -116,8 +110,7 @@ contract MarketConfig is IMarketConfig{
             burnFee,
             foundationFee,
             marketCreatorFee,
-            verificationFee,
-            isPrivilegeVerifierEnabled
+            verificationFee
         );
     }
 

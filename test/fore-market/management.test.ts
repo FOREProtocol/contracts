@@ -133,16 +133,12 @@ describe("ForeMarket / Management", () => {
             ethers.utils.parseEther("0"), // side B
             ethers.utils.parseEther("0"), // verified A
             ethers.utils.parseEther("0"), // verified B
-            ethers.utils.parseEther("0"), // reserved
-            ethers.constants.AddressZero, // privilege nft staker
             ethers.constants.AddressZero, // dispute creator
             BigNumber.from(0), // endPredictionTimestamp
             BigNumber.from(0), // startVerificationTimestamp
-            BigNumber.from(0), // privilege nft id
             0, // result
             false, // confirmed
             false, // solved
-            false, // extended
         ]);
     });
 

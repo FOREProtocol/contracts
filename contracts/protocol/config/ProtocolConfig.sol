@@ -109,8 +109,7 @@ contract ProtocolConfig is Ownable {
             100,
             100,
             50,
-            150,
-            false
+            150
         );
 
         foundationWallet = foundationWalletP;
@@ -137,8 +136,7 @@ contract ProtocolConfig is Ownable {
         uint256 burnFeeP,
         uint256 foundationFeeP,
         uint256 marketCreatorFeeP,
-        uint256 verificationFeeP,
-        bool isPrivilegeVerifierEnabledP
+        uint256 verificationFeeP
     ) internal {
         uint256 feesSum = burnFeeP +
             foundationFeeP +
@@ -160,8 +158,7 @@ contract ProtocolConfig is Ownable {
             burnFeeP,
             foundationFeeP,
             marketCreatorFeeP,
-            verificationFeeP,
-            isPrivilegeVerifierEnabledP
+            verificationFeeP
         );
 
         marketConfig = createdMarketConfig;
@@ -181,8 +178,7 @@ contract ProtocolConfig is Ownable {
         uint256 burnFeeP,
         uint256 foundationFeeP,
         uint256 marketCreatorFeeP,
-        uint256 verificationFeeP,
-        bool isPrivilegeVerifierEnabledP
+        uint256 verificationFeeP
     ) external onlyOwner {
         _setConfig(
             creationPriceP,
@@ -193,8 +189,7 @@ contract ProtocolConfig is Ownable {
             burnFeeP,
             foundationFeeP,
             marketCreatorFeeP,
-            verificationFeeP,
-            isPrivilegeVerifierEnabledP
+            verificationFeeP
         );
     }
 

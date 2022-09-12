@@ -126,22 +126,6 @@ contract BasicMarket
         );
     }
 
-    ///@notice Stakes nft token for the privilege of being a verifier
-    ///@param tokenId ForeVerifiers nft id
-    function stakeForPrivilege(uint64 tokenId) external {
-        if(!marketConfig.isPrivilegeVerifierEnabled()){
-            revert("BasicMarket: Privilege disabled");
-        }
-        foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
-        MarketLib.stakeForPrivilege(
-            _market,
-            msg.sender,
-            foreVerifiers.powerOf(tokenId),
-            protocolConfig.verifierMintPrice(),
-            tokenId
-        );
-    }
-
     ///@notice Doing new verification
     ///@param tokenId vNFT token id
     ///@param side side of verification
@@ -158,7 +142,7 @@ contract BasicMarket
             return;
         }
 
-        (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
+        (uint256 verificationPeriod,) = marketConfig
             .periods();
 
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
@@ -168,27 +152,8 @@ contract BasicMarket
             verifications,
             msg.sender,
             verificationPeriod,
-            disputePeriod,
             foreVerifiers.powerOf(tokenId),
             tokenId,
-            side
-        );
-    }
-
-    /// @notice Doing verification for privilege staked vNFT
-    /// @param side Side of verification
-    function privilegeVerify(bool side) external {
-        MarketLib.Market memory m = _market;
-        if(m.sideA == 0 || m.sideB == 0){
-            _closeMarket(MarketLib.ResultType.INVALID);
-            return;
-        }
-        MarketLib.privilegeVerify(
-            _market,
-            verifications,
-            marketConfig.verificationPeriod(),
-            msg.sender,
-            foreVerifiers.powerOf(_market.privilegeNftId),
             side
         );
     }
@@ -204,7 +169,6 @@ contract BasicMarket
             uint256 disputePrice,
             uint256 disputePeriod,
             uint256 verificationPeriod,
-            ,
             ,
             ,
             ,
@@ -373,32 +337,6 @@ contract BasicMarket
         } else {
             foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
         }
-    }
-
-    ///@notice Manually Extend Verification Time
-    function extendVerificationTime() external{
-        (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
-            .periods();
-        MarketLib.extendVerificationTime(_market, verificationPeriod, disputePeriod);
-    }
-
-    ///@notice Withdraw unsuded privilegeNFT
-    function withdrarwUnusedPrivilegeNFT() external{
-        MarketLib.Market memory m = _market;
-        if (m.result == MarketLib.ResultType.NULL) {
-            revert ("MarketIsNotClosedYet");
-        }
-
-        if (m.privilegeNftStaker == address(0)) {
-            revert ("PrivilegeNftNotExist");
-        }
-        uint256 fee = foreVerifiers.powerOf(m.privilegeNftId) / 10;
-        foreVerifiers.decreasePower(
-            m.privilegeNftId,
-            fee
-        );
-        foreToken.burnFrom(address(foreVerifiers), fee);
-        foreVerifiers.transferFrom(address(this), m.privilegeNftStaker, m.privilegeNftId);
     }
 
     ///@notice Withdraw Market Creators Reward

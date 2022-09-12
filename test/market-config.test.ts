@@ -21,8 +21,7 @@ describe("Market configuration", () => {
             4,
             5,
             6,
-            7,
-            false
+            7
         );
     });
 
@@ -35,7 +34,6 @@ describe("Market configuration", () => {
             BigNumber.from(5),
             BigNumber.from(6),
             BigNumber.from(7),
-            false,
         ]);
     });
 

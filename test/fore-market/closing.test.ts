@@ -223,16 +223,12 @@ describe("BasicMarket / Closing", () => {
                     ethers.utils.parseEther("30"), // side B
                     ethers.utils.parseEther("30"), // verified A
                     ethers.utils.parseEther("0"), // verified B
-                    ethers.utils.parseEther("0"), // reserved
-                    ethers.constants.AddressZero, // privilege nft staker
                     ethers.constants.AddressZero, // dispute creator
                     BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                     BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                    BigNumber.from(0), // privilege nft id
                     1, // result
                     false, // confirmed
                     false, // solved
-                    false, // extended
                 ]);
             });
         });
@@ -276,16 +272,12 @@ describe("BasicMarket / Closing", () => {
                     ethers.utils.parseEther("30"), // side B
                     ethers.utils.parseEther("0"), // verified A
                     ethers.utils.parseEther("70"), // verified B
-                    ethers.utils.parseEther("0"), // reserved
-                    ethers.constants.AddressZero, // privilege nft staker
                     ethers.constants.AddressZero, // dispute creator
                     BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                     BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                    BigNumber.from(0), // privilege nft id
                     2, // result
                     false, // confirmed
                     false, // solved
-                    false, // extended
                 ]);
             });
         });
@@ -352,16 +344,12 @@ describe("BasicMarket / Closing", () => {
                     ethers.utils.parseEther("30"), // side B
                     ethers.utils.parseEther("20"), // verified A
                     ethers.utils.parseEther("20"), // verified B
-                    ethers.utils.parseEther("0"), // reserved
-                    ethers.constants.AddressZero, // privilege nft staker
                     ethers.constants.AddressZero, // dispute creator
                     BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                     BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                    BigNumber.from(0), // privilege nft id
                     3, // result
                     false, // confirmed
                     false, // solved
-                    false, // extended
                 ]);
             });
         });

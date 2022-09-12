@@ -186,16 +186,12 @@ describe("BasicMarket / Initialization", () => {
                 ethers.utils.parseEther("2"), // side B
                 BigNumber.from(0), // verified A
                 BigNumber.from(0), // verified B
-                BigNumber.from(0), // reserved
-                ethers.constants.AddressZero, // privilege nft staker
                 ethers.constants.AddressZero, // dispute creator
                 BigNumber.from(blockTimestamp + 100000), // endPredictionTimestamp
                 BigNumber.from(blockTimestamp + 200000), // startVerificationTimestamp
-                BigNumber.from(0), // privilege nft id
                 0, // result
                 false, // confirmed
                 false, // solved
-                false, // extended
             ]);
         });
 

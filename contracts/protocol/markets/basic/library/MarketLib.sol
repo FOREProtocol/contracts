@@ -13,11 +13,6 @@ library MarketLib {
         uint256 tokenId,
         bool side
     );
-    event PrivilegeStake(
-        address indexed staker,
-        uint256 power,
-        uint256 tokenId
-    );
     event WithdrawReward(
         address indexed receiver,
         uint256 indexed rewardType,
@@ -57,26 +52,18 @@ library MarketLib {
         uint256 verifiedA;
         /// @notice Verification power for positive result
         uint256 verifiedB;
-        /// @notice Reserved for privilege verifier
-        uint256 reserved;
-        /// @notice Address of staker
-        address privilegeNftStaker;
         /// @notice Dispute Creator address
         address disputeCreator;
         /// @notice End predictions unix timestamp
         uint64 endPredictionTimestamp;
         /// @notice Start verifications unix timestamp
         uint64 startVerificationTimestamp;
-        /// @notice Nft id (ForeVerifiers)
-        uint64 privilegeNftId;
         /// @notice Market result
         ResultType result;
         /// @notice Wrong result confirmed by HG
         bool confirmed;
         /// @notice Dispute solved by HG
         bool solved;
-        /// @notice If verification period was extended
-        bool extended;
     }
 
     /// FUNCTIONS
@@ -120,9 +107,9 @@ library MarketLib {
         }
 
         if (side) {
-            return m.sideB - m.verifiedA - m.reserved;
+            return m.sideB - m.verifiedA;
         } else {
-            return m.sideA - m.verifiedB - m.reserved;
+            return m.sideA - m.verifiedB;
         }
     }
 
@@ -152,35 +139,6 @@ library MarketLib {
         } else if (m.result == MarketLib.ResultType.BWON) {
             toWithdraw = (_marketSubFee * pB) / m.sideB;
         }
-    }
-
-    ///@notice Stakes nft token for the privilege of being a verifier
-    ///@param market Market storage
-    ///@param verifier Verifier
-    ///@param nftPower Power of vNFT
-    ///@param tokenId ForeVerifiers nft id
-    function stakeForPrivilege(
-        Market storage market,
-        address verifier,
-        uint256 nftPower,
-        uint256 mintPrice,
-        uint64 tokenId
-    ) external {
-        if(market.privilegeNftStaker != address(0)){
-            revert ("PrivilegeNftAlreadyExist");
-        }
-        if (block.timestamp > market.startVerificationTimestamp) {
-            revert ("VerificationAlreadyStarted");
-        }
-        if (nftPower < mintPrice) {
-            revert ("PowerMustBeGreaterThanMintPrice");
-        }
-
-        market.privilegeNftStaker = verifier;
-        market.privilegeNftId = tokenId;
-        market.reserved = nftPower;
-
-        emit PrivilegeStake(verifier, nftPower, tokenId);
     }
 
     ///@notice Calculates Result for market
@@ -367,15 +325,11 @@ library MarketLib {
         Verification[] storage verifications,
         address verifier,
         uint256 verificationPeriod,
-        uint256 disputePeriod,
         uint256 power,
         uint256 tokenId,
         bool side
     ) external {
         MarketLib.Market memory m = market;
-        if(_isVerificationPeriodExtensionAvailable(m)){
-            _extendVerificationTime(market, verificationPeriod, disputePeriod);
-        }
         uint256 powerAvailable = _maxAmountToVerifyForSide(m, side);
         if (powerAvailable == 0) {
             revert ("MarketIsFullyVerified");
@@ -406,10 +360,6 @@ library MarketLib {
         address creator
     ) external {
         Market memory m = market;
-
-        if (_isVerificationPeriodExtensionAvailable(m)) {
-            revert ("VerifcationPeriodExtensionAvailable");
-        }
 
         if (
             block.timestamp <
@@ -644,118 +594,5 @@ library MarketLib {
             }
             return (0, toDisputeCreator, toHighGuard, true);
         }
-    }
-
-    /// @dev Is verification period can be extended
-    /// @param m Market info
-    /// @return available true if available
-    function _isVerificationPeriodExtensionAvailable(Market memory m)
-        internal
-        pure
-        returns (bool available)
-    {
-        if (
-            (m.reserved != 0) && ((m.reserved >= m.sideA) || (m.reserved >= m.sideB)) && (!m.extended)
-        ) {
-            available = true;
-        }
-    }
-
-    /// @notice Is verification period can be extended
-    /// @param m Market info
-    /// @return available true if available
-    function isVerificationPeriodExtensionAvailable(Market memory m)
-        public
-        pure
-        returns (bool available)
-    {
-        return(_isVerificationPeriodExtensionAvailable(m));
-    }
-
-    /// @dev Is verification period can be extended
-    /// @param market Market storage
-    /// @param verificationPeriod Verification Period
-    /// @param disputePeriod Dispute Period
-    function extendVerificationTime(Market storage market, uint256 verificationPeriod, uint256 disputePeriod) external {
-        _extendVerificationTime(market, verificationPeriod, disputePeriod);
-    }
-
-    /// @dev Is verification period can be extended
-    /// @param market Market storage
-    /// @param verificationPeriod Verification Period
-    /// @param disputePeriod Dispute Period
-    function _extendVerificationTime(
-        Market storage market,
-        uint256 verificationPeriod,
-        uint256 disputePeriod
-    ) internal {
-        Market memory m = market;
-
-        if (_isVerified(m)) {
-            revert ("MarketIsFullyVerified");
-        }
-
-        if (m.reserved != 0) {
-            revert ("NothingReserved");
-        }
-
-        if (
-            block.timestamp < m.startVerificationTimestamp + verificationPeriod
-        ) {
-            revert ("DisputePeriodIsNotStartedYet");
-        }
-
-        if (
-            block.timestamp >=
-            m.startVerificationTimestamp + verificationPeriod + disputePeriod
-        ) {
-            revert ("DisputePeriodIsEnded");
-        }
-
-        if (!_isVerificationPeriodExtensionAvailable(m)) {
-            revert ("VerifcationPeriodExtensionUnavailable");
-        }
-
-        market.startVerificationTimestamp =
-            m.startVerificationTimestamp +
-            uint64(verificationPeriod);
-        market.reserved = 0;
-    }
-
-    /// @notice Privilege Verify
-    /// @param market Market Storage
-    /// @param verifications Verifications array storage
-    /// @param verificationPeriod Verification Period
-    /// @param requester Requester address
-    /// @param power Power of vNFT
-    /// @param side Side of verification
-    function privilegeVerify(
-        Market storage market,
-        Verification[] storage verifications,
-        uint256 verificationPeriod,
-        address requester,
-        uint256 power,
-        bool side
-    ) external {
-        MarketLib.Market memory m = market;
-        if (m.privilegeNftStaker != requester) {
-            revert ("IncorrectOwner");
-        }
-        if (m.reserved == 0) {
-            revert ("PrivilegeCanVerifyOnce");
-        }
-
-        market.reserved = 0;
-        market.privilegeNftStaker = address(0);
-
-        _verify(
-            market,
-            verifications,
-            requester,
-            verificationPeriod,
-            power,
-            m.privilegeNftId,
-            side
-        );
     }
 }

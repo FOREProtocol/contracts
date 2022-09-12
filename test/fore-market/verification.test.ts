@@ -131,8 +131,7 @@ describe("BasicMarket / Verification", () => {
                     100,
                     100,
                     50,
-                    150,
-                    true
+                    150
                 )
         );
 
@@ -269,16 +268,12 @@ describe("BasicMarket / Verification", () => {
                             ethers.utils.parseEther("40"), // side B
                             ethers.utils.parseEther(sideValue ? "20" : "0"), // verified A
                             ethers.utils.parseEther(sideValue ? "0" : "20"), // verified B
-                            ethers.utils.parseEther("0"), // reserved
-                            ethers.constants.AddressZero, // privilege nft staker
                             ethers.constants.AddressZero, // dispute creator
                             BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                             BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                            BigNumber.from(0), // privilege nft id
                             0, // result
                             false, // confirmed
                             false, // solved
-                            false, // extended
                         ]);
                     });
                 });
@@ -309,16 +304,12 @@ describe("BasicMarket / Verification", () => {
                         ethers.utils.parseEther("40"), // side B
                         ethers.utils.parseEther("0"), // verified A
                         ethers.utils.parseEther("50"), // verified B
-                        ethers.utils.parseEther("0"), // reserved
-                        ethers.constants.AddressZero, // privilege nft staker
                         ethers.constants.AddressZero, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                        BigNumber.from(0), // privilege nft id
                         0, // result
                         false, // confirmed
                         false, // solved
-                        false, // extended
                     ]);
                 });
 
@@ -338,81 +329,6 @@ describe("BasicMarket / Verification", () => {
                     ).to.be.revertedWith("MarketIsFullyVerified");
                 });
             });
-        });
-    });
-
-    describe("with privilege NFT used", () => {
-        beforeEach(async () => {
-            await txExec(contract.connect(alice).stakeForPrivilege(0));
-        });
-
-        describe("after verification period start", () => {
-            beforeEach(async () => {
-                await timetravel(blockTimestamp + 300001);
-            });
-
-            for (const [sideName, sideValue] of Object.entries(sides)) {
-                describe(`verifing ${sideName} side`, () => {
-                    it("Should update market verification powers", async () => {
-                        expect(await contract.marketInfo()).to.be.eql([
-                            ethers.utils.parseEther("50"), // side A
-                            ethers.utils.parseEther("40"), // side B
-                            ethers.utils.parseEther("0"), // verified A
-                            ethers.utils.parseEther("0"), // verified B
-                            ethers.utils.parseEther("20"), // reserved
-                            alice.address, // privilege nft staker
-                            ethers.constants.AddressZero, // dispute creator
-                            BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
-                            BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                            BigNumber.from(0), // privilege nft id
-                            0, // result
-                            false, // confirmed
-                            false, // solved
-                            false, // extended
-                        ]);
-                    });
-
-                    describe("successfully verifing with privilege NFT", () => {
-                        let tx: ContractTransaction;
-                        let recipt: ContractReceipt;
-
-                        beforeEach(async () => {
-                            [tx, recipt] = await txExec(
-                                contract
-                                    .connect(alice)
-                                    .privilegeVerify(sideValue)
-                            );
-                        });
-
-                        it("Should reduce opposite side of verification", async () => {
-                            expect(await contract.marketInfo()).to.be.eql([
-                                ethers.utils.parseEther("50"), // side A
-                                ethers.utils.parseEther("40"), // side B
-                                ethers.utils.parseEther(sideValue ? "20" : "0"), // verified A
-                                ethers.utils.parseEther(sideValue ? "0" : "20"), // verified B
-                                ethers.utils.parseEther("0"), // reserved
-                                ethers.constants.AddressZero, // privilege nft staker
-                                ethers.constants.AddressZero, // dispute creator
-                                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
-                                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                                BigNumber.from(0), // privilege nft id
-                                0, // result
-                                false, // confirmed
-                                false, // solved
-                                false, // extended
-                            ]);
-                        });
-
-                        it("Should not be able to stake twice", async () => {
-                            await expect(
-                                contract
-                                    .connect(alice)
-                                    .privilegeVerify(sideValue)
-                            ).to.be.revertedWith("IncorrectOwner");
-                        });
-                    });
-                });
-            }
         });
     });
 
