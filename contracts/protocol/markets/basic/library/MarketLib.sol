@@ -542,6 +542,54 @@ library MarketLib {
         return toWithdraw;
     }
 
+    /// @notice Calculates Verification Reward
+    /// @param m Market info
+    /// @param v Verification info
+    /// @param power Power of vNFT used for verification
+    /// @param verificationFee Verification Fee
+    /// @return toVerifier Amount of tokens for verifier
+    /// @return toDisputeCreator Amount of tokens for dispute creator
+    /// @return toHighGuard Amount of tokens for HG
+    /// @return vNftBurn If vNFT need to be burned
+    function calculateVerificationReward(
+        Market memory m,
+        Verification memory v,
+        uint256 power,
+        uint256 verificationFee
+    )
+        public
+        pure
+        returns (
+            uint256 toVerifier,
+            uint256 toDisputeCreator,
+            uint256 toHighGuard,
+            bool vNftBurn
+        )
+    {
+        if (m.result == MarketLib.ResultType.DRAW || m.result == MarketLib.ResultType.INVALID || m.result == MarketLib.ResultType.NULL || v.withdrawn) {
+            // draw - withdraw verifier token
+            return (0, 0, 0, false);
+        }
+
+        uint256 verificatorsFees = ((m.sideA + m.sideB) * verificationFee) /
+            10000;
+        if (v.side == (m.result == MarketLib.ResultType.AWON)) {
+            // verifier voted properly
+            uint256 reward = (v.power * verificatorsFees) /
+                (v.side ? m.verifiedA : m.verifiedB);
+            return (reward, 0, 0, false);
+        } else {
+            // verifier voted wrong
+            if (m.confirmed) {
+                toDisputeCreator = power / 2;
+                toHighGuard = power - toDisputeCreator;
+            }
+            return (0, toDisputeCreator, toHighGuard, true);
+        }
+    }
+
+
+
     /// @notice Withdraws Verification Reward
     /// @param m Market info
     /// @param v Verification info
@@ -573,26 +621,10 @@ library MarketLib {
             revert ("AlreadyWithdrawn");
         }
 
-        if (m.result == MarketLib.ResultType.DRAW || m.result == MarketLib.ResultType.INVALID) {
-            // draw - withdraw verifier token
-            return (0, 0, 0, false);
-        }
+        (toVerifier, toDisputeCreator, toHighGuard, vNftBurn) = calculateVerificationReward(m, v, power, verificationFee);
 
-        uint256 verificatorsFees = ((m.sideA + m.sideB) * verificationFee) /
-            10000;
-        if (v.side == (m.result == MarketLib.ResultType.AWON)) {
-            // verifier voted properly
-            uint256 reward = (v.power * verificatorsFees) /
-                (v.side ? m.verifiedA : m.verifiedB);
-            emit WithdrawReward(v.verifier, 2, reward);
-            return (reward, 0, 0, false);
-        } else {
-            // verifier voted wrong
-            if (m.confirmed) {
-                toDisputeCreator = power / 2;
-                toHighGuard = power - toDisputeCreator;
-            }
-            return (0, toDisputeCreator, toHighGuard, true);
+        if(toVerifier!=0){
+            emit WithdrawReward(v.verifier, 2, toVerifier);
         }
     }
 }

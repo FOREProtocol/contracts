@@ -281,8 +281,20 @@ contract BasicMarket
         foreToken.transfer(predictor, toWithdraw);
     }
 
+    ///@notice Calculates Verification Reward
+    ///@param verificationId Id of Verification
+    function calculateVerificationReward(uint256 verificationId) external view returns(uint256 toVerifier, uint256 toDisputeCreator, uint256 toHighGuard, bool vNftBurn){
+        MarketLib.Market memory m = _market;
+        MarketLib.Verification memory v = verifications[verificationId];
+        uint256 power = foreVerifiers.powerOf(
+            verifications[verificationId].tokenId
+        );
+        (toVerifier, toDisputeCreator, toHighGuard, vNftBurn) =  MarketLib.calculateVerificationReward(m, v, power, marketConfig.verificationFee());
+    }
+
     ///@notice Withdrawss Verification Reward
     ///@param verificationId Id of verification
+    ///@param withdrawAsTokens If true witdraws tokens, false - withraws power
     function withdrawVerificationReward(uint256 verificationId, bool withdrawAsTokens) external {
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
