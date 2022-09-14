@@ -227,10 +227,9 @@ async function main() {
     if (!existingContract.basicFactory) {
         console.log("Deploying BasicFactory");
 
-        basicFactory = await BasicFactoryArtifact.deploy(
-            protocolConfig.address,
-            { gasLimit: 10000000 }
-        );
+        basicFactory = await BasicFactoryArtifact.deploy(foreProtocol.address, {
+            gasLimit: 10000000,
+        });
         await basicFactory.deployed();
 
         console.log(basicFactory.address);
