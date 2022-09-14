@@ -3,10 +3,9 @@ import { deployLibrary } from "../test/helpers/utils";
 
 async function main() {
     const config = {
-        verifierMintPrice: ethers.utils.parseEther("10000"),
-        marketCreationPrice: ethers.utils.parseEther("10000"),
+        verifierMintPrice: ethers.utils.parseEther("1000"),
+        marketCreationPrice: ethers.utils.parseEther("10"),
         foundationWallet: "0x0000000000000000000000000000000000000001",
-        revenueWallet: "0x0000000000000000000000000000000000000002",
         highGuard: "0x0000000000000000000000000000000000000003",
     };
 
@@ -34,7 +33,7 @@ async function main() {
     );
     const marketplace = await MarketplaceArtifact.deploy(
         "0x1547dC7E7CB86717F9fB397423EbeF55EF435Aa4",
-        config.revenueWallet,
+        config.foundationWallet,
         foretoken.address,
         ethers.utils.parseEther("1"),
         ethers.utils.parseEther("1000000000")
@@ -45,9 +44,9 @@ async function main() {
     // add fore verifiers to marketplace
     const tx = await marketplace.addCollection(
         verifiers.address,
-        config.revenueWallet,
+        config.foundationWallet,
         "0x0000000000000000000000000000000000000000",
-        1000,
+        1200,
         0,
         { gasLimit: 5000000 }
     );
@@ -57,7 +56,6 @@ async function main() {
     const ConfigArtifact = await ethers.getContractFactory("ProtocolConfig");
     const protocolConfig = await ConfigArtifact.deploy(
         config.foundationWallet,
-        config.revenueWallet,
         config.highGuard,
         marketplace.address,
         foretoken.address,
@@ -80,14 +78,40 @@ async function main() {
         },
     });
 
-    // const MarketsArtifact = await ethers.getContractFactory("ForeMarkets");
-    const markets = await MarketsArtifact.deploy(protocolConfig.address);
-    await markets.deployed();
-    console.log("ForeMarkets deployed to:", markets.address);
+    // ForeProtocol
+    const ForeProtocolArtifact = await ethers.getContractFactory(
+        "ForeProtocol"
+    );
 
-    // Initial settings
-    await foretoken.setFactory(markets.address);
-    await verifiers.setFactory(markets.address);
+    const foreProtocol = await ForeProtocolArtifact.deploy(
+        protocolConfig.address
+    );
+    await foreProtocol.deployed();
+    console.log("ForeProtocol deployed to:", foreProtocol.address);
+
+    // initial settings
+    await foretoken.setProtocol(foreProtocol.address, { gasLimit: 5000000 });
+    await verifiers.setProtocol(foreProtocol.address, { gasLimit: 5000000 });
+
+    // Basic Market Factory
+    const BasicFactoryArtifact = await ethers.getContractFactory(
+        "BasicFactory",
+        {
+            libraries: {
+                MarketLib: marketLib.address,
+            },
+        }
+    );
+
+    const basicFactory = await BasicFactoryArtifact.deploy(
+        protocolConfig.address,
+        { gasLimit: 5000000 }
+    );
+    await basicFactory.deployed();
+    console.log("BasicFactory deployed to:", basicFactory.address);
+
+    // add factory to protocol
+    await protocolConfig.setFactoryStatus([basicFactory.address], [true]);
 
     // dump addresses for API purpose
     console.log({
@@ -96,24 +120,9 @@ async function main() {
         foreVerifiers: verifiers.address,
         protocolConfig: protocolConfig.address,
         marketLib: marketLib.address,
-        foreMarkets: markets.address,
+        foreProtocol: foreProtocol.address,
         marketplace: marketplace.address,
     });
-
-    // test
-    const signer = await ethers.provider.getSigner().getAddress();
-    await markets.mintVerifier(signer);
-
-    const previousBlock = await ethers.provider.getBlock("latest");
-    const blockTimestamp = previousBlock.timestamp;
-    const createTx = await markets.createMarket(
-        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-        signer,
-        ethers.utils.parseEther("1"),
-        ethers.utils.parseEther("2"),
-        blockTimestamp + 120,
-        blockTimestamp + 200
-    );
 }
 
 main().catch((error) => {
