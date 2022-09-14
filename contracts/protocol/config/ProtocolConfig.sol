@@ -107,9 +107,9 @@ contract ProtocolConfig is Ownable {
             1800,
             1800,
             100,
-            100,
+            150,
             50,
-            150
+            200
         );
 
         foundationWallet = foundationWalletP;
