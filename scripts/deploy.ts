@@ -115,25 +115,25 @@ async function main() {
         await marketplace.deployed();
 
         console.log(marketplace.address);
+
+        // add fore verifiers to marketplace
+        {
+            const tx = await marketplace
+                .connect(sharedAccount)
+                .addCollection(
+                    foreVerifiers.address,
+                    "0x0000000000000000000000000000000000000000",
+                    "0x0000000000000000000000000000000000000000",
+                    1200,
+                    0,
+                    { gasLimit: 500000 }
+                );
+            await tx.wait();
+        }
     } else {
         marketplace = await MarketplaceArtifact.attach(
             existingContract.marketplace
         );
-    }
-
-    // add fore verifiers to marketplace
-    {
-        const tx = await marketplace
-            .connect(sharedAccount)
-            .addCollection(
-                foreVerifiers.address,
-                "0x0000000000000000000000000000000000000000",
-                "0x0000000000000000000000000000000000000000",
-                1200,
-                0,
-                { gasLimit: 500000 }
-            );
-        await tx.wait();
     }
 
     // Protocol Config
