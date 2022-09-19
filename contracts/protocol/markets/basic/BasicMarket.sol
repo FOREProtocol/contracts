@@ -1,22 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "./IForeMarkets.sol";
-import "./verifiers/IForeVerifiers.sol";
-import "./config/IProtocolConfig.sol";
-import "./config/IMarketConfig.sol";
+import "../../IForeProtocol.sol";
+import "../../../verifiers/IForeVerifiers.sol";
+import "../../config/IProtocolConfig.sol";
+import "../../config/IMarketConfig.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./library/MarketLib.sol";
 
-contract ForeMarket {
+contract BasicMarket
+{
+
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
 
     /// @notice Market token id
-    uint256 public marketId;
+    uint256 internal _tokenId;
 
-    /// @notice Factory (ForeMarkets)
-    IForeMarkets public factory;
+   /// @notice Protocol
+    IForeProtocol public protocol;
+
+    /// @notice Factory
+    address public factory;
 
     /// @notice Protocol config
     IProtocolConfig public protocolConfig;
@@ -53,7 +58,7 @@ contract ForeMarket {
     }
 
     constructor() {
-        factory = IForeMarkets(msg.sender);
+        factory = msg.sender;
     }
 
     /// @notice Returns market info
@@ -75,18 +80,20 @@ contract ForeMarket {
         address receiver,
         uint256 amountA,
         uint256 amountB,
+        address protocolAddress,
         uint64 endPredictionTimestamp,
         uint64 startVerificationTimestamp,
         uint64 tokenId
     ) external {
         if (msg.sender != address(factory)) {
-            revert("ForeMarket: Only Factory");
+            revert("BasicMarket: Only Factory");
         }
 
-        protocolConfig = IProtocolConfig(factory.config());
+        protocol = IForeProtocol(protocolAddress);
+        protocolConfig = IProtocolConfig(protocol.config());
         marketConfig = IMarketConfig(protocolConfig.marketConfig());
-        foreToken = IERC20Burnable(factory.foreToken());
-        foreVerifiers = IForeVerifiers(factory.foreVerifiers());
+        foreToken = IERC20Burnable(protocol.foreToken());
+        foreVerifiers = IForeVerifiers(protocol.foreVerifiers());
 
         marketHash = mHash;
         MarketLib.init(
@@ -118,32 +125,23 @@ contract ForeMarket {
         );
     }
 
-    ///@notice Stakes nft token for the privilege of being a verifier
-    ///@param tokenId ForeVerifiers nft id
-    function stakeForPrivilege(uint64 tokenId) external {
-        if(!marketConfig.isPrivilegeVerifierEnabled()){
-            revert("ForeMarket: Privilege disabled");
-        }
-        foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
-        MarketLib.stakeForPrivilege(
-            _market,
-            msg.sender,
-            foreVerifiers.powerOf(tokenId),
-            protocolConfig.verifierMintPrice(),
-            tokenId
-        );
-    }
-
     ///@notice Doing new verification
     ///@param tokenId vNFT token id
     ///@param side side of verification
     function verify(uint256 tokenId, bool side) external {
         if(
             foreVerifiers.ownerOf(tokenId)!= msg.sender){
-            revert ("ForeMarket: Incorrect owner");
+            revert ("BasicMarket: Incorrect owner");
         }
 
-        (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
+        MarketLib.Market memory m = _market;
+
+        if(m.sideA == 0 || m.sideB == 0){
+            _closeMarket(MarketLib.ResultType.INVALID);
+            return;
+        }
+
+        (uint256 verificationPeriod,) = marketConfig
             .periods();
 
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
@@ -153,34 +151,23 @@ contract ForeMarket {
             verifications,
             msg.sender,
             verificationPeriod,
-            disputePeriod,
             foreVerifiers.powerOf(tokenId),
             tokenId,
             side
         );
     }
 
-    /// @notice Doing verification for privilege staked vNFT
-    /// @param side Side of verification
-    function privilegeVerify(bool side) external {
-        MarketLib.privilegeVerify(
-            _market,
-            verifications,
-            marketConfig.verificationPeriod(),
-            msg.sender,
-            foreVerifiers.powerOf(_market.privilegeNftId),
-            side
-        );
-    }
-
     /// @notice Opens dispute
     function openDispute(bytes32 messageHash) external {
+        MarketLib.Market memory m = _market;
+        if(m.sideA == 0 || m.sideB == 0){
+            _closeMarket(MarketLib.ResultType.INVALID);
+            return;
+        }
         (
             uint256 disputePrice,
             uint256 disputePeriod,
             uint256 verificationPeriod,
-            ,
-            ,
             ,
             ,
             ,
@@ -215,12 +202,10 @@ contract ForeMarket {
     ///@param result Market close result type
     ///Is not best optimized becouse of deep stack
     function _closeMarket(MarketLib.ResultType result) private {
-        (uint256 burnFee, uint256 foundationFee, , , ) = marketConfig.fees();
-
+        (uint256 burnFee, uint256 foundationFee, , ) = marketConfig.fees();
         (
             uint256 toBurn,
             uint256 toFoundation,
-            uint256 toRevenue,
             uint256 toHighGuard,
             uint256 toDisputeCreator,
             address disputeCreator
@@ -228,7 +213,6 @@ contract ForeMarket {
                 _market,
                 burnFee,
                 marketConfig.verificationFee(),
-                marketConfig.revenueFee(),
                 foundationFee,
                 result
             );
@@ -237,9 +221,6 @@ contract ForeMarket {
         }
         if (toFoundation != 0) {
             foreToken.transfer(protocolConfig.foundationWallet(), toFoundation);
-        }
-        if (toRevenue != 0) {
-            foreToken.transfer(protocolConfig.revenueWallet(), toRevenue);
         }
         if (toHighGuard != 0) {
             foreToken.transfer(protocolConfig.highGuard(), toHighGuard);
@@ -252,6 +233,10 @@ contract ForeMarket {
     ///@notice Closes _market
     function closeMarket() external {
         MarketLib.Market memory m = _market;
+        if(m.sideA == 0 || m.sideB == 0){
+            _closeMarket(MarketLib.ResultType.INVALID);
+            return;
+        }
         (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
             .periods();
         MarketLib.beforeClosingCheck(m, verificationPeriod, disputePeriod);
@@ -295,9 +280,21 @@ contract ForeMarket {
         foreToken.transfer(predictor, toWithdraw);
     }
 
+    ///@notice Calculates Verification Reward
+    ///@param verificationId Id of Verification
+    function calculateVerificationReward(uint256 verificationId) external view returns(uint256 toVerifier, uint256 toDisputeCreator, uint256 toHighGuard, bool vNftBurn){
+        MarketLib.Market memory m = _market;
+        MarketLib.Verification memory v = verifications[verificationId];
+        uint256 power = foreVerifiers.powerOf(
+            verifications[verificationId].tokenId
+        );
+        (toVerifier, toDisputeCreator, toHighGuard, vNftBurn) =  MarketLib.calculateVerificationReward(m, v, power, marketConfig.verificationFee());
+    }
+
     ///@notice Withdrawss Verification Reward
     ///@param verificationId Id of verification
-    function withdrawVerificationReward(uint256 verificationId) external {
+    ///@param withdrawAsTokens If true witdraws tokens, false - withraws power
+    function withdrawVerificationReward(uint256 verificationId, bool withdrawAsTokens) external {
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
         uint256 power = foreVerifiers.powerOf(
@@ -316,12 +313,21 @@ contract ForeMarket {
             );
         verifications[verificationId].withdrawn = true;
         if (toVerifier != 0) {
-            foreVerifiers.increasePower(v.tokenId, toVerifier);
-            foreToken.transferFrom(
-                address(this),
-                address(foreVerifiers),
-                toVerifier
-            );
+            if(withdrawAsTokens){
+                foreToken.transferFrom(
+                    address(this),
+                    v.verifier,
+                    toVerifier
+                );
+            }
+            else{
+                foreVerifiers.increasePower(v.tokenId, toVerifier);
+                foreToken.transferFrom(
+                    address(this),
+                    address(foreVerifiers),
+                    toVerifier
+                );
+            }
         }
         if (toDisputeCreator != 0) {
             foreToken.transferFrom(
@@ -334,7 +340,7 @@ contract ForeMarket {
                 protocolConfig.highGuard(),
                 toHighGuard
             );
-            foreToken.burn(power - toDisputeCreator -toHighGuard);
+            foreToken.burn(power - toDisputeCreator - toHighGuard);
         }
 
         if (vNftBurn) {
@@ -344,43 +350,18 @@ contract ForeMarket {
         }
     }
 
-    ///@notice Manually Extend Verification Time
-    function extendVerificationTime() external{
-        (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
-            .periods();
-        MarketLib.extendVerificationTime(_market, verificationPeriod, disputePeriod);
-    }
-
-    ///@notice Withdraw unsuded privilegeNFT
-    function withdrarwUnusedPrivilegeNFT() external{
-        MarketLib.Market memory m = _market;
-        if (m.result == MarketLib.ResultType.NULL) {
-            revert ("MarketIsNotClosedYet");
-        }
-
-        if (m.privilegeNftStaker == address(0)) {
-            revert ("PrivilegeNftNotExist");
-        }
-        uint256 fee = foreVerifiers.powerOf(m.privilegeNftId) / 10;
-        foreVerifiers.decreasePower(
-            m.privilegeNftId,
-            fee
-        );
-        foreToken.burnFrom(address(foreVerifiers), fee);
-        foreVerifiers.transferFrom(address(this), m.privilegeNftStaker, m.privilegeNftId);
-    }
-
     ///@notice Withdraw Market Creators Reward
     function marketCreatorFeeWithdraw() external {
         MarketLib.Market memory m = _market;
         uint256 tokenId = marketId;
 
+        require(protocol.ownerOf(tokenId)==msg.sender,"BasicMarket: Only Market Creator");
+
         if (m.result == MarketLib.ResultType.NULL) {
             revert ("MarketIsNotClosedYet");
         }
 
-        factory.transferFrom(msg.sender, address(this), tokenId);
-        factory.burn(tokenId);
+        protocol.burn(tokenId);
 
         uint256 toWithdraw = ((m.sideA + m.sideB) *
             marketConfig.marketCreatorFee()) / 10000;
@@ -392,6 +373,5 @@ contract ForeMarket {
 
 interface IERC20Burnable is IERC20 {
     function burnFrom(address account, uint256 amount) external;
-
     function burn(uint256 amount) external;
 }

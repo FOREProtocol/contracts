@@ -1,8 +1,9 @@
-import { ForeMarket } from "@/ForeMarket";
-import { ForeMarkets, MarketCreatedEvent } from "@/ForeMarkets";
+import { BasicMarket } from "@/BasicMarket";
+import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { BasicFactory } from "@/BasicFactory";
+import { MarketLib } from "@/MarketLib";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
-import { MarketLib } from "@/MarketLib";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
@@ -18,11 +19,11 @@ import {
     findEvent,
     txExec,
 } from "./helpers/utils";
+import { config } from "dotenv";
 
-describe("ForeMarkets", () => {
+describe("ForeProtocol", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let alice: SignerWithAddress;
@@ -31,14 +32,14 @@ describe("ForeMarkets", () => {
     let protocolConfig: ProtocolConfig;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
-    let contract: ForeMarkets;
+    let protocol: ForeProtocol;
+    let contract: BasicFactory;
     let marketLib: MarketLib;
 
     beforeEach(async () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -53,7 +54,6 @@ describe("ForeMarkets", () => {
         protocolConfig = await deployContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,
@@ -63,48 +63,73 @@ describe("ForeMarkets", () => {
         );
 
         marketLib = await deployLibrary("MarketLib", [
-            "ForeMarket",
-            "ForeMarkets",
+            "BasicMarket",
+            "BasicFactory",
         ]);
 
-        contract = await deployContract<ForeMarkets>(
-            "ForeMarkets",
+        protocol = await deployContract<ForeProtocol>(
+            "ForeProtocol",
             protocolConfig.address
         );
 
-        await txExec(foreToken.setFactory(contract.address));
-        await txExec(foreVerifiers.setFactory(contract.address));
+        contract = await deployContract<BasicFactory>(
+            "BasicFactory",
+            protocol.address
+        );
+
+        await txExec(foreToken.setProtocol(protocol.address));
+        await txExec(foreVerifiers.setProtocol(protocol.address));
 
         await txExec(
             foreToken
                 .connect(owner)
                 .transfer(bob.address, ethers.utils.parseEther("1000"))
         );
+
+        await txExec(
+            protocolConfig
+                .connect(owner)
+                .setFactoryStatus([contract.address], [true])
+        );
     });
 
     describe("Initial state", () => {
         it("Should expose proper name", async () => {
-            expect(await contract.name()).to.be.equal("Fore Markets");
+            expect(await protocol.name()).to.be.equal("Fore Markets");
         });
 
         it("Should expose proper symbol", async () => {
-            expect(await contract.symbol()).to.be.equal("MFORE");
+            expect(await protocol.symbol()).to.be.equal("MFORE");
         });
 
         it("Should use fallback for isApprovedForAll with any account", async () => {
             expect(
-                await contract.isApprovedForAll(alice.address, bob.address)
+                await protocol.isApprovedForAll(alice.address, bob.address)
             ).to.be.equal(false);
         });
 
         it("allMarketsLength() should be increased", async () => {
-            expect(await contract.allMarketLength()).to.be.equal(0);
+            expect(await protocol.allMarketLength()).to.be.equal(0);
+        });
+
+        it("Should return proper foreToken address", async () => {
+            expect(await protocol.foreToken()).to.be.equal(foreToken.address);
+        });
+
+        it("Should return proper config address", async () => {
+            expect(await protocol.config()).to.be.equal(protocolConfig.address);
+        });
+
+        it("Should return proper verifiers address", async () => {
+            expect(await protocol.foreVerifiers()).to.be.equal(
+                foreVerifiers.address
+            );
         });
     });
 
     describe("For non created token", () => {
         it("tokenURI() should revert", async () => {
-            await expect(contract.tokenURI(1)).to.be.revertedWith(
+            await expect(protocol.tokenURI(1)).to.be.revertedWith(
                 "Non minted token"
             );
         });
@@ -112,19 +137,19 @@ describe("ForeMarkets", () => {
 
     describe("Fore operator verification", () => {
         it("Should return false for sample account", async () => {
-            expect(await contract.isForeOperator(alice.address)).to.be.equal(
+            expect(await protocol.isForeOperator(alice.address)).to.be.equal(
                 false
             );
         });
 
         it("Should return true for marketplace", async () => {
             expect(
-                await contract.isForeOperator(marketplaceContract.address)
+                await protocol.isForeOperator(marketplaceContract.address)
             ).to.be.equal(true);
         });
 
         it("Should return true for factory", async () => {
-            expect(await contract.isForeOperator(contract.address)).to.be.equal(
+            expect(await protocol.isForeOperator(contract.address)).to.be.equal(
                 true
             );
         });
@@ -133,7 +158,7 @@ describe("ForeMarkets", () => {
     describe("Minting verifier NFT", () => {
         it("Should revert without funds for minting fee", async () => {
             await expect(
-                contract.connect(alice).mintVerifier(bob.address)
+                protocol.connect(alice).mintVerifier(bob.address)
             ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
         });
 
@@ -143,7 +168,7 @@ describe("ForeMarkets", () => {
 
             beforeEach(async () => {
                 [tx, recipt] = await txExec(
-                    contract.connect(bob).mintVerifier(alice.address)
+                    protocol.connect(bob).mintVerifier(alice.address)
                 );
             });
 
@@ -186,7 +211,7 @@ describe("ForeMarkets", () => {
 
     describe("Buying verifier NFT power", () => {
         beforeEach(async () => {
-            await txExec(contract.connect(bob).mintVerifier(alice.address));
+            await txExec(protocol.connect(bob).mintVerifier(alice.address));
             await txExec(
                 protocolConfig.setVerifierMintPrice(
                     ethers.utils.parseEther("100")
@@ -196,7 +221,7 @@ describe("ForeMarkets", () => {
 
         it("Should revert without funds for buying power", async () => {
             await expect(
-                contract
+                protocol
                     .connect(alice)
                     .buyPower(0, ethers.utils.parseEther("80"))
             ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
@@ -204,7 +229,7 @@ describe("ForeMarkets", () => {
 
         it("Should revert without funds for buying power", async () => {
             await expect(
-                contract.connect(bob).buyPower(0, ethers.utils.parseEther("81"))
+                protocol.connect(bob).buyPower(0, ethers.utils.parseEther("81"))
             ).to.be.revertedWith("ForeFactory: Buy limit reached");
         });
 
@@ -214,7 +239,7 @@ describe("ForeMarkets", () => {
 
             beforeEach(async () => {
                 [tx, recipt] = await txExec(
-                    contract
+                    protocol
                         .connect(bob)
                         .buyPower(0, ethers.utils.parseEther("80"))
                 );
@@ -285,7 +310,7 @@ describe("ForeMarkets", () => {
                         1653357334588,
                         1653327334588
                     )
-            ).to.revertedWith("ForeMarkets: Date error");
+            ).to.revertedWith("BasicFactory: Date error");
         });
 
         it("Should allow in case of zero fee", async () => {
@@ -312,14 +337,16 @@ describe("ForeMarkets", () => {
         let tx: ContractTransaction;
         let recipt: ContractReceipt;
 
-        let marketContract: ForeMarket;
+        let marketContract: BasicMarket;
 
         beforeEach(async () => {
+            const marketHash =
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
             [tx, recipt] = await txExec(
                 contract
                     .connect(bob)
                     .createMarket(
-                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                        marketHash,
                         alice.address,
                         ethers.utils.parseEther("2"),
                         ethers.utils.parseEther("1"),
@@ -328,25 +355,30 @@ describe("ForeMarkets", () => {
                     )
             );
 
-            const creationEvent = findEvent<MarketCreatedEvent>(
-                recipt,
-                "MarketCreated"
+            const initCode = await contract.INIT_CODE_PAIR_HASH();
+
+            const salt = marketHash;
+            const newAddress = ethers.utils.getCreate2Address(
+                contract.address,
+                salt,
+                initCode
             );
-            marketContract = await attachContract<ForeMarket>(
-                "ForeMarket",
-                creationEvent.args.market
+
+            marketContract = await attachContract<BasicMarket>(
+                "BasicMarket",
+                newAddress
             );
         });
 
         it("Should return true while checking market is operator", async () => {
             expect(
-                await contract.isForeOperator(marketContract.address)
+                await protocol.isForeOperator(marketContract.address)
             ).to.be.equal(true);
         });
 
         it("Should return true for isApprovedForAll with created market", async () => {
             expect(
-                await contract.isApprovedForAll(
+                await protocol.isApprovedForAll(
                     alice.address,
                     marketContract.address
                 )
@@ -354,13 +386,13 @@ describe("ForeMarkets", () => {
         });
 
         it("tokenURI() should return proper URI", async () => {
-            expect(await contract.tokenURI(0)).to.be.equal(
+            expect(await protocol.tokenURI(0)).to.be.equal(
                 "https://markets.api.foreprotocol.io/market/0"
             );
         });
 
         it("allMarketsLength() should be increased", async () => {
-            expect(await contract.allMarketLength()).to.be.equal(1);
+            expect(await protocol.allMarketLength()).to.be.equal(1);
         });
 
         it("Should not be able to create market with same hash (revert with MarketAlreadyExists)", async () => {
@@ -375,15 +407,7 @@ describe("ForeMarkets", () => {
                         1653327334588,
                         1653357334588
                     )
-            ).to.be.revertedWith("MarketAlreadyExists()");
-        });
-
-        it("Should call foreToken.transfer()", async () => {
-            expect(foreToken.transferFrom.getCall(0).args).to.be.eql([
-                bob.address,
-                marketContract.address,
-                ethers.utils.parseEther("3"),
-            ]);
+            ).to.be.reverted;
         });
 
         it("Should burn funds as creation fee (ERC20 Transfer)", async () => {
@@ -396,19 +420,9 @@ describe("ForeMarkets", () => {
                 );
         });
 
-        it("Should transfer funds to market as votes (ERC20 Transfer)", async () => {
-            await expect(tx)
-                .to.emit(foreToken, "Transfer")
-                .withArgs(
-                    bob.address,
-                    marketContract.address,
-                    ethers.utils.parseEther("3")
-                );
-        });
-
         it("Should emit token creation event (ERC721 Transfer)", async () => {
             await expect(tx)
-                .to.emit(contract, "Transfer")
+                .to.emit(protocol, "Transfer")
                 .withArgs(
                     "0x0000000000000000000000000000000000000000",
                     alice.address,

@@ -1,5 +1,6 @@
-import { ForeMarket } from "@/ForeMarket";
-import { ForeMarkets } from "@/ForeMarkets";
+import { BasicMarket } from "@/BasicMarket";
+import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLib } from "@/MarketLib";
@@ -20,13 +21,13 @@ import {
     txExec,
 } from "../helpers/utils";
 
-describe("ForeMarket / Initialization", () => {
+describe("BasicMarket / Initialization", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreMarketsAccount: Signer;
+    let foreProtocolAccount: Signer;
+    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
 
@@ -34,8 +35,9 @@ describe("ForeMarket / Initialization", () => {
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
-    let foreMarkets: MockContract<ForeMarkets>;
-    let contract: ForeMarket;
+    let foreProtocol: MockContract<ForeProtocol>;
+    let basicFactory: MockContract<BasicFactory>;
+    let contract: BasicMarket;
 
     let blockTimestamp: number;
 
@@ -43,7 +45,6 @@ describe("ForeMarket / Initialization", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -52,8 +53,8 @@ describe("ForeMarket / Initialization", () => {
 
         // deploy library
         marketLib = await deployLibrary("MarketLib", [
-            "ForeMarket",
-            "ForeMarkets",
+            "BasicMarket",
+            "BasicFactory",
         ]);
 
         // preparing dependencies
@@ -65,7 +66,6 @@ describe("ForeMarket / Initialization", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,
@@ -74,21 +74,27 @@ describe("ForeMarket / Initialization", () => {
             ethers.utils.parseEther("20")
         );
 
-        // preparing fore markets (factory)
-        foreMarkets = await deployMockedContract<ForeMarkets>(
-            "ForeMarkets",
+        // preparing fore protocol
+        foreProtocol = await deployMockedContract<ForeProtocol>(
+            "ForeProtocol",
             protocolConfig.address
         );
-        foreMarketsAccount = await impersonateContract(foreMarkets.address);
+        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        basicFactory = await deployMockedContract<BasicFactory>(
+            "BasicFactory",
+            foreProtocol.address
+        );
+        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setFactory(foreMarkets.address));
-        await txExec(foreVerifiers.setFactory(foreMarkets.address));
+        await txExec(foreToken.setProtocol(foreProtocol.address));
+        await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         // deployment of market using factory account
-        contract = await deployContractAs<ForeMarket>(
-            foreMarketsAccount,
-            "ForeMarket"
+        contract = await deployContractAs<BasicMarket>(
+            basicFactoryAccount,
+            "BasicMarket"
         );
 
         const previousBlock = await ethers.provider.getBlock("latest");
@@ -105,13 +111,14 @@ describe("ForeMarket / Initialization", () => {
                         owner.address,
                         ethers.utils.parseEther("1"),
                         ethers.utils.parseEther("2"),
+                        foreProtocol.address,
                         blockTimestamp + 100000,
                         blockTimestamp + 200000,
                         0
                     );
             },
-            foreMarketsAccount,
-            "ForeMarket: Only Factory"
+            basicFactoryAccount,
+            "BasicMarket: Only Factory"
         );
     });
 
@@ -122,12 +129,13 @@ describe("ForeMarket / Initialization", () => {
         beforeEach(async () => {
             [tx, recipt] = await txExec(
                 contract
-                    .connect(foreMarketsAccount)
+                    .connect(basicFactoryAccount)
                     .initialize(
                         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
                         owner.address,
                         ethers.utils.parseEther("1"),
                         ethers.utils.parseEther("2"),
+                        foreProtocol.address,
                         blockTimestamp + 100000,
                         blockTimestamp + 200000,
                         0
@@ -178,16 +186,12 @@ describe("ForeMarket / Initialization", () => {
                 ethers.utils.parseEther("2"), // side B
                 BigNumber.from(0), // verified A
                 BigNumber.from(0), // verified B
-                BigNumber.from(0), // reserved
-                ethers.constants.AddressZero, // privilege nft staker
                 ethers.constants.AddressZero, // dispute creator
                 BigNumber.from(blockTimestamp + 100000), // endPredictionTimestamp
                 BigNumber.from(blockTimestamp + 200000), // startVerificationTimestamp
-                BigNumber.from(0), // privilege nft id
                 0, // result
                 false, // confirmed
                 false, // solved
-                false, // extended
             ]);
         });
 
@@ -222,12 +226,13 @@ describe("ForeMarket / Initialization", () => {
         beforeEach(async () => {
             [tx, recipt] = await txExec(
                 contract
-                    .connect(foreMarketsAccount)
+                    .connect(basicFactoryAccount)
                     .initialize(
                         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
                         owner.address,
                         0,
                         ethers.utils.parseEther("2"),
+                        foreProtocol.address,
                         blockTimestamp + 100000,
                         blockTimestamp + 200000,
                         0
@@ -256,12 +261,13 @@ describe("ForeMarket / Initialization", () => {
         beforeEach(async () => {
             [tx, recipt] = await txExec(
                 contract
-                    .connect(foreMarketsAccount)
+                    .connect(basicFactoryAccount)
                     .initialize(
                         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
                         owner.address,
                         ethers.utils.parseEther("1"),
                         0,
+                        foreProtocol.address,
                         blockTimestamp + 100000,
                         blockTimestamp + 200000,
                         0

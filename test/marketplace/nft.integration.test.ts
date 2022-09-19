@@ -1,10 +1,12 @@
-import { ForeMarkets } from "@/ForeMarkets";
+import { ForeProtocol } from "@/ForeProtocol";
+import { BasicFactory } from "@/BasicFactory";
 import { ForeNftMarketplace } from "@/ForeNftMarketplace";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers, TransferEvent } from "@/ForeVerifiers";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { MarketLib } from "@/MarketLib";
 import { expect } from "chai";
 import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { ethers } from "hardhat";
@@ -14,6 +16,7 @@ import {
     findEvent,
     impersonateContract,
     txExec,
+    deployLibrary,
 } from "../helpers/utils";
 
 describe("NFTMarketplace / NFT integration", () => {
@@ -24,11 +27,14 @@ describe("NFTMarketplace / NFT integration", () => {
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
 
-    let foreMarkets: MockContract<ForeMarkets>;
-    let foreMarketsAccount: Signer;
+    let foreProtocol: MockContract<ForeProtocol>;
+    let basicFactory: MockContract<BasicFactory>;
+    let foreProtocolAccount: Signer;
+    let basicFactoryAccount: Signer;
     let foreToken: MockContract<ForeToken>;
     let nftToken: MockContract<ForeVerifiers>;
     let contract: ForeNftMarketplace;
+    let marketLib: MarketLib;
 
     let ownerdNfts: Record<string, BigNumber[]>;
 
@@ -39,7 +45,7 @@ describe("NFTMarketplace / NFT integration", () => {
 
             const [tx, recipt] = await txExec(
                 nftToken
-                    .connect(foreMarketsAccount)
+                    .connect(foreProtocolAccount)
                     .mintWithPower(recipient, 100)
             );
 
@@ -86,7 +92,6 @@ describe("NFTMarketplace / NFT integration", () => {
         const protocolConfig = await deployMockedContract(
             "ProtocolConfig",
             "0x0000000000000000000000000000000000000001",
-            "0x0000000000000000000000000000000000000002",
             "0x0000000000000000000000000000000000000003",
             contract.address,
             foreToken.address,
@@ -95,14 +100,28 @@ describe("NFTMarketplace / NFT integration", () => {
             ethers.utils.parseEther("3")
         );
 
-        foreMarkets = await deployMockedContract(
-            "ForeMarkets",
+        marketLib = await deployLibrary("MarketLib", ["BasicFactory"]);
+
+        foreProtocol = await deployMockedContract(
+            "ForeProtocol",
             protocolConfig.address
         );
-        foreMarketsAccount = await impersonateContract(foreMarkets.address);
+        foreProtocolAccount = await impersonateContract(foreProtocol.address);
 
-        await txExec(foreToken.setFactory(foreMarkets.address));
-        await txExec(nftToken.setFactory(foreMarkets.address));
+        basicFactory = await deployMockedContract(
+            "BasicFactory",
+            foreProtocol.address
+        );
+        basicFactoryAccount = await impersonateContract(basicFactory.address);
+
+        await txExec(foreToken.setProtocol(foreProtocol.address));
+        await txExec(nftToken.setProtocol(foreProtocol.address));
+
+        await txExec(
+            protocolConfig
+                .connect(owner)
+                .setFactoryStatus([basicFactory.address], [true])
+        );
 
         await txExec(
             contract

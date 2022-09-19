@@ -28,4 +28,6 @@ interface IProtocolConfig {
     function addresses() external view returns(address, address, address, address, address, address, address);
 
     function roleAddresses() external view returns(address, address, address);
+
+    function isFactoryWhitelisted(address adr) external view returns(bool);
 }

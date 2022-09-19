@@ -21,9 +21,7 @@ describe("Market configuration", () => {
             4,
             5,
             6,
-            7,
-            8,
-            false
+            7
         );
     });
 
@@ -36,8 +34,6 @@ describe("Market configuration", () => {
             BigNumber.from(5),
             BigNumber.from(6),
             BigNumber.from(7),
-            BigNumber.from(8),
-            false,
         ]);
     });
 
@@ -61,19 +57,15 @@ describe("Market configuration", () => {
         expect(await contract.foundationFee()).to.be.equal(5);
     });
 
-    it("Should expose proper revenue fee", async () => {
-        expect(await contract.revenueFee()).to.be.equal(6);
-    });
-
     it("Should expose proper market creation fee", async () => {
-        expect(await contract.marketCreatorFee()).to.be.equal(7);
+        expect(await contract.marketCreatorFee()).to.be.equal(6);
     });
 
     it("Should expose proper verification fee", async () => {
-        expect(await contract.verificationFee()).to.be.equal(8);
+        expect(await contract.verificationFee()).to.be.equal(7);
     });
 
     it("Should expose proper feesSum sum", async () => {
-        expect(await contract.feesSum()).to.be.equal(30);
+        expect(await contract.feesSum()).to.be.equal(22);
     });
 });

@@ -1,5 +1,5 @@
-import { ForeMarkets } from "@/ForeMarkets";
-import { FactoryChangedEvent, ForeToken } from "@/ForeToken";
+import { ProtocolChangedEvent, ForeToken } from "@/ForeToken";
+import { ForeProtocol } from "@/ForeProtocol";
 import { FakeContract, smock } from "@defi-wonderland/smock";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
@@ -17,15 +17,15 @@ describe("Fore ERC20 token", function () {
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
 
-    let foreMarkets: FakeContract<ForeMarkets>;
+    let foreProtocol: FakeContract<ForeProtocol>;
     let contract: ForeToken;
 
     beforeEach(async () => {
         [owner, operator, alice, bob] = await ethers.getSigners();
 
-        foreMarkets = await smock.fake("ForeMarkets");
-        foreMarkets.isForeOperator.returns(false);
-        foreMarkets.isForeOperator
+        foreProtocol = await smock.fake("ForeProtocol");
+        foreProtocol.isForeOperator.returns(false);
+        foreProtocol.isForeOperator
             .whenCalledWith(operator.address)
             .returns(true);
 
@@ -48,50 +48,50 @@ describe("Fore ERC20 token", function () {
         });
     });
 
-    describe("Change factory contract address", () => {
+    describe("Change protocol contract address", () => {
         it("Should allow to execute only by owner", async () => {
             await assertIsAvailableOnlyForOwner(async (account) => {
                 return contract
                     .connect(account)
-                    .setFactory(foreMarkets.address);
+                    .setProtocol(foreProtocol.address);
             });
         });
 
-        it("Should emit FactoryChanged event", async () => {
+        it("Should emit ProtocolChanged event", async () => {
             const [tx, recipt] = await txExec(
-                contract.connect(owner).setFactory(foreMarkets.address)
+                contract.connect(owner).setProtocol(foreProtocol.address)
             );
 
-            assertEvent<FactoryChangedEvent>(recipt, "FactoryChanged", {
-                addr: foreMarkets.address,
+            assertEvent<ProtocolChangedEvent>(recipt, "ProtocolChanged", {
+                addr: foreProtocol.address,
             });
         });
 
         describe("successfully", () => {
             beforeEach(async () => {
                 await txExec(
-                    contract.connect(owner).setFactory(foreMarkets.address)
+                    contract.connect(owner).setProtocol(foreProtocol.address)
                 );
             });
 
-            it("Should not allow to change factory again", async () => {
+            it("Should not allow to change protocol again", async () => {
                 await expect(
-                    contract.connect(owner).setFactory(foreMarkets.address)
-                ).to.be.revertedWith("FactoryAlreadySet()");
+                    contract.connect(owner).setProtocol(foreProtocol.address)
+                ).to.be.revertedWith("ProtocolAlreadySet()");
             });
 
-            it("Should return proper factory address", async () => {
-                expect(await contract.factory()).to.be.equal(
-                    foreMarkets.address
+            it("Should return proper protocol address", async () => {
+                expect(await contract.protocol()).to.be.equal(
+                    foreProtocol.address
                 );
             });
         });
     });
 
-    describe("with factory configured", () => {
+    describe("with protocol configured", () => {
         beforeEach(async () => {
             await txExec(
-                contract.connect(owner).setFactory(foreMarkets.address)
+                contract.connect(owner).setProtocol(foreProtocol.address)
             );
         });
 

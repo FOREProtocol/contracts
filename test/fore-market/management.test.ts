@@ -1,5 +1,6 @@
-import { ForeMarket } from "@/ForeMarket";
-import { ForeMarkets } from "@/ForeMarkets";
+import { BasicMarket } from "@/BasicMarket";
+import { ForeProtocol } from "@/ForeProtocol";
+import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLib } from "@/MarketLib";
@@ -20,19 +21,19 @@ import {
 describe("ForeMarket / Management", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreMarketsAccount: Signer;
+    let foreProtocolAccount: Signer;
+    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
-
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
-    let foreMarkets: MockContract<ForeMarkets>;
+    let foreProtocol: MockContract<ForeProtocol>;
+    let basicFactory: MockContract<BasicFactory>;
     let marketLib: MarketLib;
-    let contract: ForeMarket;
+    let contract: BasicMarket;
 
     let blockTimestamp: number;
 
@@ -40,7 +41,6 @@ describe("ForeMarket / Management", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -49,8 +49,8 @@ describe("ForeMarket / Management", () => {
 
         // deploy library
         marketLib = await deployLibrary("MarketLib", [
-            "ForeMarket",
-            "ForeMarkets",
+            "BasicMarket",
+            "BasicFactory",
         ]);
 
         // preparing dependencies
@@ -62,7 +62,6 @@ describe("ForeMarket / Management", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,
@@ -71,21 +70,27 @@ describe("ForeMarket / Management", () => {
             ethers.utils.parseEther("20")
         );
 
-        // preparing fore markets (factory)
-        foreMarkets = await deployMockedContract<ForeMarkets>(
-            "ForeMarkets",
+        // preparing fore protocol
+        foreProtocol = await deployMockedContract<ForeProtocol>(
+            "ForeProtocol",
             protocolConfig.address
         );
-        foreMarketsAccount = await impersonateContract(foreMarkets.address);
+        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        basicFactory = await deployMockedContract<BasicFactory>(
+            "BasicFactory",
+            foreProtocol.address
+        );
+        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setFactory(foreMarkets.address));
-        await txExec(foreVerifiers.setFactory(foreMarkets.address));
+        await txExec(foreToken.setProtocol(foreProtocol.address));
+        await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         // deployment of market using factory account
-        contract = await deployContractAs<ForeMarket>(
-            foreMarketsAccount,
-            "ForeMarket"
+        contract = await deployContractAs<BasicMarket>(
+            basicFactoryAccount,
+            "BasicMarket"
         );
 
         const previousBlock = await ethers.provider.getBlock("latest");
@@ -94,7 +99,7 @@ describe("ForeMarket / Management", () => {
 
     it("Should return proper factory address", async () => {
         expect(await contract.factory()).to.be.equal(
-            await foreMarketsAccount.getAddress()
+            await basicFactoryAccount.getAddress()
         );
     });
 
@@ -128,16 +133,12 @@ describe("ForeMarket / Management", () => {
             ethers.utils.parseEther("0"), // side B
             ethers.utils.parseEther("0"), // verified A
             ethers.utils.parseEther("0"), // verified B
-            ethers.utils.parseEther("0"), // reserved
-            ethers.constants.AddressZero, // privilege nft staker
             ethers.constants.AddressZero, // dispute creator
             BigNumber.from(0), // endPredictionTimestamp
             BigNumber.from(0), // startVerificationTimestamp
-            BigNumber.from(0), // privilege nft id
             0, // result
             false, // confirmed
             false, // solved
-            false, // extended
         ]);
     });
 

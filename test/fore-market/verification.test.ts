@@ -1,5 +1,6 @@
-import { ForeMarket } from "@/ForeMarket";
-import { ForeMarkets, MarketCreatedEvent } from "@/ForeMarkets";
+import { BasicMarket } from "@/BasicMarket";
+import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
@@ -27,13 +28,13 @@ const sides = {
     B: false,
 };
 
-describe("ForeMarket / Verification", () => {
+describe("BasicMarket / Verification", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreMarketsAccount: Signer;
+    let foreProtocolAccount: Signer;
+    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
     let carol: SignerWithAddress;
@@ -43,8 +44,9 @@ describe("ForeMarket / Verification", () => {
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
-    let foreMarkets: MockContract<ForeMarkets>;
-    let contract: ForeMarket;
+    let foreProtocol: MockContract<ForeProtocol>;
+    let basicFactory: MockContract<BasicFactory>;
+    let contract: BasicMarket;
 
     let blockTimestamp: number;
 
@@ -52,7 +54,6 @@ describe("ForeMarket / Verification", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             alice,
@@ -63,8 +64,8 @@ describe("ForeMarket / Verification", () => {
 
         // deploy library
         marketLib = await deployLibrary("MarketLib", [
-            "ForeMarket",
-            "ForeMarkets",
+            "BasicMarket",
+            "BasicFactory",
         ]);
 
         // preparing dependencies
@@ -76,7 +77,6 @@ describe("ForeMarket / Verification", () => {
         protocolConfig = await deployMockedContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreToken.address,
@@ -86,15 +86,27 @@ describe("ForeMarket / Verification", () => {
         );
 
         // preparing fore markets (factory)
-        foreMarkets = await deployMockedContract<ForeMarkets>(
-            "ForeMarkets",
+        foreProtocol = await deployMockedContract<ForeProtocol>(
+            "ForeProtocol",
             protocolConfig.address
         );
-        foreMarketsAccount = await impersonateContract(foreMarkets.address);
+        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        basicFactory = await deployMockedContract<BasicFactory>(
+            "BasicFactory",
+            foreProtocol.address
+        );
+        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setFactory(foreMarkets.address));
-        await txExec(foreVerifiers.setFactory(foreMarkets.address));
+        await txExec(foreToken.setProtocol(foreProtocol.address));
+        await txExec(foreVerifiers.setProtocol(foreProtocol.address));
+
+        await txExec(
+            protocolConfig
+                .connect(owner)
+                .setFactoryStatus([basicFactory.address], [true])
+        );
 
         // sending funds
         await sendERC20Tokens(foreToken, {
@@ -118,19 +130,19 @@ describe("ForeMarket / Verification", () => {
                     1800,
                     100,
                     100,
-                    100,
                     50,
-                    150,
-                    true
+                    150
                 )
         );
 
         // creating market
+        const marketHash =
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
         const [tx, recipt] = await txExec(
-            foreMarkets
+            basicFactory
                 .connect(alice)
                 .createMarket(
-                    "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                    marketHash,
                     alice.address,
                     ethers.utils.parseEther("50"),
                     ethers.utils.parseEther("40"),
@@ -139,24 +151,23 @@ describe("ForeMarket / Verification", () => {
                 )
         );
 
-        // attach to market
-        const marketCreatedEvent = findEvent<MarketCreatedEvent>(
-            recipt,
-            "MarketCreated"
-        );
-        const marketAddress = marketCreatedEvent.args.market;
+        const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
 
-        contract = await attachContract<ForeMarket>(
-            "ForeMarket",
-            marketAddress
+        const salt = marketHash;
+        const newAddress = ethers.utils.getCreate2Address(
+            basicFactory.address,
+            salt,
+            initCode
         );
+
+        contract = await attachContract<BasicMarket>("BasicMarket", newAddress);
 
         // create verifiers tokens
         await executeInSingleBlock(() => [
-            foreMarkets.connect(owner).mintVerifier(alice.address),
-            foreMarkets.connect(owner).mintVerifier(bob.address),
-            foreMarkets.connect(owner).mintVerifier(carol.address),
-            foreMarkets.connect(owner).mintVerifier(dave.address),
+            foreProtocol.connect(owner).mintVerifier(alice.address),
+            foreProtocol.connect(owner).mintVerifier(bob.address),
+            foreProtocol.connect(owner).mintVerifier(carol.address),
+            foreProtocol.connect(owner).mintVerifier(dave.address),
         ]);
     });
 
@@ -189,12 +200,12 @@ describe("ForeMarket / Verification", () => {
         //
         //     await expect(
         //         contract.connect(alice).stakeForPrivilege(0)
-        //     ).to.revertedWith("ForeMarket: Not enough power");
+        //     ).to.revertedWith("BasicMarket: Not enough power");
         // });
 
         it("Should revert if executed with non owned token", async () => {
             await expect(contract.connect(bob).verify(0, true)).to.revertedWith(
-                "ForeMarket: Incorrect owner"
+                "BasicMarket: Incorrect owner"
             );
         });
 
@@ -257,16 +268,12 @@ describe("ForeMarket / Verification", () => {
                             ethers.utils.parseEther("40"), // side B
                             ethers.utils.parseEther(sideValue ? "20" : "0"), // verified A
                             ethers.utils.parseEther(sideValue ? "0" : "20"), // verified B
-                            ethers.utils.parseEther("0"), // reserved
-                            ethers.constants.AddressZero, // privilege nft staker
                             ethers.constants.AddressZero, // dispute creator
                             BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                             BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                            BigNumber.from(0), // privilege nft id
                             0, // result
                             false, // confirmed
                             false, // solved
-                            false, // extended
                         ]);
                     });
                 });
@@ -297,16 +304,12 @@ describe("ForeMarket / Verification", () => {
                         ethers.utils.parseEther("40"), // side B
                         ethers.utils.parseEther("0"), // verified A
                         ethers.utils.parseEther("50"), // verified B
-                        ethers.utils.parseEther("0"), // reserved
-                        ethers.constants.AddressZero, // privilege nft staker
                         ethers.constants.AddressZero, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                        BigNumber.from(0), // privilege nft id
                         0, // result
                         false, // confirmed
                         false, // solved
-                        false, // extended
                     ]);
                 });
 
@@ -326,81 +329,6 @@ describe("ForeMarket / Verification", () => {
                     ).to.be.revertedWith("MarketIsFullyVerified");
                 });
             });
-        });
-    });
-
-    describe("with privilege NFT used", () => {
-        beforeEach(async () => {
-            await txExec(contract.connect(alice).stakeForPrivilege(0));
-        });
-
-        describe("after verification period start", () => {
-            beforeEach(async () => {
-                await timetravel(blockTimestamp + 300001);
-            });
-
-            for (const [sideName, sideValue] of Object.entries(sides)) {
-                describe(`verifing ${sideName} side`, () => {
-                    it("Should update market verification powers", async () => {
-                        expect(await contract.marketInfo()).to.be.eql([
-                            ethers.utils.parseEther("50"), // side A
-                            ethers.utils.parseEther("40"), // side B
-                            ethers.utils.parseEther("0"), // verified A
-                            ethers.utils.parseEther("0"), // verified B
-                            ethers.utils.parseEther("20"), // reserved
-                            alice.address, // privilege nft staker
-                            ethers.constants.AddressZero, // dispute creator
-                            BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
-                            BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                            BigNumber.from(0), // privilege nft id
-                            0, // result
-                            false, // confirmed
-                            false, // solved
-                            false, // extended
-                        ]);
-                    });
-
-                    describe("successfully verifing with privilege NFT", () => {
-                        let tx: ContractTransaction;
-                        let recipt: ContractReceipt;
-
-                        beforeEach(async () => {
-                            [tx, recipt] = await txExec(
-                                contract
-                                    .connect(alice)
-                                    .privilegeVerify(sideValue)
-                            );
-                        });
-
-                        it("Should reduce opposite side of verification", async () => {
-                            expect(await contract.marketInfo()).to.be.eql([
-                                ethers.utils.parseEther("50"), // side A
-                                ethers.utils.parseEther("40"), // side B
-                                ethers.utils.parseEther(sideValue ? "20" : "0"), // verified A
-                                ethers.utils.parseEther(sideValue ? "0" : "20"), // verified B
-                                ethers.utils.parseEther("0"), // reserved
-                                ethers.constants.AddressZero, // privilege nft staker
-                                ethers.constants.AddressZero, // dispute creator
-                                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
-                                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                                BigNumber.from(0), // privilege nft id
-                                0, // result
-                                false, // confirmed
-                                false, // solved
-                                false, // extended
-                            ]);
-                        });
-
-                        it("Should not be able to stake twice", async () => {
-                            await expect(
-                                contract
-                                    .connect(alice)
-                                    .privilegeVerify(sideValue)
-                            ).to.be.revertedWith("IncorrectOwner");
-                        });
-                    });
-                });
-            }
         });
     });
 

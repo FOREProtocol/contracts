@@ -6,8 +6,8 @@ import {
     MarketCreationChangedEvent,
     MarketplaceChangedEvent,
     ProtocolConfig,
-    RevenueWalletChangedEvent,
     VerifierMintPriceChangedEvent,
+    SetStatusForFactoryEvent,
 } from "@/ProtocolConfig";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -25,7 +25,6 @@ import {
 describe("Protocol configuration", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
-    let revenueWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
     let foreTokenContract: SignerWithAddress;
@@ -38,7 +37,6 @@ describe("Protocol configuration", () => {
         [
             owner,
             foundationWallet,
-            revenueWallet,
             highGuardAccount,
             marketplaceContract,
             foreTokenContract,
@@ -49,7 +47,6 @@ describe("Protocol configuration", () => {
         contract = await deployContract<ProtocolConfig>(
             "ProtocolConfig",
             foundationWallet.address,
-            revenueWallet.address,
             highGuardAccount.address,
             marketplaceContract.address,
             foreTokenContract.address,
@@ -63,12 +60,6 @@ describe("Protocol configuration", () => {
         it("Should expose proper foundation wallet", async () => {
             expect(await contract.foundationWallet()).to.be.equal(
                 foundationWallet.address
-            );
-        });
-
-        it("Should expose proper revenue wallet", async () => {
-            expect(await contract.revenueWallet()).to.be.equal(
-                revenueWallet.address
             );
         });
 
@@ -108,6 +99,12 @@ describe("Protocol configuration", () => {
             );
         });
 
+        it("Should return proper whitelist status", async () => {
+            expect(
+                await contract.isFactoryWhitelisted(owner.address)
+            ).to.be.equal(false);
+        });
+
         describe("Market configuration", () => {
             let marketConfig: MarketConfig;
 
@@ -125,10 +122,8 @@ describe("Protocol configuration", () => {
                     BigNumber.from(1800),
                     BigNumber.from(100),
                     BigNumber.from(100),
-                    BigNumber.from(100),
                     BigNumber.from(50),
                     BigNumber.from(150),
-                    false,
                 ]);
             });
 
@@ -156,10 +151,6 @@ describe("Protocol configuration", () => {
                 expect(await marketConfig.foundationFee()).to.be.equal(100);
             });
 
-            it("Should expose proper revenue fee", async () => {
-                expect(await marketConfig.revenueFee()).to.be.equal(100);
-            });
-
             it("Should expose proper market creation fee", async () => {
                 expect(await marketConfig.marketCreatorFee()).to.be.equal(50);
             });
@@ -183,10 +174,8 @@ describe("Protocol configuration", () => {
                         50,
                         60,
                         70,
-                        80,
                         90,
-                        100,
-                        false
+                        100
                     );
             });
         });
@@ -203,10 +192,8 @@ describe("Protocol configuration", () => {
                         50,
                         100,
                         100,
-                        100,
-                        100,
-                        101,
-                        false
+                        200,
+                        101
                     )
             ).to.revertedWith("ForeFactory: Config limit");
         });
@@ -224,9 +211,7 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10,
-                        10,
-                        false
+                        10
                     )
             ).to.revertedWith("ForeFactory: Config limit");
         });
@@ -244,9 +229,7 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10,
-                        10,
-                        false
+                        10
                     )
             ).to.revertedWith("ForeFactory: Config limit");
         });
@@ -264,9 +247,7 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10,
-                        10,
-                        false
+                        10
                     )
             ).to.revertedWith("ForeFactory: Config limit");
         });
@@ -289,9 +270,7 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10,
-                        10,
-                        false
+                        10
                     )
             );
 
@@ -301,10 +280,8 @@ describe("Protocol configuration", () => {
                 BigNumber.from(1800),
                 BigNumber.from(100),
                 BigNumber.from(100),
-                BigNumber.from(100),
                 BigNumber.from(50),
                 BigNumber.from(150),
-                false,
             ]);
         });
 
@@ -323,9 +300,7 @@ describe("Protocol configuration", () => {
                         10,
                         10,
                         10,
-                        10,
-                        10,
-                        false
+                        10
                     )
             );
 
@@ -348,10 +323,8 @@ describe("Protocol configuration", () => {
                             50,
                             60,
                             70,
-                            80,
                             90,
-                            100,
-                            false
+                            100
                         )
                 );
             });
@@ -361,6 +334,66 @@ describe("Protocol configuration", () => {
                     recipt,
                     "MarketConfigurationUpdated"
                 );
+            });
+        });
+    });
+
+    describe("Set whitelist status", () => {
+        let tx: ContractTransaction;
+        let recipt: ContractReceipt;
+
+        beforeEach(async () => {
+            [tx, recipt] = await txExec(
+                contract
+                    .connect(owner)
+                    .setFactoryStatus([alice.address], [true])
+            );
+        });
+
+        it("Should allow to execute only by owner", async () => {
+            await assertIsAvailableOnlyForOwner(async (account) => {
+                return contract
+                    .connect(account)
+                    .setFactoryStatus([foundationWallet.address], [true]);
+            });
+        });
+
+        it("Should emit SetStatusForFactory event", async () => {
+            assertEvent<SetStatusForFactoryEvent>(
+                recipt,
+                "SetStatusForFactory",
+                {
+                    add: alice.address,
+                    status: true,
+                }
+            );
+        });
+
+        it("Should have enabled status", async () => {
+            expect(
+                await contract.isFactoryWhitelisted(alice.address)
+            ).to.be.equal(true);
+        });
+
+        describe("Edit few statuses", () => {
+            beforeEach(async () => {
+                [tx, recipt] = await txExec(
+                    contract
+                        .connect(owner)
+                        .setFactoryStatus(
+                            [alice.address, owner.address],
+                            [false, true]
+                        )
+                );
+            });
+
+            it("Should properly change statuses", async () => {
+                expect(
+                    await contract.isFactoryWhitelisted(alice.address)
+                ).to.be.equal(false);
+                expect(
+                    await contract.isFactoryWhitelisted(owner.address)
+                ).to.be.equal(true);
             });
         });
     });
@@ -382,30 +415,6 @@ describe("Protocol configuration", () => {
             assertEvent<FoundationWalletChangedEvent>(
                 recipt,
                 "FoundationWalletChanged",
-                {
-                    addr: alice.address,
-                }
-            );
-        });
-    });
-
-    describe("Change revenue wallet", () => {
-        it("Should allow to execute only by owner", async () => {
-            await assertIsAvailableOnlyForOwner(async (account) => {
-                return contract
-                    .connect(account)
-                    .setRevenueWallet(alice.address);
-            });
-        });
-
-        it("Should emit RevenueWalletChanged event", async () => {
-            const [tx, recipt] = await txExec(
-                contract.connect(owner).setRevenueWallet(alice.address)
-            );
-
-            assertEvent<RevenueWalletChangedEvent>(
-                recipt,
-                "RevenueWalletChanged",
                 {
                     addr: alice.address,
                 }

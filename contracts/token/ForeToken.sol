@@ -4,7 +4,7 @@ pragma solidity ^0.8.7;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "../IForeMarkets.sol";
+import "../protocol/IForeProtocol.sol";
 
 contract ForeToken is
     ERC20,
@@ -12,13 +12,13 @@ contract ForeToken is
     Ownable
 {
 
-    error FactoryAlreadySet();
+    error ProtocolAlreadySet();
 
-    event FactoryChanged(IForeMarkets addr);
+    event ProtocolChanged(IForeProtocol addr);
 
 
-    /// @notice Markets factory contract
-    IForeMarkets internal _factory;
+    /// @notice Protocol contract
+    IForeProtocol public protocol;
 
     constructor()
         ERC20("ForeToken", "FORE")
@@ -27,27 +27,20 @@ contract ForeToken is
     }
 
     /**
-     * @notice Returns market factory contract address
-     */
-    function factory() external view returns (address) {
-        return address(_factory);
-    }
-
-    /**
-     * @notice Changes factory contract
+     * @notice Changes protocol contract
      * @param addr New contract
      */
-    function setFactory(IForeMarkets addr)
+    function setProtocol(IForeProtocol addr)
         external
         onlyOwner
     {
-        if (address(_factory) != address(0)) {
-            revert FactoryAlreadySet();
+        if (address(protocol) != address(0)) {
+            revert ProtocolAlreadySet();
         }
 
-        _factory = addr;
+        protocol = addr;
 
-        emit FactoryChanged(addr);
+        emit ProtocolChanged(addr);
     }
 
     /**
@@ -60,8 +53,8 @@ contract ForeToken is
         uint256 amount
     ) internal override {
         if (
-            address(_factory) != address(0)
-            && _factory.isForeOperator(spender)
+            address(protocol) != address(0)
+            && protocol.isForeOperator(spender)
         ) {
             return;
         }

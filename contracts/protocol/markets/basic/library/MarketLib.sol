@@ -13,11 +13,6 @@ library MarketLib {
         uint256 tokenId,
         bool side
     );
-    event PrivilegeStake(
-        address indexed staker,
-        uint256 power,
-        uint256 tokenId
-    );
     event WithdrawReward(
         address indexed receiver,
         uint256 indexed rewardType,
@@ -31,7 +26,8 @@ library MarketLib {
         NULL,
         AWON,
         BWON,
-        DRAW
+        DRAW,
+        INVALID
     }
 
     struct Verification {
@@ -56,26 +52,18 @@ library MarketLib {
         uint256 verifiedA;
         /// @notice Verification power for positive result
         uint256 verifiedB;
-        /// @notice Reserved for privilege verifier
-        uint256 reserved;
-        /// @notice Address of staker
-        address privilegeNftStaker;
         /// @notice Dispute Creator address
         address disputeCreator;
         /// @notice End predictions unix timestamp
         uint64 endPredictionTimestamp;
         /// @notice Start verifications unix timestamp
         uint64 startVerificationTimestamp;
-        /// @notice Nft id (ForeVerifiers)
-        uint64 privilegeNftId;
         /// @notice Market result
         ResultType result;
         /// @notice Wrong result confirmed by HG
         bool confirmed;
         /// @notice Dispute solved by HG
         bool solved;
-        /// @notice If verification period was extended
-        bool extended;
     }
 
     /// FUNCTIONS
@@ -83,7 +71,7 @@ library MarketLib {
     /// @param m Market info
     /// @return 0 true if verified
     function _isVerified(Market memory m) internal pure returns (bool) {
-        return m.sideA <= m.verifiedB || m.sideB <= m.verifiedA;
+        return (((m.sideA <= m.verifiedB) && m.sideA != 0) || ((m.sideB <= m.verifiedA) && m.sideB != 0));
     }
 
     /// @notice Checks if one side of the market is fully verified
@@ -119,9 +107,9 @@ library MarketLib {
         }
 
         if (side) {
-            return m.sideB - m.verifiedA - m.reserved;
+            return m.sideB - m.verifiedA;
         } else {
-            return m.sideA - m.verifiedB - m.reserved;
+            return m.sideA - m.verifiedB;
         }
     }
 
@@ -137,6 +125,9 @@ library MarketLib {
         uint256 pB,
         uint256 feesSum
     ) internal pure returns (uint256 toWithdraw) {
+        if(m.result == ResultType.INVALID){
+            return pA+pB;
+        }
         uint256 fullMarketSize = m.sideA + m.sideB;
         uint256 _marketSubFee = fullMarketSize -
             (fullMarketSize * feesSum) /
@@ -148,35 +139,6 @@ library MarketLib {
         } else if (m.result == MarketLib.ResultType.BWON) {
             toWithdraw = (_marketSubFee * pB) / m.sideB;
         }
-    }
-
-    ///@notice Stakes nft token for the privilege of being a verifier
-    ///@param market Market storage
-    ///@param verifier Verifier
-    ///@param nftPower Power of vNFT
-    ///@param tokenId ForeVerifiers nft id
-    function stakeForPrivilege(
-        Market storage market,
-        address verifier,
-        uint256 nftPower,
-        uint256 mintPrice,
-        uint64 tokenId
-    ) external {
-        if(market.privilegeNftStaker != address(0)){
-            revert ("PrivilegeNftAlreadyExist");
-        }
-        if (block.timestamp > market.startVerificationTimestamp) {
-            revert ("VerificationAlreadyStarted");
-        }
-        if (nftPower < mintPrice) {
-            revert ("PowerMustBeGreaterThanMintPrice");
-        }
-
-        market.privilegeNftStaker = verifier;
-        market.privilegeNftId = tokenId;
-        market.reserved = nftPower;
-
-        emit PrivilegeStake(verifier, nftPower, tokenId);
     }
 
     ///@notice Calculates Result for market
@@ -198,7 +160,9 @@ library MarketLib {
         pure
         returns (ResultType)
     {
-        if (m.verifiedA == m.verifiedB) {
+        if(m.sideA == 0 || m.sideB == 0){
+            return ResultType.INVALID;
+        } else if (m.verifiedA == m.verifiedB) {
             return ResultType.DRAW;
         } else if (m.verifiedA > m.verifiedB) {
             return ResultType.AWON;
@@ -361,15 +325,11 @@ library MarketLib {
         Verification[] storage verifications,
         address verifier,
         uint256 verificationPeriod,
-        uint256 disputePeriod,
         uint256 power,
         uint256 tokenId,
         bool side
     ) external {
         MarketLib.Market memory m = market;
-        if(_isVerificationPeriodExtensionAvailable(m)){
-            _extendVerificationTime(market, verificationPeriod, disputePeriod);
-        }
         uint256 powerAvailable = _maxAmountToVerifyForSide(m, side);
         if (powerAvailable == 0) {
             revert ("MarketIsFullyVerified");
@@ -400,14 +360,6 @@ library MarketLib {
         address creator
     ) external {
         Market memory m = market;
-
-        if (m.result != ResultType.NULL) {
-            revert ("MarketIsClosed");
-        }
-
-        if (_isVerificationPeriodExtensionAvailable(m)) {
-            revert ("VerifcationPeriodExtensionAvailable");
-        }
 
         if (
             block.timestamp <
@@ -473,12 +425,10 @@ library MarketLib {
     /// @param market Market storage
     /// @param burnFee Burn fee
     /// @param verificationFee Verification Fee
-    /// @param revenueFee Revenue Fee
     /// @param foundationFee Foundation Fee
     /// @param result Result type
     /// @return toBurn Token to burn
     /// @return toFoundation Token to foundation
-    /// @return toRevenue Token to revenue
     /// @return toHighGuard Token to HG
     /// @return toDisputeCreator Token to dispute creator
     /// @return disputeCreator Dispute creator address
@@ -486,7 +436,6 @@ library MarketLib {
         Market storage market,
         uint256 burnFee,
         uint256 verificationFee,
-        uint256 revenueFee,
         uint256 foundationFee,
         MarketLib.ResultType result
     )
@@ -494,20 +443,28 @@ library MarketLib {
         returns (
             uint256 toBurn,
             uint256 toFoundation,
-            uint256 toRevenue,
             uint256 toHighGuard,
             uint256 toDisputeCreator,
             address disputeCreator
         )
     {
-        market.result = result;
         Market memory m = market;
+        if (m.result != ResultType.NULL) {
+            revert ("MarketIsClosed");
+        }
+        market.result = result;
+        m.result = result;
+        emit CloseMarket(m.result);
 
         uint256 fullMarketSize = m.sideA + m.sideB;
         toBurn = (fullMarketSize * burnFee) / 10000;
         uint256 toVerifiers = (fullMarketSize * verificationFee) / 10000;
-        toRevenue = (fullMarketSize * revenueFee) / 10000;
         toFoundation = (fullMarketSize * foundationFee) / 10000;
+        if (
+            m.result ==  MarketLib.ResultType.INVALID
+        ){
+            return(0, 0, 0, 0, m.disputeCreator);
+        }
         if (
             m.result == MarketLib.ResultType.DRAW &&
             m.disputeCreator != address(0) &&
@@ -522,8 +479,6 @@ library MarketLib {
             toDisputeCreator = toVerifiers - toHighGuard;
             disputeCreator = m.disputeCreator;
         }
-
-        emit CloseMarket(m.result);
     }
 
     /// @notice Check market status before closing
@@ -535,10 +490,6 @@ library MarketLib {
         uint256 verificationPeriod,
         uint256 disputePeriod
     ) external view {
-        if (m.result != MarketLib.ResultType.NULL) {
-            revert ("MarketIsClosed");
-        }
-
         if (m.disputeCreator != address(0)) {
             revert ("DisputeNotSolvedYet");
         }
@@ -591,6 +542,54 @@ library MarketLib {
         return toWithdraw;
     }
 
+    /// @notice Calculates Verification Reward
+    /// @param m Market info
+    /// @param v Verification info
+    /// @param power Power of vNFT used for verification
+    /// @param verificationFee Verification Fee
+    /// @return toVerifier Amount of tokens for verifier
+    /// @return toDisputeCreator Amount of tokens for dispute creator
+    /// @return toHighGuard Amount of tokens for HG
+    /// @return vNftBurn If vNFT need to be burned
+    function calculateVerificationReward(
+        Market memory m,
+        Verification memory v,
+        uint256 power,
+        uint256 verificationFee
+    )
+        public
+        pure
+        returns (
+            uint256 toVerifier,
+            uint256 toDisputeCreator,
+            uint256 toHighGuard,
+            bool vNftBurn
+        )
+    {
+        if (m.result == MarketLib.ResultType.DRAW || m.result == MarketLib.ResultType.INVALID || m.result == MarketLib.ResultType.NULL || v.withdrawn) {
+            // draw - withdraw verifier token
+            return (0, 0, 0, false);
+        }
+
+        uint256 verificatorsFees = ((m.sideA + m.sideB) * verificationFee) /
+            10000;
+        if (v.side == (m.result == MarketLib.ResultType.AWON)) {
+            // verifier voted properly
+            uint256 reward = (v.power * verificatorsFees) /
+                (v.side ? m.verifiedA : m.verifiedB);
+            return (reward, 0, 0, false);
+        } else {
+            // verifier voted wrong
+            if (m.confirmed) {
+                toDisputeCreator = power / 2;
+                toHighGuard = power - toDisputeCreator;
+            }
+            return (0, toDisputeCreator, toHighGuard, true);
+        }
+    }
+
+
+
     /// @notice Withdraws Verification Reward
     /// @param m Market info
     /// @param v Verification info
@@ -622,139 +621,10 @@ library MarketLib {
             revert ("AlreadyWithdrawn");
         }
 
-        if (m.result == MarketLib.ResultType.DRAW) {
-            // draw - withdraw verifier token
-            return (0, 0, 0, false);
+        (toVerifier, toDisputeCreator, toHighGuard, vNftBurn) = calculateVerificationReward(m, v, power, verificationFee);
+
+        if(toVerifier!=0){
+            emit WithdrawReward(v.verifier, 2, toVerifier);
         }
-
-        uint256 verificatorsFees = ((m.sideA + m.sideB) * verificationFee) /
-            10000;
-        if (v.side == (m.result == MarketLib.ResultType.AWON)) {
-            // verifier voted properly
-            uint256 reward = (v.power * verificatorsFees) /
-                (v.side ? m.verifiedA : m.verifiedB);
-            emit WithdrawReward(v.verifier, 2, reward);
-            return (reward, 0, 0, false);
-        } else {
-            // verifier voted wrong
-            if (m.confirmed) {
-                toDisputeCreator = power / 2;
-                toHighGuard = power - toDisputeCreator;
-            }
-            return (0, toDisputeCreator, toHighGuard, true);
-        }
-    }
-
-    /// @dev Is verification period can be extended
-    /// @param m Market info
-    /// @return available true if available
-    function _isVerificationPeriodExtensionAvailable(Market memory m)
-        internal
-        pure
-        returns (bool available)
-    {
-        if (
-            (m.reserved != 0) && ((m.reserved >= m.sideA) || (m.reserved >= m.sideB)) && (!m.extended)
-        ) {
-            available = true;
-        }
-    }
-
-    /// @notice Is verification period can be extended
-    /// @param m Market info
-    /// @return available true if available
-    function isVerificationPeriodExtensionAvailable(Market memory m)
-        public
-        pure
-        returns (bool available)
-    {
-        return(_isVerificationPeriodExtensionAvailable(m));
-    }
-
-    /// @dev Is verification period can be extended
-    /// @param market Market storage
-    /// @param verificationPeriod Verification Period
-    /// @param disputePeriod Dispute Period
-    function extendVerificationTime(Market storage market, uint256 verificationPeriod, uint256 disputePeriod) external {
-        _extendVerificationTime(market, verificationPeriod, disputePeriod);
-    }
-
-    /// @dev Is verification period can be extended
-    /// @param market Market storage
-    /// @param verificationPeriod Verification Period
-    /// @param disputePeriod Dispute Period
-    function _extendVerificationTime(
-        Market storage market,
-        uint256 verificationPeriod,
-        uint256 disputePeriod
-    ) internal {
-        Market memory m = market;
-
-        if (_isVerified(m)) {
-            revert ("MarketIsFullyVerified");
-        }
-
-        if (m.reserved != 0) {
-            revert ("NothingReserved");
-        }
-
-        if (
-            block.timestamp < m.startVerificationTimestamp + verificationPeriod
-        ) {
-            revert ("DisputePeriodIsNotStartedYet");
-        }
-
-        if (
-            block.timestamp >=
-            m.startVerificationTimestamp + verificationPeriod + disputePeriod
-        ) {
-            revert ("DisputePeriodIsEnded");
-        }
-
-        if (!_isVerificationPeriodExtensionAvailable(m)) {
-            revert ("VerifcationPeriodExtensionUnavailable");
-        }
-
-        market.startVerificationTimestamp =
-            m.startVerificationTimestamp +
-            uint64(verificationPeriod);
-        market.reserved = 0;
-    }
-
-    /// @notice Privilege Verify
-    /// @param market Market Storage
-    /// @param verifications Verifications array storage
-    /// @param verificationPeriod Verification Period
-    /// @param requester Requester address
-    /// @param power Power of vNFT
-    /// @param side Side of verification
-    function privilegeVerify(
-        Market storage market,
-        Verification[] storage verifications,
-        uint256 verificationPeriod,
-        address requester,
-        uint256 power,
-        bool side
-    ) external {
-        MarketLib.Market memory m = market;
-        if (m.privilegeNftStaker != requester) {
-            revert ("IncorrectOwner");
-        }
-        if (m.reserved == 0) {
-            revert ("PrivilegeCanVerifyOnce");
-        }
-
-        market.reserved = 0;
-        market.privilegeNftStaker = address(0);
-
-        _verify(
-            market,
-            verifications,
-            requester,
-            verificationPeriod,
-            power,
-            m.privilegeNftId,
-            side
-        );
     }
 }

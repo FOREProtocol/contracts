@@ -13,7 +13,8 @@
         "docgen": "npx hardhat docgen",
         "node": "npx hardhat node",
         "local": "npx hardhat run --network localhost scripts/deploy.ts",
-        "testnet": "npx hardhat run --network fantomtestnet scripts/deployTestnet.ts"
+        "testnet": "npx hardhat run --network fantomtestnet scripts/deployTestnet.ts",
+        "size": "npx hardhat size-contracts"
     },
     "author": "",
     "license": "ISC",

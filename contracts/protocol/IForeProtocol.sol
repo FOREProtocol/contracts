@@ -3,9 +3,7 @@ pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-interface IForeMarkets is IERC721 {
-    function INIT_CODE_PAIR_HASH() external view returns (bytes32);
-
+interface IForeProtocol is IERC721 {
     function allMarketLength() external view returns (uint256);
 
     function allMarkets(uint256) external view returns (address);
@@ -16,14 +14,14 @@ interface IForeMarkets is IERC721 {
 
     function config() external view returns (address);
 
+    function market(bytes32 mHash) external view returns(address);
+
     function createMarket(
         bytes32 marketHash,
+        address creator,
         address receiver,
-        uint256 amountA,
-        uint256 amountB,
-        uint256 endPredictionTimestamp,
-        uint256 startVerificationTimestamp
-    ) external returns (address market);
+        address marketAddress
+    ) external returns(uint256);
 
     function foreToken() external view returns (address);
 
@@ -34,4 +32,12 @@ interface IForeMarkets is IERC721 {
     function isForeOperator(address addr) external view returns (bool);
 
     function mintVerifier(address receiver) external;
+
+    event MarketCreated(
+        address indexed factory,
+        address indexed creator,
+        bytes32 marketHash,
+        address market,
+        uint256 marketIdx
+    );
 }
