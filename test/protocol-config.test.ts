@@ -121,9 +121,9 @@ describe("Protocol configuration", () => {
                     BigNumber.from(1800),
                     BigNumber.from(1800),
                     BigNumber.from(100),
-                    BigNumber.from(100),
-                    BigNumber.from(50),
                     BigNumber.from(150),
+                    BigNumber.from(50),
+                    BigNumber.from(200),
                 ]);
             });
 
@@ -148,7 +148,7 @@ describe("Protocol configuration", () => {
             });
 
             it("Should expose proper foundation fee", async () => {
-                expect(await marketConfig.foundationFee()).to.be.equal(100);
+                expect(await marketConfig.foundationFee()).to.be.equal(150);
             });
 
             it("Should expose proper market creation fee", async () => {
@@ -156,7 +156,7 @@ describe("Protocol configuration", () => {
             });
 
             it("Should expose proper verification fee", async () => {
-                expect(await marketConfig.verificationFee()).to.be.equal(150);
+                expect(await marketConfig.verificationFee()).to.be.equal(200);
             });
         });
     });
@@ -279,9 +279,9 @@ describe("Protocol configuration", () => {
                 BigNumber.from(1800),
                 BigNumber.from(1800),
                 BigNumber.from(100),
-                BigNumber.from(100),
-                BigNumber.from(50),
                 BigNumber.from(150),
+                BigNumber.from(50),
+                BigNumber.from(200),
             ]);
         });
 

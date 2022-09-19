@@ -194,7 +194,7 @@ describe("BasicMarket / Closing", () => {
                     .withArgs(
                         contract.address,
                         foundationWallet.address,
-                        ethers.utils.parseEther("1")
+                        ethers.utils.parseEther("1.5")
                     );
             });
 
@@ -315,7 +315,7 @@ describe("BasicMarket / Closing", () => {
                     .withArgs(
                         contract.address,
                         foundationWallet.address,
-                        ethers.utils.parseEther("1")
+                        ethers.utils.parseEther("1.5")
                     );
             });
 

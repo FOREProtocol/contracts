@@ -15,7 +15,7 @@ contract BasicMarket
     bytes32 public marketHash;
 
     /// @notice Market token id
-    uint256 internal _tokenId;
+    uint256 public marketId;
 
    /// @notice Protocol
     IForeProtocol public protocol;

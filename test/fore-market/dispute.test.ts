@@ -342,7 +342,7 @@ describe("BasicMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             foundationWallet.address,
-                            ethers.utils.parseEther("1")
+                            ethers.utils.parseEther("1.5")
                         );
                 });
 
@@ -422,7 +422,7 @@ describe("BasicMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             foundationWallet.address,
-                            ethers.utils.parseEther("1")
+                            ethers.utils.parseEther("1.5")
                         );
                 });
 
@@ -502,7 +502,7 @@ describe("BasicMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             foundationWallet.address,
-                            ethers.utils.parseEther("1")
+                            ethers.utils.parseEther("1.5")
                         );
                 });
 
@@ -522,7 +522,7 @@ describe("BasicMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             highGuardAccount.address,
-                            ethers.utils.parseEther("0.75")
+                            ethers.utils.parseEther("1")
                         );
                 });
 
@@ -542,7 +542,7 @@ describe("BasicMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             alice.address,
-                            ethers.utils.parseEther("0.75")
+                            ethers.utils.parseEther("1")
                         );
                 });
 
@@ -625,7 +625,7 @@ describe("BasicMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             foundationWallet.address,
-                            ethers.utils.parseEther("1")
+                            ethers.utils.parseEther("1.5")
                         );
                 });
 
@@ -635,7 +635,7 @@ describe("BasicMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             "0x0000000000000000000000000000000000000000",
-                            ethers.utils.parseEther("1.75")
+                            ethers.utils.parseEther("1")
                         );
                 });
 
@@ -655,7 +655,7 @@ describe("BasicMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             highGuardAccount.address,
-                            ethers.utils.parseEther("0.75")
+                            ethers.utils.parseEther("1")
                         );
                 });
 

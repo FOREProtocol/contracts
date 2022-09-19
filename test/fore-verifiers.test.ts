@@ -78,7 +78,7 @@ describe("Fore NFT Verifiers token", () => {
     describe("For non existing token", () => {
         it("Should revert while checking token URI", async () => {
             await expect(contract.tokenURI(123)).to.be.revertedWith(
-                "ERC721Metadata: URI query for nonexistent token"
+                "ERC721: invalid token ID"
             );
         });
 
@@ -425,7 +425,7 @@ describe("Fore NFT Verifiers token", () => {
                             .connect(bob)
                             .transferFrom(alice.address, operator.address, 0)
                     ).to.be.revertedWith(
-                        "ERC721: transfer caller is not owner nor approved"
+                        "ERC721: caller is not token owner nor approved"
                     );
                 });
 
