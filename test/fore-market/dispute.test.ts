@@ -635,7 +635,7 @@ describe("BasicMarket / Dispute", () => {
                         .withArgs(
                             contract.address,
                             "0x0000000000000000000000000000000000000000",
-                            ethers.utils.parseEther("1")
+                            ethers.utils.parseEther("2")
                         );
                 });
 
