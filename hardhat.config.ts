@@ -12,6 +12,7 @@ import "hardhat-docgen";
 import "hardhat-gas-reporter";
 import "hardhat-interface-generator";
 import "solidity-coverage";
+import "hardhat-deploy";
 
 dotenv.config();
 
@@ -61,44 +62,72 @@ const config: HardhatUserConfig = {
             },
         ],
     },
+    namedAccounts: {
+        deployer: 0,
+    },
     networks: {
         hardhat: {
             accounts: {
                 mnemonic:
-                    process.env.MNEMONIC !== undefined
-                        ? process.env.MNEMONIC
+                    process.env.MNEMONIC_TESTNET !== undefined
+                        ? process.env.MNEMONIC_TESTNET
                         : "",
             },
-        },
-        rinkeby: {
-            url: process.env.RINKEBY_URL || "",
-            chainId: 4,
-            accounts: {
-                mnemonic:
-                    process.env.MNEMONIC !== undefined
-                        ? process.env.MNEMONIC
-                        : "",
-            },
+            saveDeployments: true,
+            deploy: ["deploy/" + process.env.LOCAL_DEPLOY + "/"],
         },
         fantom: {
             url: process.env.FANTOM_URL || "",
             chainId: 250,
             accounts: {
                 mnemonic:
-                    process.env.MNEMONIC !== undefined
-                        ? process.env.MNEMONIC
+                    process.env.MNEMONIC_MAINNET !== undefined
+                        ? process.env.MNEMONIC_MAINNET
                         : "",
             },
+            verify: {
+                etherscan: {
+                    apiUrl: "https://api.ftmscan.com",
+                    apiKey: process.env.FTMSCAN_API_KEY,
+                },
+            },
+            saveDeployments: true,
+            deploy: ["deploy/fantom/"],
         },
-        fantomtestnet: {
+        goerli: {
+            url: process.env.GOERLI_URL || "",
+            chainId: 5,
+            accounts: {
+                mnemonic:
+                    process.env.MNEMONIC_TESTNET !== undefined
+                        ? process.env.MNEMONIC_TESTNET
+                        : "",
+            },
+            verify: {
+                etherscan: {
+                    apiKey: process.env.ETHERSCAN_API_KEY,
+                },
+            },
+            saveDeployments: true,
+            deploy: ["deploy/fantom/"],
+        },
+        ftmTestnet: {
             url: process.env.FANTOMTESTNET_URL || "",
             chainId: 4002,
             accounts: {
                 mnemonic:
-                    process.env.MNEMONIC !== undefined
-                        ? process.env.MNEMONIC
+                    process.env.MNEMONIC_TESTNET !== undefined
+                        ? process.env.MNEMONIC_TESTNET
                         : "",
             },
+            verify: {
+                etherscan: {
+                    apiUrl: "https://api-testnet.ftmscan.com",
+                    apiKey: process.env.FTMSCAN_API_KEY,
+                },
+            },
+            saveDeployments: true,
+            deploy: ["deploy/fantom/"],
         },
     },
     gasReporter: {
@@ -108,15 +137,20 @@ const config: HardhatUserConfig = {
         token: "FTM",
         coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     },
+    verify: {
+        etherscan: {
+            apiKey: process.env.FTMSCAN_API_KEY,
+        },
+    },
     etherscan: {
         apiKey: {
             fantom: process.env.FTMSCAN_API_KEY,
-            fantomtestnet: process.env.FTMSCAN_API_KEY,
-            rinkeby: process.env.ETHERSCAN_API_KEY,
+            ftmTestnet: process.env.FTMSCAN_API_KEY,
+            goerli: process.env.ETHERSCAN_API_KEY,
         },
         customChains: [
             {
-                network: "fantomtestnet",
+                network: "ftmTestnet",
                 chainId: 4002,
                 urls: {
                     apiURL: "https://api-testnet.ftmscan.com/api",
@@ -127,7 +161,7 @@ const config: HardhatUserConfig = {
                 network: "fantom",
                 chainId: 250,
                 urls: {
-                    apiURL: "https://api.ftmscan.com/api",
+                    apiURL: "https://api.ftmscan.com",
                     browserURL: "https://ftmscan.com",
                 },
             },

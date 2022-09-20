@@ -10,10 +10,10 @@
         "format": "prettier --write .",
         "test": "npx hardhat test",
         "coverage": "npx hardhat coverage",
-        "docgen": "npx hardhat docgen",
+        "docgen": "npx hardhat docgen && npx hardhat export --export-all docs/contracts.json",
+        "mainnet": "npx hardhat deploy --network fantom",
+        "testnet": "npx hardhat deploy --network ftmTestnet",
         "node": "npx hardhat node",
-        "local": "npx hardhat run --network localhost scripts/deploy.ts",
-        "testnet": "npx hardhat run --network fantomtestnet scripts/deployTestnet.ts",
         "size": "npx hardhat size-contracts"
     },
     "author": "",
@@ -63,7 +63,9 @@
         "web3": "^1.7.3"
     },
     "dependencies": {
-        "@openzeppelin/contracts": "^4.6.0"
+        "@openzeppelin/contracts": "^4.6.0",
+        "@gregoranders/csv": "^0.0.9",
+        "hardhat-deploy": "^0.11.15"
     },
     "engines": {
         "node": ">=14.0.0"

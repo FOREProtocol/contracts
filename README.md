@@ -6,14 +6,17 @@
 
 # Getting started
 
-1. Installation:
+#### 1. Installation:
 
 ```
 npm i
 ```
 
-2. Create `.env` file bassed on `.env.example` . Enter your developer purposes mnemonic phrase(12 words).
-3. Compile and Tests
+#### 2. Configuration
+
+Create `.env` file based on `.env.example` . Enter your testnet and mainnet mnemonic phrases(12 words), api keys for verification and wallet addresses for roles.
+
+#### 3. Compile and Tests
 
 ```
 npm run compile
@@ -29,30 +32,70 @@ npm run test
 npm run docgen
 ```
 
-Documentation files will appear in the `/docs` folder, open `index.html` in a browser to read it.
+Documentation files will appear in the `/docs` folder, open `index.html` in a browser to read it. In folder you also find 'contracts.json' file with all networks deployments artifacts.
 
-5. Local migrations/local deployment
+#### 5. Local migrations/local deployment
 
-   Fill `config` object in `deploy.ts` with right values.
+Run local node and deploy contracts for selected(env.LOCAL_DEPLOY) chain :
 
-   Run local node:
+```
+npm run node
+```
 
-   ```
-   npm run node
-   ```
+#### 6. Testnet/production deployment
 
-   Open **second terminal **window and deploy contracts:
+Make sure that first account (id[0]) for selected mnemonic has a native currency on selected network. Use a faucets for a testnets.
 
-   ```
-   npm run local
-   ```
+Testnet deployment (fantom testnet, using env.MNEMONIC_MAINNET)
 
-6. Testnet/production deployment
+```
+npm run testnet
+```
 
-   Fill `config` object in `deploy.ts` with right values.
+Production deployment (fantom, using env.MNEMONIC_MAINNET)
 
-   Make sure that first account (id[0]) for selected mnemonic has a native currency on selected network. Use a faucets for a testnets.
+```
+npm run mainnet
+```
 
-   ```
-   npx hardhat run --network fantomtestnet scripts/deploy.ts
-   ```
+Custom network (please set hardcat.config.ts first)
+
+```
+npx hardhat deploy --network <network_name>
+```
+
+Deployment info will store on deployments folder
+
+#### 7. Scripts
+
+Distribute test tokens: 
+
+Fulfill receivers list in `scripts/distributeTestTokens.ts` and run: 
+
+```
+npx hardhat run --network <network_name> scripts/distributeTestTokens.ts
+```
+
+Initialize vesting:
+Create `/scripts/data/vesting.csv` based on vesting.csv.example and run: 
+
+```
+npx hardhat run --network <network_name> scripts/initiateVesting.ts
+
+```
+
+#### 8. Verification
+
+Make sure that you have deployments artifacts for selected network in `deployments` folder. To verify run: 
+```
+npx hardhat run --network <network_name> scripts/verify.ts
+
+```
+
+Market contract verification (not working on ftmTestnet). 
+Add base market contract address to `scripts/verify.ts` and run
+
+```
+npx hardhat run --network <network_name> scripts/verifyMarketContract.ts
+
+```
