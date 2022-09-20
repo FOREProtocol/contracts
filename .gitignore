@@ -13,3 +13,10 @@ docs/*
 
 /scripts
 !/scripts/deploy.ts
+
+deployments/ftmTestnet
+deployments/goerli
+deployments/localhost
+deployments/hardhat
+
+scripts/data/vesting.csv
