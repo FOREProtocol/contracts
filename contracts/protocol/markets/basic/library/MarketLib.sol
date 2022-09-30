@@ -71,7 +71,7 @@ library MarketLib {
     /// @param m Market info
     /// @return 0 true if verified
     function _isVerified(Market memory m) internal pure returns (bool) {
-        return (((m.sideA <= m.verifiedB) && m.sideA != 0) || ((m.sideB <= m.verifiedA) && m.sideB != 0));
+        return (((m.sideA <= m.verifiedB)) || ((m.sideB <= m.verifiedA)));
     }
 
     /// @notice Checks if one side of the market is fully verified
@@ -361,10 +361,11 @@ library MarketLib {
     ) external {
         Market memory m = market;
 
+        bool isDisputeStarted = ((block.timestamp >=
+            m.startVerificationTimestamp + verificationPeriod) || _isVerified(m));
+        
         if (
-            block.timestamp <
-            m.startVerificationTimestamp + verificationPeriod &&
-            !_isVerified(m)
+            !isDisputeStarted
         ) {
             revert ("DisputePeriodIsNotStartedYet");
         }
@@ -412,7 +413,7 @@ library MarketLib {
         }
 
         market.solved = true;
-
+        
         if (_calculateMarketResult(m) != result) {
             market.confirmed = true;
             return (m.disputeCreator);
@@ -461,7 +462,7 @@ library MarketLib {
         uint256 toVerifiers = (fullMarketSize * verificationFee) / 10000;
         toFoundation = (fullMarketSize * foundationFee) / 10000;
         if (
-            m.result ==  MarketLib.ResultType.INVALID
+            m.result ==  MarketLib.ResultType.INVALID || (m.result == MarketLib.ResultType.DRAW && m.verifiedA == 0 && m.verifiedB == 0)
         ){
             return(0, 0, 0, 0, m.disputeCreator);
         }
@@ -578,7 +579,8 @@ library MarketLib {
             uint256 reward = (v.power * verificatorsFees) /
                 (v.side ? m.verifiedA : m.verifiedB);
             return (reward, 0, 0, false);
-        } else {
+        } 
+        else {
             // verifier voted wrong
             if (m.confirmed) {
                 toDisputeCreator = power / 2;

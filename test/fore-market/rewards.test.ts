@@ -41,6 +41,7 @@ describe("BasicMarket / Rewards", () => {
     let verifierSideB2: SignerWithAddress;
     let marketCreator: SignerWithAddress;
     let marketLib: MarketLib;
+    let disputeCreator: SignerWithAddress;
 
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
@@ -66,6 +67,7 @@ describe("BasicMarket / Rewards", () => {
             verifierSideB1,
             verifierSideB2,
             marketCreator,
+            disputeCreator,
         ] = await ethers.getSigners();
 
         const newLocal = "BasicMarket";
@@ -122,6 +124,7 @@ describe("BasicMarket / Rewards", () => {
             [predictorSideB1.address]: ethers.utils.parseEther("1000"),
             [predictorSideB2.address]: ethers.utils.parseEther("2000"),
             [marketCreator.address]: ethers.utils.parseEther("1010"),
+            [disputeCreator.address]: ethers.utils.parseEther("2000"),
         });
 
         const previousBlock = await ethers.provider.getBlock("latest");
@@ -193,7 +196,7 @@ describe("BasicMarket / Rewards", () => {
     // won side: a
     // full market size: 5000
     // market creator reward: 0.5% = 25
-    // validators creator reward: 1.5% = 75
+    // validators creator reward: 2% = 100
     // burn, foundation: 1% each = 50
 
     describe("Market creator reward", () => {
@@ -261,6 +264,297 @@ describe("BasicMarket / Rewards", () => {
                         marketCreator.address,
                         ethers.utils.parseEther("25")
                     );
+            });
+        });
+    });
+
+    describe("Verifier reward", () => {
+        it("Should return 0 before market closed", async () => {
+            expect(await contract.calculateVerificationReward(0)).to.be.eql([
+                ethers.utils.parseEther("0"),
+                ethers.utils.parseEther("0"),
+                ethers.utils.parseEther("0"),
+                false,
+            ]);
+
+            expect(await contract.calculateVerificationReward(1)).to.be.eql([
+                ethers.utils.parseEther("0"),
+                ethers.utils.parseEther("0"),
+                ethers.utils.parseEther("0"),
+                false,
+            ]);
+        });
+
+        it("Should revert when market not closed", async () => {
+            await expect(
+                contract
+                    .connect(verifierSideB2)
+                    .withdrawVerificationReward(0, false)
+            ).to.be.revertedWith("MarketIsNotClosedYet");
+        });
+
+        describe("after positive dispute", () => {
+            let tx: ContractTransaction;
+            let recipt: ContractReceipt;
+            beforeEach(async () => {
+                await timetravel(blockTimestamp + 300005 + 1800);
+                await contract
+                    .connect(disputeCreator)
+                    .openDispute(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                    );
+
+                await contract.connect(highGuardAccount).resolveDispute(2);
+            });
+
+            it("Should return proper calculated value after market closed", async () => {
+                const num = ethers.utils.parseEther("100");
+                const num2 = ethers.utils
+                    .parseEther("750")
+                    .div(ethers.BigNumber.from(2));
+                expect(await contract.calculateVerificationReward(1)).to.be.eql(
+                    [ethers.utils.parseEther("0"), num2, num2, true]
+                );
+                expect(await contract.calculateVerificationReward(2)).to.be.eql(
+                    [ethers.utils.parseEther("0"), num2, num2, true]
+                );
+                expect(await contract.calculateVerificationReward(3)).to.be.eql(
+                    [ethers.utils.parseEther("0"), num2, num2, true]
+                );
+                expect(await contract.calculateVerificationReward(0)).to.be.eql(
+                    [
+                        num,
+                        ethers.utils.parseEther("0"),
+                        ethers.utils.parseEther("0"),
+                        false,
+                    ]
+                );
+            });
+
+            describe("Withdraw reward (proper verification)", () => {
+                let tx: ContractTransaction;
+                let recipt: ContractReceipt;
+                const num = ethers.utils.parseEther("100");
+
+                beforeEach(async () => {
+                    [tx, recipt] = await txExec(
+                        contract
+                            .connect(verifierSideB2)
+                            .withdrawVerificationReward(0, true)
+                    );
+                });
+
+                it("Should emit WithdrawReward event", async () => {
+                    await expect(tx)
+                        .to.emit(
+                            { ...marketLib, address: contract.address },
+                            "WithdrawReward"
+                        )
+                        .withArgs(verifierSideB2.address, 2, num);
+                });
+
+                it("Should emit Fore token Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            verifierSideB2.address,
+                            num
+                        );
+                });
+
+                it("Should emit vNFT Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreVerifiers, "Transfer")
+                        .withArgs(contract.address, verifierSideB2.address, 3);
+                });
+            });
+
+            describe("Withdraw reward (incorrect verification)", () => {
+                let tx: ContractTransaction;
+                let recipt: ContractReceipt;
+                const num = ethers.utils
+                    .parseEther("750")
+                    .div(ethers.BigNumber.from("2"));
+
+                beforeEach(async () => {
+                    [tx, recipt] = await txExec(
+                        contract
+                            .connect(verifierSideB1)
+                            .withdrawVerificationReward(1, true)
+                    );
+                });
+
+                it("Should emit Fore token Transfer to HG", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            foreVerifiers.address,
+                            highGuardAccount.address,
+                            num
+                        );
+                });
+
+                it("Should emit Fore token Transfer to dispute creator", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            foreVerifiers.address,
+                            disputeCreator.address,
+                            num
+                        );
+                });
+
+                it("Should emit vNFT Transfer event (burn)", async () => {
+                    await expect(tx)
+                        .to.emit(foreVerifiers, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            ethers.constants.AddressZero,
+                            0
+                        );
+                });
+            });
+        });
+
+        describe("after closing", () => {
+            let tx: ContractTransaction;
+            let recipt: ContractReceipt;
+            beforeEach(async () => {
+                await timetravel(blockTimestamp + 4000000);
+
+                contract.connect(marketCreator).closeMarket();
+            });
+
+            it("Should return proper power", async () => {
+                expect(await foreVerifiers.powerOf(3)).to.be.eql(
+                    ethers.utils.parseEther("750")
+                );
+            });
+
+            it("Should return proper verification", async () => {
+                expect(await contract.verifications(0)).to.be.eql([
+                    verifierSideB2.address,
+                    ethers.utils.parseEther("750"),
+                    BigNumber.from(3),
+                    false,
+                    false,
+                ]);
+            });
+
+            it("Should return proper calculated value after market closed", async () => {
+                const num = ethers.utils
+                    .parseEther("100")
+                    .div(ethers.BigNumber.from("3"));
+                expect(await contract.calculateVerificationReward(1)).to.be.eql(
+                    [
+                        num,
+                        ethers.utils.parseEther("0"),
+                        ethers.utils.parseEther("0"),
+                        false,
+                    ]
+                );
+                expect(await contract.calculateVerificationReward(2)).to.be.eql(
+                    [
+                        num,
+                        ethers.utils.parseEther("0"),
+                        ethers.utils.parseEther("0"),
+                        false,
+                    ]
+                );
+                expect(await contract.calculateVerificationReward(3)).to.be.eql(
+                    [
+                        num,
+                        ethers.utils.parseEther("0"),
+                        ethers.utils.parseEther("0"),
+                        false,
+                    ]
+                );
+                expect(await contract.calculateVerificationReward(0)).to.be.eql(
+                    [
+                        ethers.utils.parseEther("0"),
+                        ethers.utils.parseEther("0"),
+                        ethers.utils.parseEther("0"),
+                        true,
+                    ]
+                );
+            });
+
+            describe("Withdraw reward (proper verification)", () => {
+                let tx: ContractTransaction;
+                let recipt: ContractReceipt;
+                const num = ethers.utils
+                    .parseEther("100")
+                    .div(ethers.BigNumber.from("3"));
+
+                beforeEach(async () => {
+                    [tx, recipt] = await txExec(
+                        contract
+                            .connect(verifierSideA1)
+                            .withdrawVerificationReward(1, true)
+                    );
+                });
+
+                it("Should emit WithdrawReward event", async () => {
+                    await expect(tx)
+                        .to.emit(
+                            { ...marketLib, address: contract.address },
+                            "WithdrawReward"
+                        )
+                        .withArgs(verifierSideA1.address, 2, num);
+                });
+
+                it("Should emit Fore token Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            verifierSideA1.address,
+                            num
+                        );
+                });
+
+                it("Should emit vNFT Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreVerifiers, "Transfer")
+                        .withArgs(contract.address, verifierSideA1.address, 0);
+                });
+            });
+
+            describe("Withdraw reward (incorrect verification)", () => {
+                let tx: ContractTransaction;
+                let recipt: ContractReceipt;
+                const num = ethers.utils
+                    .parseEther("750")
+                    .div(ethers.BigNumber.from("2"));
+
+                beforeEach(async () => {
+                    [tx, recipt] = await txExec(
+                        contract
+                            .connect(verifierSideA1)
+                            .withdrawVerificationReward(0, true)
+                    );
+                });
+
+                it("Should emit Fore token Transfer event (burn)", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            foreVerifiers.address,
+                            ethers.constants.AddressZero,
+                            ethers.utils.parseEther("750")
+                        );
+                });
+
+                it("Should emit vNFT Transfer event (burn)", async () => {
+                    await expect(tx)
+                        .to.emit(foreVerifiers, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            ethers.constants.AddressZero,
+                            3
+                        );
+                });
             });
         });
     });

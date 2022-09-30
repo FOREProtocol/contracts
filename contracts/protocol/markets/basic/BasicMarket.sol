@@ -202,7 +202,7 @@ contract BasicMarket
     ///@param result Market close result type
     ///Is not best optimized becouse of deep stack
     function _closeMarket(MarketLib.ResultType result) private {
-        (uint256 burnFee, uint256 foundationFee, , ) = marketConfig.fees();
+        (uint256 burnFee, uint256 foundationFee, ,uint256 verificationFee) = marketConfig.fees();
         (
             uint256 toBurn,
             uint256 toFoundation,
@@ -212,10 +212,16 @@ contract BasicMarket
         ) = MarketLib.closeMarket(
                 _market,
                 burnFee,
-                marketConfig.verificationFee(),
+                verificationFee,
                 foundationFee,
                 result
             );
+        MarketLib.Market memory m = _market;
+        uint256 verificatorsFees = ((m.sideA + m.sideB) * verificationFee) /
+            10000;
+        if(((m.verifiedA == 0 ) && ( result == MarketLib.ResultType.AWON)) || ((m.verifiedB == 0) && (result == MarketLib.ResultType.BWON))){
+            toBurn += verificatorsFees;
+        }
         if (toBurn != 0) {
             foreToken.burn(toBurn);
         }
@@ -331,19 +337,19 @@ contract BasicMarket
         }
         if (toDisputeCreator != 0) {
             foreToken.transferFrom(
-                address(this),
+                address(foreVerifiers),
                 m.disputeCreator,
                 toDisputeCreator
             );
             foreToken.transferFrom(
-                address(this),
+                address(foreVerifiers),
                 protocolConfig.highGuard(),
                 toHighGuard
             );
-            foreToken.burn(power - toDisputeCreator - toHighGuard);
         }
 
         if (vNftBurn) {
+            foreToken.burnFrom(address(foreVerifiers), power - toDisputeCreator - toHighGuard);
             foreVerifiers.burn(v.tokenId);
         } else {
             foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
