@@ -141,7 +141,7 @@ contract BasicMarket
             return;
         }
 
-        (uint256 verificationPeriod,) = marketConfig
+        (, uint256 verificationPeriod) = marketConfig
             .periods();
 
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
@@ -243,7 +243,7 @@ contract BasicMarket
             _closeMarket(MarketLib.ResultType.INVALID);
             return;
         }
-        (uint256 verificationPeriod, uint256 disputePeriod) = marketConfig
+        (uint256 disputePeriod, uint256 verificationPeriod) = marketConfig
             .periods();
         MarketLib.beforeClosingCheck(m, verificationPeriod, disputePeriod);
         _closeMarket(MarketLib.calculateMarketResult(m));
