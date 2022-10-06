@@ -46,7 +46,7 @@ describe("NFTMarketplace / NFT integration", () => {
             const [tx, recipt] = await txExec(
                 nftToken
                     .connect(foreProtocolAccount)
-                    .mintWithPower(recipient, 100)
+                    .mintWithPower(recipient, 100, 0, 0)
             );
 
             const mintEvent = findEvent<TransferEvent>(recipt, "Transfer");

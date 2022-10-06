@@ -47,6 +47,11 @@ contract ForeVerifiers is
     /// @notice Transfers may be restricted to operators
     bool internal _transfersAllowed;
 
+    /// @notice Number of validations for token
+    mapping(uint256 => uint256) public validationsSum;
+
+    /// @notice Tier of token
+    mapping(uint256 => uint256) public nftTier;
 
     constructor()
         ERC721("ForeNFT", "FORE")
@@ -127,10 +132,14 @@ contract ForeVerifiers is
      * @notice Mints token with defined power
      * @param to Recipient
      * @param power Power
+     * @param tier Tier
+     * @param validationNum Validation num
      */
     function mintWithPower(
         address to,
-        uint256 power
+        uint256 power,
+        uint256 tier,
+        uint256 validationNum
     )
         external
     {
@@ -140,20 +149,36 @@ contract ForeVerifiers is
 
         _power[_height] = power;
         _initialPower[_height] = power;
+        validationsSum[_height] = validationNum;
+        nftTier[_height] = tier;
 
         _safeMint(to, _height);
 
         _height++;
     }
 
+    function increaseValidation(uint256 id) external{
+        if (!_exists(id)) {
+            revert TokenNotExists();
+        }
+
+        if (!protocol.isForeOperator(msg.sender)) {
+            revert OnlyOperatorAllowed();
+        }
+
+        validationsSum[id]++;
+    }
+
     /**
      * @notice Increase token power
      * @param id Token Id
      * @param powerDelta Power delta
+    *  @param increaseValidationNum Increases validation num for token
      */
     function increasePower(
         uint256 id,
-        uint256 powerDelta
+        uint256 powerDelta,
+        bool increaseValidationNum
     )
         external
     {
@@ -163,6 +188,10 @@ contract ForeVerifiers is
 
         if (!protocol.isForeOperator(msg.sender)) {
             revert OnlyOperatorAllowed();
+        }
+
+        if(increaseValidationNum){
+            validationsSum[id]++;
         }
 
         _power[id] += powerDelta;

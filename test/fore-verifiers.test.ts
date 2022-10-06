@@ -83,9 +83,9 @@ describe("Fore NFT Verifiers token", () => {
         });
 
         it("Should revert while trying to increase power", async () => {
-            await expect(contract.increasePower(123, 10)).to.be.revertedWith(
-                "TokenNotExists()"
-            );
+            await expect(
+                contract.increasePower(123, 10, false)
+            ).to.be.revertedWith("TokenNotExists()");
         });
 
         it("Should revert while trying to decrease power", async () => {
@@ -170,7 +170,7 @@ describe("Fore NFT Verifiers token", () => {
                     async (account) => {
                         return contract
                             .connect(account)
-                            .mintWithPower(alice.address, 10);
+                            .mintWithPower(alice.address, 10, 0, 0);
                     },
                     foreProtocol.wallet,
                     "OnlyProtocolAllowed()"
@@ -185,7 +185,7 @@ describe("Fore NFT Verifiers token", () => {
                     [tx, recipt] = await txExec(
                         contract
                             .connect(foreProtocol.wallet)
-                            .mintWithPower(alice.address, 10)
+                            .mintWithPower(alice.address, 10, 0, 0)
                     );
                 });
 
@@ -216,7 +216,7 @@ describe("Fore NFT Verifiers token", () => {
                 await txExec(
                     contract
                         .connect(foreProtocol.wallet)
-                        .mintWithPower(alice.address, 10)
+                        .mintWithPower(alice.address, 10, 0,0)
                 );
             });
 
@@ -232,7 +232,7 @@ describe("Fore NFT Verifiers token", () => {
                         async (account) => {
                             return contract
                                 .connect(account)
-                                .increasePower(0, 10);
+                                .increasePower(0, 10, true);
                         },
                         market,
                         "OnlyOperatorAllowed()"
@@ -245,7 +245,7 @@ describe("Fore NFT Verifiers token", () => {
 
                     beforeEach(async () => {
                         [tx, recipt] = await txExec(
-                            contract.connect(market).increasePower(0, 10)
+                            contract.connect(market).increasePower(0, 10, false)
                         );
                     });
 
@@ -269,7 +269,9 @@ describe("Fore NFT Verifiers token", () => {
 
             describe("decreasing power by token owner (withdrawal)", () => {
                 beforeEach(async () => {
-                    await txExec(contract.connect(market).increasePower(0, 10));
+                    await txExec(
+                        contract.connect(market).increasePower(0, 10, false)
+                    );
                 });
 
                 it("Should be larger than 0", async () => {
@@ -407,7 +409,7 @@ describe("Fore NFT Verifiers token", () => {
                     await txExec(
                         contract
                             .connect(foreProtocol.wallet)
-                            .mintWithPower(operator.address, 10)
+                            .mintWithPower(operator.address, 10, 0, 0)
                     );
                 });
 

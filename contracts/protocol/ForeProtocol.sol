@@ -115,7 +115,20 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
     function mintVerifier(address receiver) external {
         uint256 mintPrice = config.verifierMintPrice();
         foreToken.transferFrom(msg.sender, address(foreVerifiers), mintPrice);
-        foreVerifiers.mintWithPower(receiver, mintPrice);
+        foreVerifiers.mintWithPower(receiver, mintPrice, 0, 0);
+    }
+
+    /// @notice Upgrades tier for NFT
+    /// @param id Token id ((ForeVerifier))
+    function upgradeTier(uint256 id) external {
+        uint256 actualTier = foreVerifiers.nftTier(id);
+        uint256 validations = foreVerifiers.validationsSum(id);
+        uint256 power = foreVerifiers.powerOf(id);
+        (uint256 validationsRequirement,) = config.getTier(actualTier+1);
+        address nftOwner = foreVerifiers.ownerOf(id);
+        require(validations >= validationsRequirement, "ForeProtocol: Cant upgrade");
+        foreVerifiers.burn(id);
+        foreVerifiers.mintWithPower(nftOwner, power, actualTier+1, validations);
     }
 
     /// @notice Buys additional power (ForeVerifier)
@@ -127,7 +140,7 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
             "ForeFactory: Buy limit reached"
         );
         foreToken.transferFrom(msg.sender, address(foreVerifiers), amount);
-        foreVerifiers.increasePower(id, amount);
+        foreVerifiers.increasePower(id, amount, false);
     }
 
     /// @notice Creates Market

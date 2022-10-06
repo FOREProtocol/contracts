@@ -66,6 +66,8 @@ library MarketLib {
         bool solved;
     }
 
+    uint256 constant DEVIDER = 10000;
+
     /// FUNCTIONS
     /// @dev Checks if one side of the market is fully verified
     /// @param m Market info
@@ -131,7 +133,7 @@ library MarketLib {
         uint256 fullMarketSize = m.sideA + m.sideB;
         uint256 _marketSubFee = fullMarketSize -
             (fullMarketSize * feesSum) /
-            10000;
+            DEVIDER;
         if (m.result == MarketLib.ResultType.DRAW) {
             toWithdraw = (_marketSubFee * (pA + pB)) / fullMarketSize;
         } else if (m.result == MarketLib.ResultType.AWON) {
@@ -458,9 +460,9 @@ library MarketLib {
         emit CloseMarket(m.result);
 
         uint256 fullMarketSize = m.sideA + m.sideB;
-        toBurn = (fullMarketSize * burnFee) / 10000;
-        uint256 toVerifiers = (fullMarketSize * verificationFee) / 10000;
-        toFoundation = (fullMarketSize * foundationFee) / 10000;
+        toBurn = (fullMarketSize * burnFee) / DEVIDER;
+        uint256 toVerifiers = (fullMarketSize * verificationFee) / DEVIDER;
+        toFoundation = (fullMarketSize * foundationFee) / DEVIDER;
         if (
             m.result ==  MarketLib.ResultType.INVALID || (m.result == MarketLib.ResultType.DRAW && m.verifiedA == 0 && m.verifiedB == 0)
         ){
@@ -573,7 +575,7 @@ library MarketLib {
         }
 
         uint256 verificatorsFees = ((m.sideA + m.sideB) * verificationFee) /
-            10000;
+            DEVIDER;
         if (v.side == (m.result == MarketLib.ResultType.AWON)) {
             // verifier voted properly
             uint256 reward = (v.power * verificatorsFees) /

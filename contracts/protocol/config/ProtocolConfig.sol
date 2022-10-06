@@ -13,6 +13,36 @@ contract ProtocolConfig is Ownable {
     event MarketCreationChanged(uint256 amount);
     event SetStatusForFactory(address indexed add, bool status);
 
+    struct Tier {
+        uint256 minVerifications;
+        uint256 multiplier; // 1x = 10000, 1,2x = 12000 etc
+    }
+    
+    /// @notice tiers
+    mapping(uint256 => Tier) internal _tiers;
+
+    /// @notice Returns tier info
+    function getTier(uint256 tierIndex) external view returns(uint256, uint256){
+        Tier memory t = _tiers[tierIndex];
+        return (t.minVerifications, t.multiplier);
+    }
+
+    /// @notice Returns tiers info
+    function getTiers() external view returns(Tier[] memory){
+        Tier[] memory tiers;
+        bool foundAll;
+        while(!foundAll){
+            Tier memory t = _tiers[tiers.length];
+            if(t.minVerifications > 0){
+                tiers[tiers.length] = t;
+            }
+            else{
+                foundAll=true;
+            }
+        }
+        return tiers;
+    }
+
     /// @notice Max fee (1 = 0.01%)
     uint256 public constant MAX_FEE = 500;
 
@@ -122,6 +152,34 @@ contract ProtocolConfig is Ownable {
 
         marketCreationPrice = marketCreationPriceP;
         verifierMintPrice = verifierMintPriceP;
+
+        _tiers[0] = Tier(0, 10000);
+        _tiers[1] = Tier(30, 11000);
+        _tiers[2] = Tier(75, 11750);
+        _tiers[3] = Tier(150, 12250);
+    }
+
+    /**
+     * @dev Edits tier
+     * @param tierIndex tier index
+     * @param minVerifications minimum verifications required
+     * @param multiplier multiplier
+     */
+    function editTier(uint256 tierIndex, uint256 minVerifications, uint256 multiplier) external onlyOwner{
+        if(tierIndex>0){
+            Tier memory prevTier = _tiers[tierIndex-1];
+            Tier memory nextTier = _tiers[tierIndex+1];
+            if(tierIndex == 0){
+                require(multiplier > 0, "ProtocolConfig: 1st tier multiplier musst bu greater than zero");
+            }
+            if(minVerifications == 0){
+                require(nextTier.minVerifications == 0, "ProtocolConfig: Cant disable non last element");
+            }
+            else{
+                require(prevTier.minVerifications < minVerifications, "ProtocolConfig: Sort error");
+            }
+        }
+        _tiers[tierIndex] = Tier(minVerifications, multiplier);
     }
 
     /**

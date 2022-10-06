@@ -146,12 +146,15 @@ contract BasicMarket
 
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
 
+        (,uint256 multiplier) = protocolConfig.getTier(foreVerifiers.nftTier(tokenId));
+        uint256 multipliedPower = foreVerifiers.powerOf(tokenId) * multiplier / 10000;
+
         MarketLib.verify(
             _market,
             verifications,
             msg.sender,
             verificationPeriod,
-            foreVerifiers.powerOf(tokenId),
+            multipliedPower,
             tokenId,
             side
         );
@@ -325,9 +328,10 @@ contract BasicMarket
                     v.verifier,
                     toVerifier
                 );
+                foreVerifiers.increaseValidation(v.tokenId);
             }
             else{
-                foreVerifiers.increasePower(v.tokenId, toVerifier);
+                foreVerifiers.increasePower(v.tokenId, toVerifier, true);
                 foreToken.transferFrom(
                     address(this),
                     address(foreVerifiers),

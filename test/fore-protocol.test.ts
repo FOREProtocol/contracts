@@ -194,6 +194,8 @@ describe("ForeProtocol", () => {
                 expect(foreVerifiers.mintWithPower.getCall(0).args).to.be.eql([
                     alice.address,
                     ethers.utils.parseEther("20"),
+                    ethers.utils.parseEther("0"),
+                    ethers.utils.parseEther("0"),
                 ]);
             });
 
@@ -267,6 +269,7 @@ describe("ForeProtocol", () => {
                 expect(foreVerifiers.increasePower.getCall(0).args).to.be.eql([
                     BigNumber.from(0),
                     ethers.utils.parseEther("80"),
+                    false
                 ]);
             });
 
