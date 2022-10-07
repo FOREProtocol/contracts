@@ -24,6 +24,13 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
         uint256 marketIdx
     );
 
+    event UpgradeTier(
+        uint256 indexed oldTokenId,
+        uint256 indexed newTokenId,
+        uint256 newTier,
+        uint256 verificationsNum
+    );
+
     /// @notice ForeToken
     IERC20Burnable public immutable foreToken;
 
@@ -122,13 +129,14 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
     /// @param id Token id ((ForeVerifier))
     function upgradeTier(uint256 id) external {
         uint256 actualTier = foreVerifiers.nftTier(id);
-        uint256 validations = foreVerifiers.validationsSum(id);
+        uint256 verificationsDone = foreVerifiers.verificationsSum(id);
         uint256 power = foreVerifiers.powerOf(id);
-        (uint256 validationsRequirement,) = config.getTier(actualTier+1);
+        (uint256 verificationsRequirement,) = config.getTier(actualTier+1);
         address nftOwner = foreVerifiers.ownerOf(id);
-        require(validations >= validationsRequirement, "ForeProtocol: Cant upgrade");
+        require(verificationsDone >= verificationsRequirement, "ForeProtocol: Cant upgrade");
         foreVerifiers.burn(id);
-        foreVerifiers.mintWithPower(nftOwner, power, actualTier+1, validations);
+        uint256 minted = foreVerifiers.mintWithPower(nftOwner, power, actualTier+1, verificationsDone);
+        emit UpgradeTier(id, minted, actualTier+1, verificationsDone);
     }
 
     /// @notice Buys additional power (ForeVerifier)

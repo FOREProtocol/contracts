@@ -10,7 +10,7 @@ library MarketLib {
         address indexed verifier,
         uint256 power,
         uint256 verificationId,
-        uint256 tokenId,
+        uint256 indexed tokenId,
         bool side
     );
     event WithdrawReward(

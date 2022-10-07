@@ -12,7 +12,7 @@ interface IForeVerifiers is IERC721{
 
     function increasePower(uint256 id, uint256 amount, bool increaseValidationNum) external;
 
-    function mintWithPower(address to, uint256 amount, uint256 tier, uint256 validationNum) external;
+    function mintWithPower(address to, uint256 amount, uint256 tier, uint256 validationNum) external returns(uint256 mintedId);
 
     function increaseValidation(uint256 id) external;
 
@@ -24,5 +24,5 @@ interface IForeVerifiers is IERC721{
 
     function nftTier(uint256 id) external view returns(uint256);
 
-    function validationsSum(uint256 id) external view returns(uint256);
+    function verificationsSum(uint256 id) external view returns(uint256);
 }

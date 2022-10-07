@@ -12,6 +12,7 @@ contract ProtocolConfig is Ownable {
     event VerifierMintPriceChanged(uint256 amount);
     event MarketCreationChanged(uint256 amount);
     event SetStatusForFactory(address indexed add, bool status);
+    event TierChanged(uint256 indexed tierIndex, uint256 newMinVerifications, uint256 newMultiplier);
 
     struct Tier {
         uint256 minVerifications;
@@ -20,28 +21,6 @@ contract ProtocolConfig is Ownable {
     
     /// @notice tiers
     mapping(uint256 => Tier) internal _tiers;
-
-    /// @notice Returns tier info
-    function getTier(uint256 tierIndex) external view returns(uint256, uint256){
-        Tier memory t = _tiers[tierIndex];
-        return (t.minVerifications, t.multiplier);
-    }
-
-    /// @notice Returns tiers info
-    function getTiers() external view returns(Tier[] memory){
-        Tier[] memory tiers;
-        bool foundAll;
-        while(!foundAll){
-            Tier memory t = _tiers[tiers.length];
-            if(t.minVerifications > 0){
-                tiers[tiers.length] = t;
-            }
-            else{
-                foundAll=true;
-            }
-        }
-        return tiers;
-    }
 
     /// @notice Max fee (1 = 0.01%)
     uint256 public constant MAX_FEE = 500;
@@ -107,6 +86,28 @@ contract ProtocolConfig is Ownable {
         )
     {
         return (foundationWallet, highGuard);
+    }
+
+        /// @notice Returns tier info
+    function getTier(uint256 tierIndex) external view returns(uint256, uint256){
+        Tier memory t = _tiers[tierIndex];
+        return (t.minVerifications, t.multiplier);
+    }
+
+    /// @notice Returns tiers info
+    function getTiers() external view returns(Tier[] memory){
+        Tier[] memory tiers;
+        bool foundAll;
+        while(!foundAll){
+            Tier memory t = _tiers[tiers.length];
+            if(t.minVerifications > 0){
+                tiers[tiers.length] = t;
+            }
+            else{
+                foundAll=true;
+            }
+        }
+        return tiers;
     }
 
     function setFactoryStatus(
@@ -180,6 +181,7 @@ contract ProtocolConfig is Ownable {
             }
         }
         _tiers[tierIndex] = Tier(minVerifications, multiplier);
+        emit TierChanged(tierIndex, minVerifications, multiplier);
     }
 
     /**

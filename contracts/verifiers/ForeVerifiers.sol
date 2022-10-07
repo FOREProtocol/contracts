@@ -47,8 +47,8 @@ contract ForeVerifiers is
     /// @notice Transfers may be restricted to operators
     bool internal _transfersAllowed;
 
-    /// @notice Number of validations for token
-    mapping(uint256 => uint256) public validationsSum;
+    /// @notice Number of verifications for token
+    mapping(uint256 => uint256) public verificationsSum;
 
     /// @notice Tier of token
     mapping(uint256 => uint256) public nftTier;
@@ -141,20 +141,22 @@ contract ForeVerifiers is
         uint256 tier,
         uint256 validationNum
     )
-        external
+        external returns(uint256)
     {
         if (address(protocol) != msg.sender) {
             revert OnlyProtocolAllowed();
         }
+        uint256 h = _height;
 
-        _power[_height] = power;
-        _initialPower[_height] = power;
-        validationsSum[_height] = validationNum;
-        nftTier[_height] = tier;
+        _power[h] = power;
+        _initialPower[h] = power;
+        verificationsSum[h] = validationNum;
+        nftTier[h] = tier;
 
-        _safeMint(to, _height);
+        _safeMint(to, h);
 
         _height++;
+        return(h);
     }
 
     function increaseValidation(uint256 id) external{
@@ -166,7 +168,7 @@ contract ForeVerifiers is
             revert OnlyOperatorAllowed();
         }
 
-        validationsSum[id]++;
+        verificationsSum[id]++;
     }
 
     /**
@@ -191,7 +193,7 @@ contract ForeVerifiers is
         }
 
         if(increaseValidationNum){
-            validationsSum[id]++;
+            verificationsSum[id]++;
         }
 
         _power[id] += powerDelta;
