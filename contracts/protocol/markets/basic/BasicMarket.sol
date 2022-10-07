@@ -146,8 +146,7 @@ contract BasicMarket
 
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
 
-        (,uint256 multiplier) = protocolConfig.getTier(foreVerifiers.nftTier(tokenId));
-        uint256 multipliedPower = foreVerifiers.powerOf(tokenId) * multiplier / 10000;
+        uint256 multipliedPower = foreVerifiers.miltipliedPowerOf(tokenId);
 
         MarketLib.verify(
             _market,
@@ -294,7 +293,7 @@ contract BasicMarket
     function calculateVerificationReward(uint256 verificationId) external view returns(uint256 toVerifier, uint256 toDisputeCreator, uint256 toHighGuard, bool vNftBurn){
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
-        uint256 power = foreVerifiers.powerOf(
+        uint256 power = foreVerifiers.multipliedPower(
             verifications[verificationId].tokenId
         );
         (toVerifier, toDisputeCreator, toHighGuard, vNftBurn) =  MarketLib.calculateVerificationReward(m, v, power, marketConfig.verificationFee());
@@ -306,7 +305,7 @@ contract BasicMarket
     function withdrawVerificationReward(uint256 verificationId, bool withdrawAsTokens) external {
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
-        uint256 power = foreVerifiers.powerOf(
+        uint256 multipliedPower = foreVerifiers.multipliedPower(
             verifications[verificationId].tokenId
         );
         (
@@ -317,7 +316,7 @@ contract BasicMarket
         ) = MarketLib.withdrawVerificationReward(
                 m,
                 v,
-                power,
+                multipliedPower,
                 marketConfig.verificationFee()
             );
         verifications[verificationId].withdrawn = true;
@@ -353,6 +352,9 @@ contract BasicMarket
         }
 
         if (vNftBurn) {
+            uint256 power = foreVerifiers.powerOf(
+            verifications[verificationId].tokenId
+            );
             foreToken.burnFrom(address(foreVerifiers), power - toDisputeCreator - toHighGuard);
             foreVerifiers.burn(v.tokenId);
         } else {

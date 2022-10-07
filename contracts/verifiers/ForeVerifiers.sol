@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "../protocol/config/IProtocolConfig.sol";
 
 contract ForeVerifiers is
     ERC721,
@@ -77,6 +78,14 @@ contract ForeVerifiers is
      */
     function powerOf(uint256 id) external view returns (uint256) {
         return _power[id];
+    }
+
+     /// @notice Returns multiplied power for foreVerifiers token
+     /// @param id Token id
+    function miltipliedPowerOf(uint256 id) public view returns (uint256) {
+        IProtocolConfig config = IProtocolConfig(protocol.config());
+        (,uint256 multiplier) = config.getTier(nftTier[id]);
+        return _power[id] * multiplier / 10000;
     }
 
     /**
