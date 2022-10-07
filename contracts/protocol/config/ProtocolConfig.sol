@@ -96,17 +96,23 @@ contract ProtocolConfig is Ownable {
 
     /// @notice Returns tiers info
     function getTiers() external view returns(Tier[] memory){
-        Tier[] memory tiers;
-        bool foundAll;
+        bool foundAll = false;
+        uint256 sum = 1;
         while(!foundAll){
-            Tier memory t = _tiers[tiers.length];
+            Tier memory t = _tiers[sum];
             if(t.minVerifications > 0){
-                tiers[tiers.length] = t;
+                sum++;
             }
             else{
                 foundAll=true;
             }
         }
+        Tier[] memory tiers = new Tier[](sum);
+        for(uint256 i=0;i<sum;i++){
+            Tier memory t = _tiers[i];
+            tiers[i] = t;
+        }
+
         return tiers;
     }
 
