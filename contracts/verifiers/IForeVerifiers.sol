@@ -26,5 +26,5 @@ interface IForeVerifiers is IERC721{
 
     function verificationsSum(uint256 id) external view returns(uint256);
 
-    function miltipliedPowerOf(uint256 id) public view returns (uint256);
+    function multipliedPowerOf(uint256 id) external view returns (uint256);
 }

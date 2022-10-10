@@ -146,7 +146,7 @@ contract BasicMarket
 
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
 
-        uint256 multipliedPower = foreVerifiers.miltipliedPowerOf(tokenId);
+        uint256 multipliedPower = foreVerifiers.multipliedPowerOf(tokenId);
 
         MarketLib.verify(
             _market,
@@ -293,7 +293,7 @@ contract BasicMarket
     function calculateVerificationReward(uint256 verificationId) external view returns(uint256 toVerifier, uint256 toDisputeCreator, uint256 toHighGuard, bool vNftBurn){
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
-        uint256 power = foreVerifiers.multipliedPower(
+        uint256 power = foreVerifiers.multipliedPowerOf(
             verifications[verificationId].tokenId
         );
         (toVerifier, toDisputeCreator, toHighGuard, vNftBurn) =  MarketLib.calculateVerificationReward(m, v, power, marketConfig.verificationFee());
@@ -305,7 +305,7 @@ contract BasicMarket
     function withdrawVerificationReward(uint256 verificationId, bool withdrawAsTokens) external {
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
-        uint256 multipliedPower = foreVerifiers.multipliedPower(
+        uint256 multipliedPower = foreVerifiers.multipliedPowerOf(
             verifications[verificationId].tokenId
         );
         (
