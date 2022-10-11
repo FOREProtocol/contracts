@@ -8,6 +8,7 @@ import {
     TokenPowerIncreasedEvent,
     TransferAllowanceChangedEvent,
 } from "@/ForeVerifiers";
+import { ProtocolConfig } from "@/ProtocolConfig";
 import { FakeContract, smock } from "@defi-wonderland/smock";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -31,11 +32,14 @@ describe("Fore NFT Verifiers token", () => {
     let contract: ForeVerifiers;
     let foreToken: FakeContract<ForeToken>;
     let foreProtocol: FakeContract<ForeProtocol>;
+    let config: FakeContract<ProtocolConfig>;
 
     beforeEach(async () => {
         [owner, alice, bob, market, operator] = await ethers.getSigners();
 
         contract = await deployContract<ForeVerifiers>("ForeVerifiers");
+
+        config = await smock.fake<ProtocolConfig>("ProtocolConfig");
 
         foreToken = await smock.fake<ForeToken>("ForeToken");
         foreToken.transfer.returns(true);
@@ -51,6 +55,8 @@ describe("Fore NFT Verifiers token", () => {
         foreProtocol.isForeOperator
             .whenCalledWith(market.address)
             .returns(true);
+        foreProtocol.config.returns(config.address);
+        config.getTierMultiplier.whenCalledWith(0).returns(10000);
 
         // add some eth to mocked contract
         await txExec(
@@ -203,6 +209,10 @@ describe("Fore NFT Verifiers token", () => {
 
                 it("Should have proper initial power", async () => {
                     expect(await contract.initialPowerOf(0)).to.be.equal(10);
+                });
+
+                it("Should have proper muliplied power", async () => {
+                    expect(await contract.multipliedPowerOf(0)).to.be.equal(10);
                 });
 
                 it("Should increase height", async () => {

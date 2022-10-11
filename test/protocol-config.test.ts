@@ -105,6 +105,13 @@ describe("Protocol configuration", () => {
             ).to.be.equal(false);
         });
 
+        it("Should return proper tier", async () => {
+            const ret = await contract.getTierMultiplier(0);
+            const expected = BigNumber.from(10000);
+            console.log(ret, expected);
+            expect(ret).to.be.equal(expected);
+        });
+
         describe("Market configuration", () => {
             let marketConfig: MarketConfig;
 

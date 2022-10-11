@@ -88,10 +88,16 @@ contract ProtocolConfig is Ownable {
         return (foundationWallet, highGuard);
     }
 
-        /// @notice Returns tier info
+    /// @notice Returns tier info
     function getTier(uint256 tierIndex) external view returns(uint256, uint256){
         Tier memory t = _tiers[tierIndex];
         return (t.minVerifications, t.multiplier);
+    }
+
+    /// @notice Returns tier multiplier
+    function getTierMultiplier(uint256 tierIndex) external view returns(uint256){
+        Tier memory t = _tiers[tierIndex];
+        return (t.multiplier);
     }
 
     /// @notice Returns tiers info

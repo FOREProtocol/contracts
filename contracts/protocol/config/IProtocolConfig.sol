@@ -19,6 +19,8 @@ interface IProtocolConfig {
 
     function getTier(uint256 tierIndex) external view returns(uint256, uint256);
 
+    function getTierMultiplier(uint256 tierIndex) external view returns(uint256);
+
     function renounceOwnership() external;
 
     function revenueWallet() external view returns (address);
