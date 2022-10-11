@@ -373,6 +373,10 @@ contract BasicMarket
             revert ("MarketIsNotClosedYet");
         }
 
+        if (m.result == MarketLib.ResultType.INVALID){
+            revert ("OnlyForValidMarkets");
+        }
+
         protocol.burn(tokenId);
 
         uint256 toWithdraw = ((m.sideA + m.sideB) *
