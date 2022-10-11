@@ -82,7 +82,7 @@ contract ForeVerifiers is
 
      /// @notice Returns multiplied power for foreVerifiers token
      /// @param id Token id
-    function miltipliedPowerOf(uint256 id) public view returns (uint256) {
+    function multipliedPowerOf(uint256 id) public view returns (uint256) {
         IProtocolConfig config = IProtocolConfig(protocol.config());
         (,uint256 multiplier) = config.getTier(nftTier[id]);
         return _power[id] * multiplier / 10000;
