@@ -6,10 +6,12 @@ import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-    const { deployments, getNamedAccounts } = hre;
+    const { deployments, getNamedAccounts, getChainId } = hre;
     const { deploy } = deployments;
 
     const { deployer } = await getNamedAccounts();
+
+    const chainId = await getChainId();
 
     const protocolConfig: Contract = await getDeployedContract(
         "ProtocolConfig"
@@ -17,7 +19,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     const deployment = await deploy("ForeProtocol", {
         from: deployer,
-        args: [protocolConfig.address],
+        args: [
+            protocolConfig.address,
+            chainId === "4002"
+                ? process.env.TESTNET_VERIFIERS_BASE_URI
+                : process.env.PRODUCTION_VERIFIERS_BASE_URI,
+        ],
         log: true,
     });
 

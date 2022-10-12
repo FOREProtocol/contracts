@@ -60,7 +60,8 @@ describe("BasicMarket / Prediciting", () => {
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
         foreVerifiers = await deployMockedContract<ForeVerifiers>(
-            "ForeVerifiers"
+            "ForeVerifiers",
+            "https://test.com/"
         );
 
         protocolConfig = await deployMockedContract<ProtocolConfig>(
@@ -77,7 +78,8 @@ describe("BasicMarket / Prediciting", () => {
         // preparing fore markets (factory)
         foreProtocol = await deployMockedContract<ForeProtocol>(
             "ForeProtocol",
-            protocolConfig.address
+            protocolConfig.address,
+            "https://markets.api.foreprotocol.io/market/"
         );
         foreProtocolAccount = await impersonateContract(foreProtocol.address);
 

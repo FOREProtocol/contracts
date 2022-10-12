@@ -54,10 +54,14 @@ contract ForeVerifiers is
     /// @notice Tier of token
     mapping(uint256 => uint256) public nftTier;
 
-    constructor()
-        ERC721("ForeNFT", "FORE")
-    {}
+    /// @dev base uri
+    string internal bUri;
 
+    constructor(string memory uriBase)
+        ERC721("ForeNFT", "FORE")
+    {
+        bUri = uriBase;
+    }
 
     /**
      * @notice Transfers may be restricted to operators
@@ -95,16 +99,13 @@ contract ForeVerifiers is
         return _initialPower[id];
     }
 
-    /**
-     * @inheritdoc ERC721
-     */
-    function _baseURI()
-        internal
-        pure
-        override
-        returns (string memory)
-    {
-        return "https://nft.api.foreprotocol.io/token/";
+    /// @notice Returns base uri
+    function _baseURI() internal view override returns (string memory) {
+        return bUri;
+    }
+
+    function editBaseUri(string memory newBaseUri) external onlyOwner{
+        bUri = newBaseUri;
     }
 
     /**

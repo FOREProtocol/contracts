@@ -14,12 +14,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     const foreToken: Contract = await getDeployedContract("ForeToken");
 
-    await deploy("ForeVerifiers", {
-        from: deployer,
-        args: [],
-        log: true,
-    });
-
     const deployment = await deploy("ForeNftMarketplace", {
         from: deployer,
         args: [

@@ -9,8 +9,9 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "../token/IERC20Burnable.sol";
 import "./IForeProtocol.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
+contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     using Strings for uint256;
 
     error MarketAlreadyExists();
@@ -49,16 +50,25 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable {
     /// @notice All markets array
     address[] public allMarkets;
 
+    /// @dev base uri
+    string internal bUri;
+
     /// @param cfg Protocol Config address
-    constructor(IProtocolConfig cfg) ERC721("Fore Markets", "MFORE") {
+    /// @param uriBase Base Uri
+    constructor(IProtocolConfig cfg, string memory uriBase) ERC721("Fore Markets", "MFORE") {
         config = cfg;
         foreToken = IERC20Burnable(cfg.foreToken());
         foreVerifiers = IForeVerifiers(cfg.foreVerifiers());
+        bUri = uriBase;
     }
 
     /// @notice Returns base uri
-    function _baseURI() internal pure override returns (string memory) {
-        return "https://markets.api.foreprotocol.io/market/";
+    function _baseURI() internal view override returns (string memory) {
+        return bUri;
+    }
+
+    function editBaseUri(string memory newBaseUri) external onlyOwner{
+        bUri = newBaseUri;
     }
 
     /// @notice Returns token uri for existing token

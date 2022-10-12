@@ -48,7 +48,8 @@ describe("ForeProtocol", () => {
 
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
         foreVerifiers = await deployMockedContract<ForeVerifiers>(
-            "ForeVerifiers"
+            "ForeVerifiers",
+            "https://markets.api.foreprotocol.io/verifiers/"
         );
 
         protocolConfig = await deployContract<ProtocolConfig>(
@@ -69,7 +70,8 @@ describe("ForeProtocol", () => {
 
         protocol = await deployContract<ForeProtocol>(
             "ForeProtocol",
-            protocolConfig.address
+            protocolConfig.address,
+            "https://markets.api.foreprotocol.io/market/"
         );
 
         contract = await deployContract<BasicFactory>(

@@ -78,7 +78,10 @@ describe("NFTMarketplace / NFT integration", () => {
         ownerdNfts = {};
 
         foreToken = await deployMockedContract("ForeToken");
-        nftToken = await deployMockedContract("ForeVerifiers");
+        nftToken = await deployMockedContract(
+            "ForeVerifiers",
+            "https://test.com"
+        );
 
         contract = await deployContract<ForeNftMarketplace>(
             "ForeNftMarketplace",
@@ -104,7 +107,8 @@ describe("NFTMarketplace / NFT integration", () => {
 
         foreProtocol = await deployMockedContract(
             "ForeProtocol",
-            protocolConfig.address
+            protocolConfig.address,
+            "https://test.com/"
         );
         foreProtocolAccount = await impersonateContract(foreProtocol.address);
 

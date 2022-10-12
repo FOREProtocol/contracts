@@ -37,7 +37,10 @@ describe("Fore NFT Verifiers token", () => {
     beforeEach(async () => {
         [owner, alice, bob, market, operator] = await ethers.getSigners();
 
-        contract = await deployContract<ForeVerifiers>("ForeVerifiers");
+        contract = await deployContract<ForeVerifiers>(
+            "ForeVerifiers",
+            "https://nft.api.foreprotocol.io/token/"
+        );
 
         config = await smock.fake<ProtocolConfig>("ProtocolConfig");
 
