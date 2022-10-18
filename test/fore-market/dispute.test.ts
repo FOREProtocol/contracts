@@ -183,71 +183,6 @@ describe("BasicMarket / Dispute", () => {
         });
     });
 
-    describe("after dispute period start", () => {
-        beforeEach(async () => {
-            await timetravel(blockTimestamp + 300000 + 1800 + 1);
-        });
-
-        it("Should fail without required amount of funds", async () => {
-            await expect(
-                contract
-                    .connect(dave)
-                    .openDispute(
-                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
-                    )
-            ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
-        });
-
-        describe("sucessfully", () => {
-            let tx: ContractTransaction;
-            let recipt: ContractReceipt;
-
-            beforeEach(async () => {
-                [tx, recipt] = await txExec(
-                    contract
-                        .connect(alice)
-                        .openDispute(
-                            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
-                        )
-                );
-            });
-
-            it("Should emit ERC20 Transfer event", async () => {
-                await expect(tx)
-                    .to.emit(foreToken, "Transfer")
-                    .withArgs(
-                        alice.address,
-                        contract.address,
-                        ethers.utils.parseEther("1000")
-                    );
-            });
-
-            it("Should emit OpenDispute event", async () => {
-                await expect(tx)
-                    .to.emit(
-                        { ...marketLib, address: contract.address },
-                        "OpenDispute"
-                    )
-                    .withArgs(alice.address);
-            });
-
-            it("Should update dispute state", async () => {
-                expect(await contract.marketInfo()).to.be.eql([
-                    ethers.utils.parseEther("50"), // side A
-                    ethers.utils.parseEther("50"), // side B
-                    ethers.utils.parseEther("0"), // verified A
-                    ethers.utils.parseEther("0"), // verified B
-                    alice.address, // dispute creator
-                    BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
-                    BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                    0, // result
-                    false, // confirmed
-                    false, // solved
-                ]);
-            });
-        });
-    });
-
     describe("after market verified (but before dispute period start)", () => {
         beforeEach(async () => {
             await timetravel(blockTimestamp + 300000 + 1);
@@ -256,6 +191,72 @@ describe("BasicMarket / Dispute", () => {
                 contract.connect(bob).verify(1, false),
                 contract.connect(carol).verify(2, false),
             ]);
+        });
+
+        describe("after dispute period start", () => {
+            beforeEach(async () => {
+                await contract.connect(bob)
+                await timetravel(blockTimestamp + 300000 + 1800 + 1);
+            });
+    
+            it("Should fail without required amount of funds", async () => {
+                await expect(
+                    contract
+                        .connect(dave)
+                        .openDispute(
+                            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                        )
+                ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
+            });
+    
+            describe("sucessfully", () => {
+                let tx: ContractTransaction;
+                let recipt: ContractReceipt;
+    
+                beforeEach(async () => {
+                    [tx, recipt] = await txExec(
+                        contract
+                            .connect(alice)
+                            .openDispute(
+                                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                            )
+                    );
+                });
+    
+                it("Should emit ERC20 Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            alice.address,
+                            contract.address,
+                            ethers.utils.parseEther("1000")
+                        );
+                });
+    
+                it("Should emit OpenDispute event", async () => {
+                    await expect(tx)
+                        .to.emit(
+                            { ...marketLib, address: contract.address },
+                            "OpenDispute"
+                        )
+                        .withArgs(alice.address);
+                });
+    
+                it("Should update dispute state", async () => {
+                    expect(await contract.marketInfo()).to.be.eql([
+                        ethers.utils.parseEther("50"), // side A
+                        ethers.utils.parseEther("50"), // side B
+                        ethers.utils.parseEther("0"), // verified A
+                        ethers.utils.parseEther("50"), // verified B
+                        alice.address, // dispute creator
+                        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+                        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+                        0, // result
+                        false, // confirmed
+                        false, // solved
+                    ]);
+                });
+            });
         });
 
         it("Should be able to open dispute", async () => {
@@ -269,19 +270,33 @@ describe("BasicMarket / Dispute", () => {
         });
     });
 
-    describe("after dispute period end", () => {
+    describe("after dispute period end with invalid market", () => {
+        let tx: ContractTransaction;
+        let recipt: ContractReceipt;
         beforeEach(async () => {
             await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
-        });
-
-        it("Should revert trying to verify", async () => {
-            await expect(
+            [tx, recipt] = await txExec(
                 contract
                     .connect(bob)
                     .openDispute(
                         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
                     )
-            ).to.revertedWith("DisputePeriodIsEnded");
+            );
+        });
+
+        it("Should close market with invalid status", async () => {
+            await expect(tx)
+                .to.emit(
+                    { ...marketLib, address: contract.address },
+                    "CloseMarket"
+                )
+                .withArgs(4);
+
+            // await contract
+            //     .connect(bob)
+            //     .openDispute(
+            //         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+            //     );
         });
     });
 
@@ -716,7 +731,7 @@ describe("BasicMarket / Dispute", () => {
                     .openDispute(
                         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
                     )
-            ).to.be.revertedWith("DisputePeriodIsEnded");
+            ).to.be.revertedWith("MarketIsClosed");
         });
     });
 });

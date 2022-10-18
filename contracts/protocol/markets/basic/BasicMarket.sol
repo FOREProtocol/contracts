@@ -136,7 +136,7 @@ contract BasicMarket
 
         MarketLib.Market memory m = _market;
 
-        if(m.sideA == 0 || m.sideB == 0){
+        if((m.sideA == 0 || m.sideB == 0 ) && m.endPredictionTimestamp < block.timestamp){
             _closeMarket(MarketLib.ResultType.INVALID);
             return;
         }
@@ -162,10 +162,6 @@ contract BasicMarket
     /// @notice Opens dispute
     function openDispute(bytes32 messageHash) external {
         MarketLib.Market memory m = _market;
-        if(m.sideA == 0 || m.sideB == 0){
-            _closeMarket(MarketLib.ResultType.INVALID);
-            return;
-        }
         (
             uint256 disputePrice,
             uint256 disputePeriod,
@@ -174,6 +170,10 @@ contract BasicMarket
             ,
             ,
         ) = marketConfig.config();
+        if(MarketLib.calculateMarketResult(m) == MarketLib.ResultType.INVALID && (m.startVerificationTimestamp + verificationPeriod < block.timestamp)){
+            _closeMarket(MarketLib.ResultType.INVALID);
+            return;
+        }
         foreToken.transferFrom(msg.sender, address(this), disputePrice);
         disputeMessage = messageHash;
         MarketLib.openDispute(
@@ -241,13 +241,13 @@ contract BasicMarket
     ///@notice Closes _market
     function closeMarket() external {
         MarketLib.Market memory m = _market;
-        if(m.sideA == 0 || m.sideB == 0){
+        (uint256 disputePeriod, uint256 verificationPeriod) = marketConfig
+            .periods();
+        bool isInvalid = MarketLib.beforeClosingCheck(m, verificationPeriod, disputePeriod);
+        if(isInvalid){
             _closeMarket(MarketLib.ResultType.INVALID);
             return;
         }
-        (uint256 disputePeriod, uint256 verificationPeriod) = marketConfig
-            .periods();
-        MarketLib.beforeClosingCheck(m, verificationPeriod, disputePeriod);
         _closeMarket(MarketLib.calculateMarketResult(m));
     }
 

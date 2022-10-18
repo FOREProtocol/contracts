@@ -162,7 +162,7 @@ library MarketLib {
         pure
         returns (ResultType)
     {
-        if(m.sideA == 0 || m.sideB == 0){
+        if(m.sideA == 0 || m.sideB == 0 || (m.verifiedA == 0 && m.verifiedB == 0)){
             return ResultType.INVALID;
         } else if (m.verifiedA == m.verifiedB) {
             return ResultType.DRAW;
@@ -372,6 +372,10 @@ library MarketLib {
             revert ("DisputePeriodIsNotStartedYet");
         }
 
+        if (m.result == ResultType.INVALID){
+            revert ("MarketClosedWithInvalidStatus");
+        }
+
         if (
             block.timestamp >=
             m.startVerificationTimestamp + verificationPeriod + disputePeriod
@@ -464,7 +468,7 @@ library MarketLib {
         uint256 toVerifiers = (fullMarketSize * verificationFee) / DIVIDER;
         toFoundation = (fullMarketSize * foundationFee) / DIVIDER;
         if (
-            m.result ==  MarketLib.ResultType.INVALID || (m.result == MarketLib.ResultType.DRAW && m.verifiedA == 0 && m.verifiedB == 0)
+            m.result ==  MarketLib.ResultType.INVALID
         ){
             return(0, 0, 0, 0, m.disputeCreator);
         }
@@ -488,11 +492,22 @@ library MarketLib {
     /// @param m Market info
     /// @param verificationPeriod Verification Period
     /// @param disputePeriod Dispute Period
+    /// @return Is invalid market
     function beforeClosingCheck(
         Market memory m,
         uint256 verificationPeriod,
         uint256 disputePeriod
-    ) external view {
+    ) external view returns(bool){
+        if((m.sideA == 0 || m.sideB == 0) && block.timestamp > m.endPredictionTimestamp){
+            return true;
+        }
+
+        uint256 verificationPeriodEnds = m.startVerificationTimestamp +
+            verificationPeriod;
+        if(block.timestamp > verificationPeriodEnds && m.verifiedA == 0 && m.verifiedB == 0){
+            return true;
+        }
+
         if (m.disputeCreator != address(0)) {
             revert ("DisputeNotSolvedYet");
         }
@@ -503,6 +518,8 @@ library MarketLib {
         if (block.timestamp < disputePeriodEnds) {
             revert ("DisputePeriodIsNotEndedYet");
         }
+
+        return false;
     }
 
     /// @notice Withdraws Prediction Reward
