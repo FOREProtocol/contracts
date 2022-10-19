@@ -409,6 +409,9 @@ library MarketLib {
         if (result == MarketLib.ResultType.NULL) {
             revert ("ResultCantBeNull");
         }
+        if (result == MarketLib.ResultType.NULL) {
+            revert ("ResultCantBeInvalid");
+        }
         MarketLib.Market memory m = market;
         if (m.disputeCreator == address(0)) {
             revert ("DisputePeriodIsNotStartedYet");
@@ -485,6 +488,10 @@ library MarketLib {
             toHighGuard = toVerifiers / 2;
             toDisputeCreator = toVerifiers - toHighGuard;
             disputeCreator = m.disputeCreator;
+        }
+        else if(m.result == MarketLib.ResultType.DRAW && m.disputeCreator == address(0)){
+            // draw with no dispute
+            toBurn += toVerifiers;
         }
     }
 
