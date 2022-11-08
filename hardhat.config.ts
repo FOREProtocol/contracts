@@ -129,6 +129,18 @@ const config: HardhatUserConfig = {
             saveDeployments: true,
             deploy: ["deploy/fantom/"],
         },
+        polygonTestnet: {
+            url: process.env.POLYGON_TESTNET_URL || "",
+            chainId: 80001,
+            accounts: {
+                mnemonic:
+                    process.env.MNEMONIC_TESTNET !== undefined
+                        ? process.env.MNEMONIC_TESTNET
+                        : "",
+            },
+            saveDeployments: true,
+            deploy: ["deploy/polygon_testnet/"],
+        },
     },
     gasReporter: {
         enabled: process.env.REPORT_GAS !== undefined,
