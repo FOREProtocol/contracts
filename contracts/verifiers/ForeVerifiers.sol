@@ -10,12 +10,7 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "../protocol/config/IProtocolConfig.sol";
 
-contract ForeVerifiers is
-    ERC721,
-    ERC721Enumerable,
-    ERC721Burnable,
-    Ownable
-{
+contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     using Strings for uint256;
 
     error ProtocolAlreadySet();
@@ -31,7 +26,6 @@ contract ForeVerifiers is
     event TransferAllowanceChanged(bool status);
     event TokenPowerIncreased(uint id, uint powerDelta, uint newPower);
     event TokenPowerDecreased(uint id, uint powerDelta, uint newPower);
-
 
     /// @notice Markets factory contract
     IForeProtocol public protocol;
@@ -57,9 +51,7 @@ contract ForeVerifiers is
     /// @dev base uri
     string internal bUri;
 
-    constructor(string memory uriBase)
-        ERC721("ForeNFT", "FORE")
-    {
+    constructor(string memory uriBase) ERC721("ForeNFT", "FORE") {
         bUri = uriBase;
     }
 
@@ -84,8 +76,8 @@ contract ForeVerifiers is
         return _power[id];
     }
 
-     /// @notice Returns multiplied power for foreVerifiers token
-     /// @param id Token id
+    /// @notice Returns multiplied power for foreVerifiers token
+    /// @param id Token id
     function multipliedPowerOf(uint256 id) external view returns (uint256) {
         IProtocolConfig config = IProtocolConfig(protocol.config());
         uint256 multiplier = config.getTierMultiplier(nftTier[id]);
@@ -104,7 +96,7 @@ contract ForeVerifiers is
         return bUri;
     }
 
-    function editBaseUri(string memory newBaseUri) external onlyOwner{
+    function editBaseUri(string memory newBaseUri) external onlyOwner {
         bUri = newBaseUri;
     }
 
@@ -112,10 +104,7 @@ contract ForeVerifiers is
      * @notice Changes factory contract
      * @param addr New contract
      */
-    function setProtocol(IForeProtocol addr)
-        external
-        onlyOwner
-    {
+    function setProtocol(IForeProtocol addr) external onlyOwner {
         if (address(protocol) != address(0)) {
             revert ProtocolAlreadySet();
         }
@@ -129,10 +118,7 @@ contract ForeVerifiers is
      * @notice Changes transferability feature
      * @param status Status
      */
-    function setTransferAllowance(bool status)
-        external
-        onlyOwner
-    {
+    function setTransferAllowance(bool status) external onlyOwner {
         _transfersAllowed = status;
 
         emit TransferAllowanceChanged(status);
@@ -150,9 +136,7 @@ contract ForeVerifiers is
         uint256 power,
         uint256 tier,
         uint256 validationNum
-    )
-        external returns(uint256)
-    {
+    ) external returns (uint256) {
         if (address(protocol) != msg.sender) {
             revert OnlyProtocolAllowed();
         }
@@ -166,10 +150,10 @@ contract ForeVerifiers is
         _safeMint(to, h);
 
         _height++;
-        return(h);
+        return (h);
     }
 
-    function increaseValidation(uint256 id) external{
+    function increaseValidation(uint256 id) external {
         if (!_exists(id)) {
             revert TokenNotExists();
         }
@@ -185,15 +169,13 @@ contract ForeVerifiers is
      * @notice Increase token power
      * @param id Token Id
      * @param powerDelta Power delta
-    *  @param increaseValidationNum Increases validation num for token
+     *  @param increaseValidationNum Increases validation num for token
      */
     function increasePower(
         uint256 id,
         uint256 powerDelta,
         bool increaseValidationNum
-    )
-        external
-    {
+    ) external {
         if (!_exists(id)) {
             revert TokenNotExists();
         }
@@ -202,7 +184,7 @@ contract ForeVerifiers is
             revert OnlyOperatorAllowed();
         }
 
-        if(increaseValidationNum){
+        if (increaseValidationNum) {
             verificationsSum[id]++;
         }
 
@@ -216,12 +198,7 @@ contract ForeVerifiers is
      * @param id Token Id
      * @param powerDelta Power delta
      */
-    function decreasePower(
-        uint256 id,
-        uint256 powerDelta
-    )
-        external
-    {
+    function decreasePower(uint256 id, uint256 powerDelta) external {
         if (!_exists(id)) {
             revert TokenNotExists();
         }
@@ -237,14 +214,12 @@ contract ForeVerifiers is
         if (protocol.isForeMarket(msg.sender)) {
             // market can ultimately reduce power
             maxAmount = currentPower;
-        }
-        else if (ownerOf(id) == msg.sender) {
+        } else if (ownerOf(id) == msg.sender) {
             // user can withdraw only value larger than initial power
             maxAmount = currentPower > _initialPower[id]
                 ? currentPower - _initialPower[id]
                 : 0;
-        }
-        else {
+        } else {
             // different user can't withdraw
             revert NotAuthorized();
         }
@@ -266,19 +241,18 @@ contract ForeVerifiers is
         emit TokenPowerDecreased(id, powerDelta, _power[id]);
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId)
-        internal
-        override(ERC721, ERC721Enumerable)
-    {
-        super._beforeTokenTransfer(from, to, tokenId);
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId,
+        uint256 batchSize
+    ) internal override(ERC721, ERC721Enumerable) {
+        super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721, ERC721Enumerable)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC721, ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
@@ -286,12 +260,10 @@ contract ForeVerifiers is
      * @inheritdoc ERC721
      * @dev It is always allowed for Fore operator
      */
-    function isApprovedForAll(address owner, address operator)
-        public
-        view
-        override(ERC721)
-        returns (bool)
-    {
+    function isApprovedForAll(
+        address owner,
+        address operator
+    ) public view override(ERC721) returns (bool) {
         if (protocol.isForeOperator(operator)) {
             return true;
         }
@@ -310,8 +282,7 @@ contract ForeVerifiers is
     ) internal override {
         if (!_transfersAllowed) {
             if (
-                !protocol.isForeOperator(to)
-                && !protocol.isForeOperator(from)
+                !protocol.isForeOperator(to) && !protocol.isForeOperator(from)
             ) {
                 revert TransferAllowedOnlyForOperator();
             }
@@ -327,5 +298,4 @@ contract ForeVerifiers is
         _power[tokenId] = 0;
         super._burn(tokenId);
     }
-
 }

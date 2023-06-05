@@ -55,7 +55,10 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
 
     /// @param cfg Protocol Config address
     /// @param uriBase Base Uri
-    constructor(IProtocolConfig cfg, string memory uriBase) ERC721("Fore Markets", "MFORE") {
+    constructor(
+        IProtocolConfig cfg,
+        string memory uriBase
+    ) ERC721("Fore Markets", "MFORE") {
         config = cfg;
         foreToken = IERC20Burnable(cfg.foreToken());
         foreVerifiers = IForeVerifiers(cfg.foreVerifiers());
@@ -67,18 +70,14 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         return bUri;
     }
 
-    function editBaseUri(string memory newBaseUri) external onlyOwner{
+    function editBaseUri(string memory newBaseUri) external onlyOwner {
         bUri = newBaseUri;
     }
 
     /// @notice Returns token uri for existing token
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        virtual
-        override
-        returns (string memory)
-    {
+    function tokenURI(
+        uint256 tokenId
+    ) public view virtual override returns (string memory) {
         require(tokenId < allMarkets.length, "Non minted token");
         return string(abi.encodePacked(_baseURI(), tokenId.toString()));
     }
@@ -93,29 +92,26 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
                 addr == config.marketplace()));
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId)
-        internal
-        override(ERC721, ERC721Enumerable)
-    {
-        super._beforeTokenTransfer(from, to, tokenId);
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId,
+        uint256 batchSize
+    ) internal override(ERC721, ERC721Enumerable) {
+        super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721, ERC721Enumerable)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC721, ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
     /// @dev Allow tokens to be used by market contracts
-    function isApprovedForAll(address owner, address operator)
-        public
-        view
-        override(ERC721)
-        returns (bool)
-    {
+    function isApprovedForAll(
+        address owner,
+        address operator
+    ) public view override(ERC721) returns (bool) {
         if (isForeMarket[operator]) {
             return true;
         }
@@ -141,12 +137,20 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         uint256 actualTier = foreVerifiers.nftTier(id);
         uint256 verificationsDone = foreVerifiers.verificationsSum(id);
         uint256 power = foreVerifiers.powerOf(id);
-        (uint256 verificationsRequirement,) = config.getTier(actualTier+1);
+        (uint256 verificationsRequirement, ) = config.getTier(actualTier + 1);
         address nftOwner = foreVerifiers.ownerOf(id);
-        require(verificationsDone >= verificationsRequirement, "ForeProtocol: Cant upgrade");
+        require(
+            verificationsDone >= verificationsRequirement,
+            "ForeProtocol: Cant upgrade"
+        );
         foreVerifiers.burn(id);
-        uint256 minted = foreVerifiers.mintWithPower(nftOwner, power, actualTier+1, verificationsDone);
-        emit UpgradeTier(id, minted, actualTier+1, verificationsDone);
+        uint256 minted = foreVerifiers.mintWithPower(
+            nftOwner,
+            power,
+            actualTier + 1,
+            verificationsDone
+        );
+        emit UpgradeTier(id, minted, actualTier + 1, verificationsDone);
     }
 
     /// @notice Buys additional power (ForeVerifier)
@@ -171,12 +175,12 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         address creator,
         address receiver,
         address marketAddress
-    ) external returns(uint256 marketId){
+    ) external returns (uint256 marketId) {
         if (market[marketHash] != address(0)) {
             revert MarketAlreadyExists();
         }
 
-        if (!config.isFactoryWhitelisted(msg.sender)){
+        if (!config.isFactoryWhitelisted(msg.sender)) {
             revert FactoryIsNotWhitelisted();
         }
 
@@ -196,6 +200,6 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
 
         allMarkets.push(marketAddress);
 
-        return(marketIdx);
+        return (marketIdx);
     }
 }
