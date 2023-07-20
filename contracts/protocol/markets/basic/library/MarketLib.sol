@@ -399,7 +399,7 @@ library MarketLib {
     /// @return receiverAddress Address receives dispute creration tokens
     function resolveDispute(
         Market storage market,
-        MarketLib. result,
+        MarketLib.ResultType result,
         address highGuard,
         address requester
     ) external returns (address receiverAddress) {
