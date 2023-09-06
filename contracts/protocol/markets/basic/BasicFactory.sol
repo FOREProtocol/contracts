@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.20;
 
 import "./BasicMarket.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 
-contract BasicFactory{
+contract BasicFactory {
+    using SafeERC20 for IERC20Burnable;
 
     /// @notice Init creatin code
     /// @dev Needed to calculate market address
@@ -13,7 +15,7 @@ contract BasicFactory{
         keccak256(abi.encodePacked(type(BasicMarket).creationCode));
 
     /// @notice Protocol Contract
-    IForeProtocol public foreProtocol;
+    IForeProtocol public immutable foreProtocol;
 
     /// @notice ForeToken
     IERC20Burnable public immutable foreToken;
@@ -25,7 +27,7 @@ contract BasicFactory{
     IForeVerifiers public immutable foreVerifiers;
 
     /// @param protocolAddress Protocol Contract address
-    constructor(IForeProtocol protocolAddress){
+    constructor(IForeProtocol protocolAddress) {
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
         foreToken = IERC20Burnable(protocolAddress.foreToken());
@@ -52,9 +54,7 @@ contract BasicFactory{
             revert("BasicFactory: Date error");
         }
 
-        BasicMarket createdMarketContract = new BasicMarket{
-            salt: marketHash
-        }();
+        BasicMarket createdMarketContract = new BasicMarket{salt: marketHash}();
 
         createdMarket = address(createdMarketContract);
 
@@ -65,7 +65,7 @@ contract BasicFactory{
 
         uint256 amountSum = amountA + amountB;
         if (amountSum != 0) {
-            foreToken.transferFrom(msg.sender, createdMarket, amountSum);
+            foreToken.safeTransferFrom(msg.sender, createdMarket, amountSum);
         }
 
         uint256 marketIdx = foreProtocol.createMarket(

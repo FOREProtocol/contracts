@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.20;
 
 interface IMarketConfig {
     function burnFee() external view returns (uint256);
@@ -7,33 +7,11 @@ interface IMarketConfig {
     function config()
         external
         view
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256
-    );
+        returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256);
 
-    function fees()
-        external
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256
-    );
+    function fees() external view returns (uint256, uint256, uint256, uint256);
 
-    function periods()
-        external
-        view
-        returns (
-            uint256,
-            uint256
-    );
+    function periods() external view returns (uint256, uint256);
 
     function disputePeriod() external view returns (uint256);
 

@@ -86,7 +86,6 @@ describe("ForeMarket / Management", () => {
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setProtocol(foreProtocol.address));
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         // deployment of market using factory account

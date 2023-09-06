@@ -1,32 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract ForeVesting is
-    Ownable
-{
-
+contract ForeVesting is Ownable {
     error ArrayLengthsMismatch(uint256 length);
     error InsufficientBalanceOrAllowance(uint256 required);
     error VestingNotFound();
     error VestingNotStartedYet();
 
-
     struct Vesting {
         /// @notice Total vesting amount (includes activation amount)
         uint256 vestingAmount;
-
         /// @notice Alread vested amount
         uint256 claimedAmount;
-
         /// @notice Activation amount - released fully after vesting start time
         uint256 activationAmount;
-
         /// @notice Vesting beginning time
         uint64 timestampStart;
-
         /// @notice Vesting ending time
         uint64 timestampEnd;
     }
@@ -40,7 +32,6 @@ contract ForeVesting is
 
     /// @notice Number of vestings for each account
     mapping(address => uint256) internal _slotsOf;
-
 
     constructor(IERC20 _tokenContractAddress) {
         _token = _tokenContractAddress;
@@ -59,11 +50,10 @@ contract ForeVesting is
      * @param _address Account
      * @param _slot Slot index
      */
-    function vestingInfo(address _address, uint256 _slot)
-        external
-        view
-        returns (Vesting memory)
-    {
+    function vestingInfo(
+        address _address,
+        uint256 _slot
+    ) external view returns (Vesting memory) {
         return _vesting[_address][_slot];
     }
 
@@ -71,11 +61,9 @@ contract ForeVesting is
      * @dev Internal function.
      * Calculates vested amount available to claim (at the moment of execution)
      */
-    function _vestedAmount(Vesting memory vesting)
-        internal
-        view
-        returns (uint256)
-    {
+    function _vestedAmount(
+        Vesting memory vesting
+    ) internal view returns (uint256) {
         if (vesting.vestingAmount == 0) {
             return 0;
         }
@@ -88,12 +76,15 @@ contract ForeVesting is
             return vesting.vestingAmount;
         }
 
-        uint256 vestingAmount = vesting.vestingAmount - vesting.activationAmount;
+        uint256 vestingAmount = vesting.vestingAmount -
+            vesting.activationAmount;
         uint256 vestingPeriod = vesting.timestampEnd - vesting.timestampStart;
 
-        uint256 timeSinceVestingStart = uint64(block.timestamp) - vesting.timestampStart;
+        uint256 timeSinceVestingStart = uint64(block.timestamp) -
+            vesting.timestampStart;
 
-        uint256 vestedAmount = vestingAmount * timeSinceVestingStart / vestingPeriod;
+        uint256 vestedAmount = (vestingAmount * timeSinceVestingStart) /
+            vestingPeriod;
         return vestedAmount + vesting.activationAmount;
     }
 
@@ -105,11 +96,7 @@ contract ForeVesting is
     function available(
         address _address,
         uint256 _slot
-    )
-        public
-        view
-        returns (uint256)
-    {
+    ) public view returns (uint256) {
         Vesting memory vesting = _vesting[_address][_slot];
         return _vestedAmount(vesting) - vesting.claimedAmount;
     }
@@ -131,16 +118,13 @@ contract ForeVesting is
         uint64[] memory _timestampStart,
         uint64[] memory _timestampEnd,
         uint256[] memory _initialUnlock
-    )
-        external
-        onlyOwner
-    {
+    ) external onlyOwner {
         uint256 len = _addresses.length;
         if (
-            len != _amounts.length
-            || len != _timestampStart.length
-            || len != _timestampEnd.length
-            || len != _initialUnlock.length
+            len != _amounts.length ||
+            len != _timestampStart.length ||
+            len != _timestampEnd.length ||
+            len != _initialUnlock.length
         ) {
             revert ArrayLengthsMismatch(len);
         }
@@ -166,8 +150,8 @@ contract ForeVesting is
         }
 
         if (
-            _token.balanceOf(msg.sender) < tokensSum
-            || _token.allowance(msg.sender, address(this)) < tokensSum
+            _token.balanceOf(msg.sender) < tokensSum ||
+            _token.allowance(msg.sender, address(this)) < tokensSum
         ) {
             revert InsufficientBalanceOrAllowance(tokensSum);
         }
@@ -179,8 +163,7 @@ contract ForeVesting is
      * @notice Withdraws available amount
      * @param _slot Vesting slot
      */
-    function withdraw(uint256 _slot) external
-    {
+    function withdraw(uint256 _slot) external {
         Vesting storage vesting = _vesting[msg.sender][_slot];
 
         if (vesting.vestingAmount == 0) {
@@ -197,5 +180,4 @@ contract ForeVesting is
         // withdraw all available funds
         _token.transfer(msg.sender, toWithdraw);
     }
-
 }

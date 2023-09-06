@@ -98,7 +98,6 @@ describe("BasicMarket / Closing", () => {
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setProtocol(foreProtocol.address));
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         await txExec(
@@ -116,6 +115,15 @@ describe("BasicMarket / Closing", () => {
 
         const previousBlock = await ethers.provider.getBlock("latest");
         blockTimestamp = previousBlock.timestamp;
+
+        await txExec(
+            foreToken
+                .connect(alice)
+                .approve(
+                    basicFactory.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
 
         // creating market
         const marketHash =
@@ -144,9 +152,41 @@ describe("BasicMarket / Closing", () => {
         );
 
         contract = await attachContract<BasicMarket>("BasicMarket", newAddress);
+        await executeInSingleBlock(() => [
+            foreToken
+                .connect(alice)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(bob)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(carol)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(dave)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+        ]);
 
         // create verifiers tokens
         await executeInSingleBlock(() => [
+            foreToken
+                .connect(owner)
+                .approve(
+                    foreProtocol.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
             foreProtocol.connect(owner).mintVerifier(alice.address),
             foreProtocol.connect(owner).mintVerifier(bob.address),
             foreProtocol.connect(owner).mintVerifier(carol.address),
@@ -171,7 +211,7 @@ describe("BasicMarket / Closing", () => {
                 contract.connect(bob).verify(1, true),
             ]);
 
-            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
         });
 
         // full market size: 100 FORE
@@ -244,9 +284,8 @@ describe("BasicMarket / Closing", () => {
                 contract.connect(alice).verify(0, false),
                 contract.connect(bob).verify(1, false),
                 contract.connect(carol).verify(2, false),
-                contract.connect(dave).verify(3, false),
             ]);
-            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
         });
 
         describe("successfully", () => {
@@ -273,7 +312,7 @@ describe("BasicMarket / Closing", () => {
                     ethers.utils.parseEther("70"), // side A
                     ethers.utils.parseEther("30"), // side B
                     ethers.utils.parseEther("0"), // verified A
-                    ethers.utils.parseEther("70"), // verified B
+                    ethers.utils.parseEther("60"), // verified B
                     ethers.constants.AddressZero, // dispute creator
                     BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                     BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
@@ -293,12 +332,12 @@ describe("BasicMarket / Closing", () => {
                 contract.connect(alice).verify(0, true),
                 contract.connect(bob).verify(1, false),
             ]);
-            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
         });
 
         // full market size: 100 FORE
         // to burn (1%) = 1 FORE
-        // burn and ver (1% + 1.5%) / 2 = 1.25 FORE
+        // burn and ver (1% + 2%) = 3 FORE
         // fundation (1%) = 1 FORE
 
         describe("successfully", () => {
@@ -327,7 +366,7 @@ describe("BasicMarket / Closing", () => {
                     .withArgs(
                         contract.address,
                         "0x0000000000000000000000000000000000000000",
-                        ethers.utils.parseEther("1")
+                        ethers.utils.parseEther("3")
                     );
             });
 
@@ -359,7 +398,7 @@ describe("BasicMarket / Closing", () => {
 
     describe("with closed market", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
             await txExec(contract.connect(bob).closeMarket());
         });
 

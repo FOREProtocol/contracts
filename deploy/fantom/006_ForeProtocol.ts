@@ -35,7 +35,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
             "ForeVerifiers"
         );
 
-        await foreToken.setProtocol(deployment.address);
         await foreVerifiers.setProtocol(deployment.address);
     }
 };

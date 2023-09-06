@@ -101,7 +101,6 @@ describe("BasicMarket / Verification", () => {
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setProtocol(foreProtocol.address));
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         await txExec(
@@ -128,12 +127,20 @@ describe("BasicMarket / Verification", () => {
                     ethers.utils.parseEther("1000"),
                     ethers.utils.parseEther("1000"),
                     ethers.utils.parseEther("1000"),
-                    1800,
-                    1800,
+                    43200,
+                    43200,
                     100,
                     100,
                     50,
                     150
+                )
+        );
+        await txExec(
+            foreToken
+                .connect(alice)
+                .approve(
+                    basicFactory.address,
+                    ethers.utils.parseUnits("1000", "ether")
                 )
         );
 
@@ -164,8 +171,41 @@ describe("BasicMarket / Verification", () => {
 
         contract = await attachContract<BasicMarket>("BasicMarket", newAddress);
 
+        await executeInSingleBlock(() => [
+            foreToken
+                .connect(alice)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(bob)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(carol)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(dave)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+        ]);
+
         // create verifiers tokens
         await executeInSingleBlock(() => [
+            foreToken
+                .connect(owner)
+                .approve(
+                    foreProtocol.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
             foreProtocol.connect(owner).mintVerifier(alice.address),
             foreProtocol.connect(owner).mintVerifier(bob.address),
             foreProtocol.connect(owner).mintVerifier(carol.address),
@@ -336,7 +376,7 @@ describe("BasicMarket / Verification", () => {
 
     describe("after verification period end", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 300000 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 43200 + 1);
         });
 
         it("Should revert trying to verify", async () => {

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.20;
 
 import "./IMarketConfig.sol";
 
-contract MarketConfig is IMarketConfig{
-
+contract MarketConfig is IMarketConfig {
     /// @notice Opening dispute price (FORE)
     /// @dev Used in order to disincentive spam
     uint256 public immutable override disputePrice;
@@ -48,21 +47,9 @@ contract MarketConfig is IMarketConfig{
     /**
      * @notice Returns all period values
      */
-    function periods()
-        external
-        view
-        override
-        returns (
-            uint256,
-            uint256
-        )
-    {
-        return (
-            disputePeriod,
-            verificationPeriod
-        );
+    function periods() external view override returns (uint256, uint256) {
+        return (disputePeriod, verificationPeriod);
     }
-
 
     /**
      * @notice Returns all config values
@@ -71,19 +58,9 @@ contract MarketConfig is IMarketConfig{
         external
         view
         override
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256
-        )
+        returns (uint256, uint256, uint256, uint256)
     {
-        return (
-            burnFee,
-            foundationFee,
-            marketCreatorFee,
-            verificationFee
-        );
+        return (burnFee, foundationFee, marketCreatorFee, verificationFee);
     }
 
     /**
@@ -93,15 +70,7 @@ contract MarketConfig is IMarketConfig{
         external
         view
         override
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256
-        )
+        returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256)
     {
         return (
             disputePrice,
@@ -117,10 +86,7 @@ contract MarketConfig is IMarketConfig{
     /**
      * @notice Returns sum of all fees (1 = 0.01%)
      */
-    function feesSum() external override view returns(uint256){
-        return burnFee
-            + foundationFee
-            + marketCreatorFee
-            + verificationFee;
+    function feesSum() external view override returns (uint256) {
+        return burnFee + foundationFee + marketCreatorFee + verificationFee;
     }
 }

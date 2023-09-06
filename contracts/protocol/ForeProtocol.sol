@@ -1,21 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.20;
 
 import "../verifiers/IForeVerifiers.sol";
 import "./config/IProtocolConfig.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "../token/IERC20Burnable.sol";
-import "./IForeProtocol.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     using Strings for uint256;
+    using SafeERC20 for IERC20Burnable;
 
     error MarketAlreadyExists();
     error FactoryIsNotWhitelisted();
+
+    event BaseURI(string value);
 
     event MarketCreated(
         address indexed factory,
@@ -63,6 +66,7 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         foreToken = IERC20Burnable(cfg.foreToken());
         foreVerifiers = IForeVerifiers(cfg.foreVerifiers());
         bUri = uriBase;
+        emit BaseURI(uriBase);
     }
 
     /// @notice Returns base uri
@@ -72,6 +76,7 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
 
     function editBaseUri(string memory newBaseUri) external onlyOwner {
         bUri = newBaseUri;
+        emit BaseURI(newBaseUri);
     }
 
     /// @notice Returns token uri for existing token
@@ -111,7 +116,7 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     function isApprovedForAll(
         address owner,
         address operator
-    ) public view override(ERC721) returns (bool) {
+    ) public view override(ERC721, IERC721) returns (bool) {
         if (isForeMarket[operator]) {
             return true;
         }
@@ -127,7 +132,11 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     /// @param receiver receiver address
     function mintVerifier(address receiver) external {
         uint256 mintPrice = config.verifierMintPrice();
-        foreToken.transferFrom(msg.sender, address(foreVerifiers), mintPrice);
+        foreToken.safeTransferFrom(
+            msg.sender,
+            address(foreVerifiers),
+            mintPrice
+        );
         foreVerifiers.mintWithPower(receiver, mintPrice, 0, 0);
     }
 
@@ -137,7 +146,12 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         uint256 actualTier = foreVerifiers.nftTier(id);
         uint256 verificationsDone = foreVerifiers.verificationsSum(id);
         uint256 power = foreVerifiers.powerOf(id);
-        (uint256 verificationsRequirement, ) = config.getTier(actualTier + 1);
+        (uint256 verificationsRequirement, uint256 tierMultiplier) = config
+            .getTier(actualTier + 1);
+        require(
+            tierMultiplier > 0,
+            "ForeProtocol: Cant upgrade, next tier invalid"
+        );
         address nftOwner = foreVerifiers.ownerOf(id);
         require(
             verificationsDone >= verificationsRequirement,
@@ -161,7 +175,7 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
             foreVerifiers.powerOf(id) + amount <= config.verifierMintPrice(),
             "ForeFactory: Buy limit reached"
         );
-        foreToken.transferFrom(msg.sender, address(foreVerifiers), amount);
+        foreToken.safeTransferFrom(msg.sender, address(foreVerifiers), amount);
         foreVerifiers.increasePower(id, amount, false);
     }
 
@@ -189,7 +203,7 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
 
         uint256 marketIdx = allMarkets.length;
 
-        _mint(receiver, marketIdx);
+        _safeMint(receiver, marketIdx);
         emit MarketCreated(
             msg.sender,
             creator,

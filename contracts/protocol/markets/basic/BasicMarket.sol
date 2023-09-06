@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.20;
 
 import "../../IForeProtocol.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./library/MarketLib.sol";
 
-contract BasicMarket
-{
+contract BasicMarket is ReentrancyGuard {
+    using SafeERC20 for IERC20Burnable;
 
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
@@ -17,11 +19,11 @@ contract BasicMarket
     /// @notice Market token id
     uint256 public marketId;
 
-   /// @notice Protocol
+    /// @notice Protocol
     IForeProtocol public protocol;
 
     /// @notice Factory
-    address public factory;
+    address public immutable factory;
 
     /// @notice Protocol config
     IProtocolConfig public protocolConfig;
@@ -52,6 +54,24 @@ contract BasicMarket
 
     bytes32 public disputeMessage;
 
+    ///EVENTS
+    event MarketInitialized(uint256 marketId);
+    event OpenDispute(address indexed creator);
+    event CloseMarket(MarketLib.ResultType result);
+    event Verify(
+        address indexed verifier,
+        uint256 power,
+        uint256 verificationId,
+        uint256 indexed tokenId,
+        bool side
+    );
+    event WithdrawReward(
+        address indexed receiver,
+        uint256 indexed rewardType,
+        uint256 amount
+    );
+    event Predict(address indexed sender, bool side, uint256 amount);
+
     /// @notice Verification array size
     function verificationHeight() external view returns (uint256) {
         return verifications.length;
@@ -62,7 +82,7 @@ contract BasicMarket
     }
 
     /// @notice Returns market info
-    function marketInfo() external view returns(MarketLib.Market memory){
+    function marketInfo() external view returns (MarketLib.Market memory) {
         return _market;
     }
 
@@ -114,7 +134,7 @@ contract BasicMarket
     /// @param amount Amount of ForeToken
     /// @param side Predicition side (true - positive result, false - negative result)
     function predict(uint256 amount, bool side) external {
-        foreToken.transferFrom(msg.sender, address(this), amount);
+        foreToken.safeTransferFrom(msg.sender, address(this), amount);
         MarketLib.predict(
             _market,
             predictionsA,
@@ -128,21 +148,22 @@ contract BasicMarket
     ///@notice Doing new verification
     ///@param tokenId vNFT token id
     ///@param side side of verification
-    function verify(uint256 tokenId, bool side) external {
-        if(
-            foreVerifiers.ownerOf(tokenId)!= msg.sender){
-            revert ("BasicMarket: Incorrect owner");
+    function verify(uint256 tokenId, bool side) external nonReentrant {
+        if (foreVerifiers.ownerOf(tokenId) != msg.sender) {
+            revert("BasicMarket: Incorrect owner");
         }
 
         MarketLib.Market memory m = _market;
 
-        if((m.sideA == 0 || m.sideB == 0 ) && m.endPredictionTimestamp < block.timestamp){
+        if (
+            (m.sideA == 0 || m.sideB == 0) &&
+            m.endPredictionTimestamp < block.timestamp
+        ) {
             _closeMarket(MarketLib.ResultType.INVALID);
             return;
         }
 
-        (, uint256 verificationPeriod) = marketConfig
-            .periods();
+        (, uint256 verificationPeriod) = marketConfig.periods();
 
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
 
@@ -169,12 +190,18 @@ contract BasicMarket
             ,
             ,
             ,
+
         ) = marketConfig.config();
-        if(MarketLib.calculateMarketResult(m) == MarketLib.ResultType.INVALID && (m.startVerificationTimestamp + verificationPeriod < block.timestamp)){
+        if (
+            MarketLib.calculateMarketResult(m) ==
+            MarketLib.ResultType.INVALID &&
+            (m.startVerificationTimestamp + verificationPeriod <
+                block.timestamp)
+        ) {
             _closeMarket(MarketLib.ResultType.INVALID);
             return;
         }
-        foreToken.transferFrom(msg.sender, address(this), disputePrice);
+        foreToken.safeTransferFrom(msg.sender, address(this), disputePrice);
         disputeMessage = messageHash;
         MarketLib.openDispute(
             _market,
@@ -195,16 +222,20 @@ contract BasicMarket
             highGuard,
             msg.sender
         );
-        foreToken.transfer(receiver, marketConfig.disputePrice());
+        foreToken.safeTransfer(receiver, marketConfig.disputePrice());
         _closeMarket(result);
     }
-
 
     ///@dev Closes market
     ///@param result Market close result type
     ///Is not best optimized becouse of deep stack
     function _closeMarket(MarketLib.ResultType result) private {
-        (uint256 burnFee, uint256 foundationFee, ,uint256 verificationFee) = marketConfig.fees();
+        (
+            uint256 burnFee,
+            uint256 foundationFee,
+            ,
+            uint256 verificationFee
+        ) = marketConfig.fees();
         (
             uint256 toBurn,
             uint256 toFoundation,
@@ -218,23 +249,32 @@ contract BasicMarket
                 foundationFee,
                 result
             );
-        MarketLib.Market memory m = _market;
-        uint256 verificatorsFees = ((m.sideA + m.sideB) * verificationFee) /
-            10000;
-        if(((m.verifiedA == 0 ) && ( result == MarketLib.ResultType.AWON)) || ((m.verifiedB == 0) && (result == MarketLib.ResultType.BWON))){
-            toBurn += verificatorsFees;
-        }
-        if (toBurn != 0) {
-            foreToken.burn(toBurn);
-        }
-        if (toFoundation != 0) {
-            foreToken.transfer(protocolConfig.foundationWallet(), toFoundation);
-        }
-        if (toHighGuard != 0) {
-            foreToken.transfer(protocolConfig.highGuard(), toHighGuard);
-        }
-        if (toDisputeCreator != 0) {
-            foreToken.transfer(disputeCreator, toDisputeCreator);
+
+        if (result != MarketLib.ResultType.INVALID) {
+            MarketLib.Market memory m = _market;
+            uint256 verificatorsFees = ((m.sideA + m.sideB) * verificationFee) /
+                10000;
+            if (
+                ((m.verifiedA == 0) && (result == MarketLib.ResultType.AWON)) ||
+                ((m.verifiedB == 0) && (result == MarketLib.ResultType.BWON))
+            ) {
+                toBurn += verificatorsFees;
+            }
+            if (toBurn != 0) {
+                foreToken.burn(toBurn);
+            }
+            if (toFoundation != 0) {
+                foreToken.safeTransfer(
+                    protocolConfig.foundationWallet(),
+                    toFoundation
+                );
+            }
+            if (toHighGuard != 0) {
+                foreToken.safeTransfer(protocolConfig.highGuard(), toHighGuard);
+            }
+            if (toDisputeCreator != 0) {
+                foreToken.safeTransfer(disputeCreator, toDisputeCreator);
+            }
         }
     }
 
@@ -243,8 +283,12 @@ contract BasicMarket
         MarketLib.Market memory m = _market;
         (uint256 disputePeriod, uint256 verificationPeriod) = marketConfig
             .periods();
-        bool isInvalid = MarketLib.beforeClosingCheck(m, verificationPeriod, disputePeriod);
-        if(isInvalid){
+        bool isInvalid = MarketLib.beforeClosingCheck(
+            m,
+            verificationPeriod,
+            disputePeriod
+        );
+        if (isInvalid) {
             _closeMarket(MarketLib.ResultType.INVALID);
             return;
         }
@@ -255,12 +299,10 @@ contract BasicMarket
     ///@dev Returns full available amount to withdraw(Deposited fund + reward of winnings - Protocol fees)
     ///@param predictor Predictior address
     ///@return 0 Amount to withdraw
-    function calculatePredictionReward(address predictor)
-        external
-        view
-        returns (uint256)
-    {
-        if(predictionWithdrawn[predictor]) return(0);
+    function calculatePredictionReward(
+        address predictor
+    ) external view returns (uint256) {
+        if (predictionWithdrawn[predictor]) return (0);
         MarketLib.Market memory m = _market;
         return (
             MarketLib.calculatePredictionReward(
@@ -285,26 +327,57 @@ contract BasicMarket
             predictionsB[predictor],
             predictor
         );
-        foreToken.transfer(predictor, toWithdraw);
+        uint256 ownBalance = foreToken.balanceOf(address(this));
+        if (toWithdraw > ownBalance) {
+            toWithdraw = ownBalance;
+        }
+        foreToken.safeTransfer(predictor, toWithdraw);
     }
 
     ///@notice Calculates Verification Reward
     ///@param verificationId Id of Verification
-    function calculateVerificationReward(uint256 verificationId) external view returns(uint256 toVerifier, uint256 toDisputeCreator, uint256 toHighGuard, bool vNftBurn){
+    function calculateVerificationReward(
+        uint256 verificationId
+    )
+        external
+        view
+        returns (
+            uint256 toVerifier,
+            uint256 toDisputeCreator,
+            uint256 toHighGuard,
+            bool vNftBurn
+        )
+    {
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
         uint256 power = foreVerifiers.multipliedPowerOf(
             verifications[verificationId].tokenId
         );
-        (toVerifier, toDisputeCreator, toHighGuard, vNftBurn) =  MarketLib.calculateVerificationReward(m, v, power, marketConfig.verificationFee());
+        (toVerifier, toDisputeCreator, toHighGuard, vNftBurn) = MarketLib
+            .calculateVerificationReward(
+                m,
+                v,
+                power,
+                marketConfig.verificationFee()
+            );
     }
 
     ///@notice Withdrawss Verification Reward
     ///@param verificationId Id of verification
     ///@param withdrawAsTokens If true witdraws tokens, false - withraws power
-    function withdrawVerificationReward(uint256 verificationId, bool withdrawAsTokens) external {
+    function withdrawVerificationReward(
+        uint256 verificationId,
+        bool withdrawAsTokens
+    ) external nonReentrant {
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
+
+        require(
+            msg.sender == v.verifier ||
+                msg.sender == protocolConfig.highGuard(),
+            "BasicMarket: Only Verifier or HighGuard"
+        );
+
         uint256 multipliedPower = foreVerifiers.multipliedPowerOf(
             verifications[verificationId].tokenId
         );
@@ -321,31 +394,21 @@ contract BasicMarket
             );
         verifications[verificationId].withdrawn = true;
         if (toVerifier != 0) {
-            if(withdrawAsTokens){
-                foreToken.transferFrom(
-                    address(this),
-                    v.verifier,
-                    toVerifier
-                );
-                foreVerifiers.increaseValidation(v.tokenId);
+            uint256 ownBalance = foreToken.balanceOf(address(this));
+            if (toVerifier > ownBalance) {
+                toVerifier = ownBalance;
             }
-            else{
+            if (withdrawAsTokens) {
+                foreToken.safeTransfer(v.verifier, toVerifier);
+                foreVerifiers.increaseValidation(v.tokenId);
+            } else {
                 foreVerifiers.increasePower(v.tokenId, toVerifier, true);
-                foreToken.transferFrom(
-                    address(this),
-                    address(foreVerifiers),
-                    toVerifier
-                );
+                foreToken.safeTransfer(address(foreVerifiers), toVerifier);
             }
         }
         if (toDisputeCreator != 0) {
-            foreToken.transferFrom(
-                address(foreVerifiers),
-                m.disputeCreator,
-                toDisputeCreator
-            );
-            foreToken.transferFrom(
-                address(foreVerifiers),
+            foreVerifiers.marketTransfer(m.disputeCreator, toDisputeCreator);
+            foreVerifiers.marketTransfer(
                 protocolConfig.highGuard(),
                 toHighGuard
             );
@@ -353,9 +416,9 @@ contract BasicMarket
 
         if (vNftBurn) {
             uint256 power = foreVerifiers.powerOf(
-            verifications[verificationId].tokenId
+                verifications[verificationId].tokenId
             );
-            foreToken.burnFrom(address(foreVerifiers), power - toDisputeCreator - toHighGuard);
+            foreVerifiers.marketBurn(power - toDisputeCreator - toHighGuard);
             foreVerifiers.burn(v.tokenId);
         } else {
             foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
@@ -367,21 +430,28 @@ contract BasicMarket
         MarketLib.Market memory m = _market;
         uint256 tokenId = marketId;
 
-        require(protocol.ownerOf(tokenId)==msg.sender,"BasicMarket: Only Market Creator");
+        require(
+            protocol.ownerOf(tokenId) == msg.sender,
+            "BasicMarket: Only Market Creator"
+        );
 
         if (m.result == MarketLib.ResultType.NULL) {
-            revert ("MarketIsNotClosedYet");
+            revert("MarketIsNotClosedYet");
         }
 
-        if (m.result == MarketLib.ResultType.INVALID){
-            revert ("OnlyForValidMarkets");
+        if (m.result == MarketLib.ResultType.INVALID) {
+            revert("OnlyForValidMarkets");
         }
 
         protocol.burn(tokenId);
 
         uint256 toWithdraw = ((m.sideA + m.sideB) *
             marketConfig.marketCreatorFee()) / 10000;
-        foreToken.transfer(msg.sender, toWithdraw);
+        uint256 ownBalance = foreToken.balanceOf(address(this));
+        if (toWithdraw > ownBalance) {
+            toWithdraw = ownBalance;
+        }
+        foreToken.safeTransfer(msg.sender, toWithdraw);
 
         emit MarketLib.WithdrawReward(msg.sender, 3, toWithdraw);
     }
@@ -389,5 +459,6 @@ contract BasicMarket
 
 interface IERC20Burnable is IERC20 {
     function burnFrom(address account, uint256 amount) external;
+
     function burn(uint256 amount) external;
 }

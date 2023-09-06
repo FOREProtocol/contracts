@@ -118,7 +118,6 @@ describe("NFTMarketplace / NFT integration", () => {
         );
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
-        await txExec(foreToken.setProtocol(foreProtocol.address));
         await txExec(nftToken.setProtocol(foreProtocol.address));
 
         await txExec(
@@ -126,6 +125,8 @@ describe("NFTMarketplace / NFT integration", () => {
                 .connect(owner)
                 .setFactoryStatus([basicFactory.address], [true])
         );
+
+        await txExec(nftToken.setTransferAllowance(true));
 
         await txExec(
             contract
@@ -267,6 +268,19 @@ describe("NFTMarketplace / NFT integration", () => {
                     ethers.utils.parseUnits("0.2", "ether")
                 );
             });
+        });
+    });
+
+    describe("Not implemented function", () => {
+        it("Should revert with not implemented error", async () => {
+            await expect(
+                contract
+                    .connect(bob)
+                    .buyTokenUsingBNB(
+                        "0x0000000000000000000000000000000000000000",
+                        1
+                    )
+            ).to.revertedWith("ForeNftMarketplace: Function not implemented");
         });
     });
 });

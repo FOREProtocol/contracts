@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./MarketConfig.sol";
@@ -12,13 +12,17 @@ contract ProtocolConfig is Ownable {
     event VerifierMintPriceChanged(uint256 amount);
     event MarketCreationChanged(uint256 amount);
     event SetStatusForFactory(address indexed add, bool status);
-    event TierChanged(uint256 indexed tierIndex, uint256 newMinVerifications, uint256 newMultiplier);
+    event TierChanged(
+        uint256 indexed tierIndex,
+        uint256 newMinVerifications,
+        uint256 newMultiplier
+    );
 
     struct Tier {
         uint256 minVerifications;
         uint256 multiplier; // 1x = 10000, 1,2x = 12000 etc
     }
-    
+
     /// @notice tiers
     mapping(uint256 => Tier) internal _tiers;
 
@@ -27,6 +31,18 @@ contract ProtocolConfig is Ownable {
 
     /// @notice Max price (FORE)
     uint256 public constant MAX_PRICE = 1000 ether;
+
+    /// @notice Max dispute period in seconds (345600 seconds = 96 hours)
+    uint256 public constant MAX_DISPUTE_PERIOD = 345600;
+
+    /// @notice Max validation period in seconds (345600 seconds = 96 hours)
+    uint256 public constant MAX_VALIDATION_PERIOD = 345600;
+
+    /// @notice Min dispute period in seconds (43200 seconds = 12 hours)
+    uint256 public constant MIN_DISPUTE_PERIOD = 43200;
+
+    /// @notice Min validation period in seconds (43200 seconds = 12 hours)
+    uint256 public constant MIN_VALIDATION_PERIOD = 43200;
 
     /// @notice Current market configuration
     /// @dev Configuration for created market is immutable. New configuration will be used only in newly created markets
@@ -58,14 +74,7 @@ contract ProtocolConfig is Ownable {
     function addresses()
         external
         view
-        returns (
-            address,
-            address,
-            address,
-            address,
-            address,
-            address
-        )
+        returns (address, address, address, address, address, address)
     {
         return (
             address(marketConfig),
@@ -77,44 +86,40 @@ contract ProtocolConfig is Ownable {
         );
     }
 
-    function roleAddresses()
-        external
-        view
-        returns (
-            address,
-            address
-        )
-    {
+    function roleAddresses() external view returns (address, address) {
         return (foundationWallet, highGuard);
     }
 
     /// @notice Returns tier info
-    function getTier(uint256 tierIndex) external view returns(uint256, uint256){
+    function getTier(
+        uint256 tierIndex
+    ) external view returns (uint256, uint256) {
         Tier memory t = _tiers[tierIndex];
         return (t.minVerifications, t.multiplier);
     }
 
     /// @notice Returns tier multiplier
-    function getTierMultiplier(uint256 tierIndex) external view returns(uint256){
+    function getTierMultiplier(
+        uint256 tierIndex
+    ) external view returns (uint256) {
         Tier memory t = _tiers[tierIndex];
         return (t.multiplier);
     }
 
     /// @notice Returns tiers info
-    function getTiers() external view returns(Tier[] memory){
+    function getTiers() external view returns (Tier[] memory) {
         bool foundAll = false;
         uint256 sum = 1;
-        while(!foundAll){
+        while (!foundAll) {
             Tier memory t = _tiers[sum];
-            if(t.minVerifications > 0){
+            if (t.minVerifications > 0) {
                 sum++;
-            }
-            else{
-                foundAll=true;
+            } else {
+                foundAll = true;
             }
         }
         Tier[] memory tiers = new Tier[](sum);
-        for(uint256 i=0;i<sum;i++){
+        for (uint256 i = 0; i < sum; i++) {
             Tier memory t = _tiers[i];
             tiers[i] = t;
         }
@@ -129,6 +134,10 @@ contract ProtocolConfig is Ownable {
         uint256 len = factoryAddresses.length;
         require(len == statuses.length, "ProtocoConfig: Len mismatch ");
         for (uint256 i = 0; i < len; i++) {
+            require(
+                factoryAddresses[i] != address(0),
+                "ProtocolConfig: Factory address cannot be zero"
+            );
             isFactoryWhitelisted[factoryAddresses[i]] = statuses[i];
             emit SetStatusForFactory(factoryAddresses[i], statuses[i]);
         }
@@ -143,12 +152,33 @@ contract ProtocolConfig is Ownable {
         uint256 marketCreationPriceP,
         uint256 verifierMintPriceP
     ) {
+        require(
+            foundationWalletP != address(0),
+            "ProtocolConfig: Foundation address cannot be zero"
+        );
+        require(
+            highGuardP != address(0),
+            "ProtocolConfig: HighGuard address cannot be zero"
+        );
+        require(
+            marketplaceP != address(0),
+            "ProtocolConfig: Marketplace address cannot be zero"
+        );
+        require(
+            foreTokenP != address(0),
+            "ProtocolConfig: FOREToken address cannot be zero"
+        );
+        require(
+            foreVerifiersP != address(0),
+            "ProtocolConfig: FOREVerifiers address cannot be zero"
+        );
+
         _setConfig(
             1000 ether,
             1000 ether,
             1000 ether,
-            1800,
-            1800,
+            86400,
+            86400,
             100,
             150,
             50,
@@ -178,18 +208,45 @@ contract ProtocolConfig is Ownable {
      * @param minVerifications minimum verifications required
      * @param multiplier multiplier
      */
-    function editTier(uint256 tierIndex, uint256 minVerifications, uint256 multiplier) external onlyOwner{
-        if(tierIndex>0){
-            Tier memory prevTier = _tiers[tierIndex-1];
-            Tier memory nextTier = _tiers[tierIndex+1];
-            if(tierIndex == 0){
-                require(multiplier > 0, "ProtocolConfig: 1st tier multiplier musst bu greater than zero");
+    function editTier(
+        uint256 tierIndex,
+        uint256 minVerifications,
+        uint256 multiplier
+    ) external onlyOwner {
+        if (tierIndex == 0) {
+            require(
+                multiplier > 0,
+                "ProtocolConfig: 1st tier multiplier must be greater than zero"
+            );
+        } else {
+            Tier memory prevTier = _tiers[tierIndex - 1];
+            Tier memory nextTier = _tiers[tierIndex + 1];
+            if (minVerifications == 0) {
+                require(
+                    nextTier.minVerifications == 0,
+                    "ProtocolConfig: Cant disable non last element"
+                );
+            } else {
+                require(
+                    prevTier.minVerifications < minVerifications,
+                    "ProtocolConfig: Sort error, minVerifications must be higher then previous tier"
+                );
+                if (nextTier.minVerifications > 0) {
+                    require(
+                        nextTier.minVerifications > minVerifications,
+                        "ProtocolConfig: Sort error, minVerifications must be smaller then next tier"
+                    );
+                }
             }
-            if(minVerifications == 0){
-                require(nextTier.minVerifications == 0, "ProtocolConfig: Cant disable non last element");
-            }
-            else{
-                require(prevTier.minVerifications < minVerifications, "ProtocolConfig: Sort error");
+            require(
+                prevTier.multiplier < multiplier,
+                "ProtocolConfig: Sort error, multiplier must be higher then previous tier"
+            );
+            if (nextTier.multiplier > 0) {
+                require(
+                    nextTier.multiplier > multiplier,
+                    "ProtocolConfig: Sort error, multiplier must be smaller then next tier"
+                );
             }
         }
         _tiers[tierIndex] = Tier(minVerifications, multiplier);
@@ -221,6 +278,18 @@ contract ProtocolConfig is Ownable {
                 creationPriceP <= MAX_PRICE &&
                 verifierMintPriceP <= MAX_PRICE,
             "ForeFactory: Config limit"
+        );
+
+        require(
+            disputePeriodP <= MAX_DISPUTE_PERIOD &&
+                disputePeriodP >= MIN_DISPUTE_PERIOD,
+            "ForeFactory: Invalid dispute period"
+        );
+
+        require(
+            verificationPeriodP <= MAX_VALIDATION_PERIOD &&
+                verificationPeriodP >= MIN_VALIDATION_PERIOD,
+            "ForeFactory: Invalid validation period"
         );
 
         MarketConfig createdMarketConfig = new MarketConfig(
@@ -270,6 +339,10 @@ contract ProtocolConfig is Ownable {
      * @param _newAddr New address
      */
     function setFoundationWallet(address _newAddr) external onlyOwner {
+        require(
+            _newAddr != address(0),
+            "ProtocolConfig: Foundation address cannot be zero"
+        );
         foundationWallet = _newAddr;
         emit FoundationWalletChanged(_newAddr);
     }
@@ -279,6 +352,10 @@ contract ProtocolConfig is Ownable {
      * @param _newAddr New address
      */
     function setHighGuard(address _newAddr) external onlyOwner {
+        require(
+            _newAddr != address(0),
+            "ProtocolConfig: HighGuard address cannot be zero"
+        );
         highGuard = _newAddr;
         emit HighGuardChanged(_newAddr);
     }
@@ -288,6 +365,10 @@ contract ProtocolConfig is Ownable {
      * @param _newAddr New address
      */
     function setMarketplace(address _newAddr) external onlyOwner {
+        require(
+            _newAddr != address(0),
+            "ProtocolConfig: Marketplace address cannot be zero"
+        );
         marketplace = _newAddr;
         emit MarketplaceChanged(_newAddr);
     }

@@ -90,7 +90,6 @@ describe("BasicMarket / Prediciting", () => {
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setProtocol(foreProtocol.address));
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         // sending funds to Alice
@@ -108,6 +107,15 @@ describe("BasicMarket / Prediciting", () => {
 
         const previousBlock = await ethers.provider.getBlock("latest");
         blockTimestamp = previousBlock.timestamp;
+
+        await txExec(
+            foreToken
+                .connect(alice)
+                .approve(
+                    basicFactory.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
 
         // creating market
         const marketHash =
@@ -135,6 +143,22 @@ describe("BasicMarket / Prediciting", () => {
         );
 
         contract = await attachContract<BasicMarket>("BasicMarket", newAddress);
+        await txExec(
+            foreToken
+                .connect(alice)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
+        await txExec(
+            foreToken
+                .connect(bob)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
     });
 
     describe("initial state", () => {

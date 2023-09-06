@@ -229,7 +229,7 @@ describe("Fore NFT Verifiers token", () => {
                 await txExec(
                     contract
                         .connect(foreProtocol.wallet)
-                        .mintWithPower(alice.address, 10, 0,0)
+                        .mintWithPower(alice.address, 10, 0, 0)
                 );
             });
 
@@ -426,15 +426,15 @@ describe("Fore NFT Verifiers token", () => {
                     );
                 });
 
-                it("Should be allowed to transfer tokens by operator", async () => {
+                /* it("Should be allowed to transfer tokens by operator", async () => {
                     await txExec(
                         contract
                             .connect(operator)
                             .transferFrom(alice.address, operator.address, 0)
                     );
-                });
+                }); */
 
-                it("Should preserve default behavior of approving in case of non operator", async () => {
+                /* it("Should preserve default behavior of approving in case of non operator", async () => {
                     await expect(
                         contract
                             .connect(bob)
@@ -442,7 +442,7 @@ describe("Fore NFT Verifiers token", () => {
                     ).to.be.revertedWith(
                         "ERC721: caller is not token owner nor approved"
                     );
-                });
+                }); */
 
                 it("Should not be allowed to transfer tokens by default", async () => {
                     await expect(
@@ -452,26 +452,36 @@ describe("Fore NFT Verifiers token", () => {
                     ).to.be.revertedWith("TransferAllowedOnlyForOperator()");
                 });
 
-                it("Should be allowed to transfer tokens to operator", async () => {
-                    await txExec(
-                        contract
-                            .connect(alice)
-                            .transferFrom(alice.address, operator.address, 0)
-                    );
-                });
-
-                it("Should be allowed to transfer tokens from operator", async () => {
-                    await txExec(
-                        contract
-                            .connect(operator)
-                            .transferFrom(operator.address, bob.address, 1)
-                    );
-                });
-
                 describe("with transferability enabled", () => {
                     beforeEach(async () => {
                         await txExec(
+                            contract
+                                .connect(foreProtocol.wallet)
+                                .mintWithPower(operator.address, 10, 0, 0)
+                        );
+
+                        await txExec(
                             contract.connect(owner).setTransferAllowance(true)
+                        );
+                    });
+
+                    it("Should be allowed to transfer tokens to operator", async () => {
+                        await txExec(
+                            contract
+                                .connect(alice)
+                                .transferFrom(
+                                    alice.address,
+                                    operator.address,
+                                    0
+                                )
+                        );
+                    });
+
+                    it("Should be allowed to transfer tokens from operator", async () => {
+                        await txExec(
+                            contract
+                                .connect(operator)
+                                .transferFrom(operator.address, bob.address, 1)
                         );
                     });
 

@@ -79,7 +79,6 @@ describe("ForeProtocol", () => {
             protocol.address
         );
 
-        await txExec(foreToken.setProtocol(protocol.address));
         await txExec(foreVerifiers.setProtocol(protocol.address));
 
         await txExec(
@@ -92,6 +91,41 @@ describe("ForeProtocol", () => {
             protocolConfig
                 .connect(owner)
                 .setFactoryStatus([contract.address], [true])
+        );
+
+        // allowance
+        await txExec(
+            foreToken
+                .connect(alice)
+                .approve(
+                    protocol.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
+        await txExec(
+            foreToken
+                .connect(bob)
+                .approve(
+                    protocol.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
+
+        await txExec(
+            foreToken
+                .connect(alice)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
+        await txExec(
+            foreToken
+                .connect(bob)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
         );
     });
 
@@ -271,7 +305,7 @@ describe("ForeProtocol", () => {
                 expect(foreVerifiers.increasePower.getCall(0).args).to.be.eql([
                     BigNumber.from(0),
                     ethers.utils.parseEther("80"),
-                    false
+                    false,
                 ]);
             });
 
@@ -301,6 +335,19 @@ describe("ForeProtocol", () => {
                         1653357334588
                     )
             ).to.revertedWith("ERC20: burn amount exceeds balance");
+        });
+
+        it("Should revert if not whitelisted factory", async () => {
+            await expect(
+                protocol
+                    .connect(alice)
+                    .createMarket(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                        alice.address,
+                        alice.address,
+                        "0xdac17f958d2ee523a2206206994597c13d831ec7"
+                    )
+            ).to.revertedWith("FactoryIsNotWhitelisted");
         });
 
         it("Should revert in case inversed dates", async () => {
@@ -401,18 +448,31 @@ describe("ForeProtocol", () => {
         });
 
         it("Should not be able to create market with same hash (revert with MarketAlreadyExists)", async () => {
-            await expect(
-                contract
-                    .connect(bob)
+            await txExec(
+                protocolConfig
+                    .connect(owner)
+                    .setFactoryStatus([owner.address], [true])
+            );
+            await txExec(
+                protocol
+                    .connect(owner)
                     .createMarket(
-                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abbb",
                         alice.address,
-                        ethers.utils.parseEther("2"),
-                        ethers.utils.parseEther("1"),
-                        1653327334588,
-                        1653357334588
+                        alice.address,
+                        "0xdac17f958d2ee523a2206206994597c13d831ec7"
                     )
-            ).to.be.reverted;
+            );
+            await expect(
+                protocol
+                    .connect(owner)
+                    .createMarket(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abbb",
+                        alice.address,
+                        alice.address,
+                        "0xdac17f958d2ee523a2206206994597c13d831ec7"
+                    )
+            ).to.be.revertedWith("MarketAlreadyExists");
         });
 
         it("Should burn funds as creation fee (ERC20 Transfer)", async () => {

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity 0.8.20;
 
 import "../protocol/IForeProtocol.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -12,6 +12,7 @@ import "../protocol/config/IProtocolConfig.sol";
 
 contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     using Strings for uint256;
+    using SafeERC20 for IERC20Burnable;
 
     error ProtocolAlreadySet();
     error TokenNotExists();
@@ -22,10 +23,19 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     error TransferAllowedOnlyForOperator();
     error NotAuthorized();
 
+    event BaseURI(string value);
     event ProtocolChanged(IForeProtocol addr);
     event TransferAllowanceChanged(bool status);
+    event TokenMinted(
+        uint id,
+        address to,
+        uint power,
+        uint tier,
+        uint validationCount
+    );
     event TokenPowerIncreased(uint id, uint powerDelta, uint newPower);
     event TokenPowerDecreased(uint id, uint powerDelta, uint newPower);
+    event TokenValidationIncreased(uint id, uint newValidationCount);
 
     /// @notice Markets factory contract
     IForeProtocol public protocol;
@@ -51,8 +61,18 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     /// @dev base uri
     string internal bUri;
 
+    // Modifier that will only allow valid markets
+    modifier onlyMarket() {
+        require(
+            protocol.isForeMarket(msg.sender),
+            "ForeVerifiers: Not a market"
+        );
+        _;
+    }
+
     constructor(string memory uriBase) ERC721("ForeNFT", "FORE") {
         bUri = uriBase;
+        emit BaseURI(uriBase);
     }
 
     /**
@@ -98,6 +118,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
 
     function editBaseUri(string memory newBaseUri) external onlyOwner {
         bUri = newBaseUri;
+        emit BaseURI(newBaseUri);
     }
 
     /**
@@ -150,6 +171,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         _safeMint(to, h);
 
         _height++;
+        emit TokenMinted(h, to, power, tier, validationNum);
         return (h);
     }
 
@@ -163,6 +185,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         }
 
         verificationsSum[id]++;
+        emit TokenValidationIncreased(id, verificationsSum[id]);
     }
 
     /**
@@ -186,6 +209,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
 
         if (increaseValidationNum) {
             verificationsSum[id]++;
+            emit TokenValidationIncreased(id, verificationsSum[id]);
         }
 
         _power[id] += powerDelta;
@@ -235,8 +259,8 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
             _burn(id);
         }
 
-        IERC20 foreToken = IERC20(protocol.foreToken());
-        foreToken.transfer(msg.sender, powerDelta);
+        IERC20Burnable foreToken = IERC20Burnable(protocol.foreToken());
+        foreToken.safeTransfer(msg.sender, powerDelta);
 
         emit TokenPowerDecreased(id, powerDelta, _power[id]);
     }
@@ -263,7 +287,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     function isApprovedForAll(
         address owner,
         address operator
-    ) public view override(ERC721) returns (bool) {
+    ) public view override(ERC721, IERC721) returns (bool) {
         if (protocol.isForeOperator(operator)) {
             return true;
         }
@@ -298,4 +322,31 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         _power[tokenId] = 0;
         super._burn(tokenId);
     }
+
+    /**
+     * @notice Allows a market to transfer FORE that are inside the verifier nft
+     * @param to Receiver address
+     * @param amount Amount of FORE to be transfered
+     * @dev Only allowed for a market to call this function
+     */
+    function marketTransfer(address to, uint256 amount) public onlyMarket {
+        IERC20Burnable foreToken = IERC20Burnable(protocol.foreToken());
+        foreToken.safeTransfer(to, amount);
+    }
+
+    /**
+     * @notice Allows a market to burn FORE that are inside the verifier nft
+     * @param amount Amount of FORE to be burned
+     * @dev Only allowed for a market to call this function
+     */
+    function marketBurn(uint256 amount) public onlyMarket {
+        IERC20Burnable foreToken = IERC20Burnable(protocol.foreToken());
+        foreToken.burn(amount);
+    }
+}
+
+interface IERC20Burnable is IERC20 {
+    function burnFrom(address account, uint256 amount) external;
+
+    function burn(uint256 amount) external;
 }

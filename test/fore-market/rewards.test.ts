@@ -110,7 +110,6 @@ describe("BasicMarket / Rewards", () => {
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setProtocol(foreProtocol.address));
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         await txExec(
@@ -131,6 +130,15 @@ describe("BasicMarket / Rewards", () => {
 
         const previousBlock = await ethers.provider.getBlock("latest");
         blockTimestamp = previousBlock.timestamp;
+
+        await txExec(
+            foreToken
+                .connect(marketCreator)
+                .approve(
+                    basicFactory.address,
+                    ethers.utils.parseUnits("1010", "ether")
+                )
+        );
 
         // creating market
         const marketHash =
@@ -159,9 +167,72 @@ describe("BasicMarket / Rewards", () => {
         );
 
         contract = await attachContract<BasicMarket>("BasicMarket", newAddress);
+        await executeInSingleBlock(() => [
+            foreToken
+                .connect(marketCreator)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(verifierSideA1)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(verifierSideA2)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(verifierSideB1)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(verifierSideB2)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(predictorSideA1)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("500", "ether")
+                ),
+            foreToken
+                .connect(predictorSideA2)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("500", "ether")
+                ),
+            foreToken
+                .connect(predictorSideB1)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(predictorSideB2)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("2000", "ether")
+                ),
+        ]);
 
         // create verifiers tokens
+        // Approve 4 * 750 mint fee
         await executeInSingleBlock(() => [
+            foreToken
+                .connect(owner)
+                .approve(
+                    foreProtocol.address,
+                    ethers.utils.parseUnits("3000", "ether")
+                ),
             foreProtocol.connect(owner).mintVerifier(verifierSideA1.address),
             foreProtocol.connect(owner).mintVerifier(verifierSideA2.address),
             foreProtocol.connect(owner).mintVerifier(verifierSideB1.address),
@@ -310,7 +381,15 @@ describe("BasicMarket / Rewards", () => {
                 let tx: ContractTransaction;
                 let recipt: ContractReceipt;
                 beforeEach(async () => {
-                    await timetravel(blockTimestamp + 300005 + 1800);
+                    await timetravel(blockTimestamp + 300005 + 86400);
+                    await txExec(
+                        foreToken
+                            .connect(disputeCreator)
+                            .approve(
+                                contract.address,
+                                ethers.utils.parseUnits("1000", "ether")
+                            )
+                    );
                     await contract
                         .connect(disputeCreator)
                         .openDispute(
@@ -357,6 +436,49 @@ describe("BasicMarket / Rewards", () => {
                         ethers.utils.parseEther("0"),
                         false,
                     ]);
+                });
+
+                describe("Increase NFT power (proper verification)", () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+                    const num = ethers.utils.parseEther("100");
+
+                    beforeEach(async () => {
+                        [tx, recipt] = await txExec(
+                            contract
+                                .connect(verifierSideB2)
+                                .withdrawVerificationReward(0, false)
+                        );
+                    });
+
+                    it("Should emit WithdrawReward event", async () => {
+                        await expect(tx)
+                            .to.emit(
+                                { ...marketLib, address: contract.address },
+                                "WithdrawReward"
+                            )
+                            .withArgs(verifierSideB2.address, 2, num);
+                    });
+
+                    it("Should emit Fore token Transfer event", async () => {
+                        await expect(tx)
+                            .to.emit(foreToken, "Transfer")
+                            .withArgs(
+                                contract.address,
+                                foreVerifiers.address,
+                                num
+                            );
+                    });
+
+                    it("Should emit vNFT Transfer event", async () => {
+                        await expect(tx)
+                            .to.emit(foreVerifiers, "Transfer")
+                            .withArgs(
+                                contract.address,
+                                verifierSideB2.address,
+                                3
+                            );
+                    });
                 });
 
                 describe("Withdraw reward (proper verification)", () => {
@@ -412,7 +534,7 @@ describe("BasicMarket / Rewards", () => {
                     beforeEach(async () => {
                         [tx, recipt] = await txExec(
                             contract
-                                .connect(verifierSideB1)
+                                .connect(verifierSideA1)
                                 .withdrawVerificationReward(1, true)
                         );
                     });
@@ -567,7 +689,7 @@ describe("BasicMarket / Rewards", () => {
                     beforeEach(async () => {
                         [tx, recipt] = await txExec(
                             contract
-                                .connect(verifierSideA1)
+                                .connect(verifierSideB2)
                                 .withdrawVerificationReward(0, true)
                         );
                     });

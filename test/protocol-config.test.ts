@@ -105,11 +105,60 @@ describe("Protocol configuration", () => {
             ).to.be.equal(false);
         });
 
-        it("Should return proper tier", async () => {
-            const ret = await contract.getTierMultiplier(0);
-            const expected = BigNumber.from(10000);
-            console.log(ret, expected);
-            expect(ret).to.be.equal(expected);
+        it("Should return proper tier configuration", async () => {
+            const [minVerifications, multiplier] = await contract.getTier(1);
+            expect(multiplier).to.be.equal(BigNumber.from(11000));
+            expect(minVerifications).to.be.equal(BigNumber.from(30));
+        });
+
+        it("Should return proper tier configurations", async () => {
+            const tiers = await contract.getTiers();
+            const [tier0, tier1, tier2, tier3] = tiers;
+
+            expect(tier0.multiplier).to.be.equal(BigNumber.from(10000));
+            expect(tier0.minVerifications).to.be.equal(BigNumber.from(0));
+
+            expect(tier1.multiplier).to.be.equal(BigNumber.from(11000));
+            expect(tier1.minVerifications).to.be.equal(BigNumber.from(30));
+
+            expect(tier2.multiplier).to.be.equal(BigNumber.from(11750));
+            expect(tier2.minVerifications).to.be.equal(BigNumber.from(75));
+
+            expect(tier3.multiplier).to.be.equal(BigNumber.from(12250));
+            expect(tier3.minVerifications).to.be.equal(BigNumber.from(150));
+        });
+
+        it("Should return proper addresses", async () => {
+            const [
+                marketConfigAddress,
+                foundationWalletAddress,
+                highGuardAddress,
+                marketplaceAddress,
+                foreTokenAddress,
+                foreVerifiersAddress,
+            ] = await contract.addresses();
+
+            expect(marketConfigAddress).to.be.equal(
+                await contract.marketConfig()
+            );
+            expect(foundationWalletAddress).to.be.equal(
+                foundationWallet.address
+            );
+            expect(highGuardAddress).to.be.equal(highGuardAccount.address);
+            expect(marketplaceAddress).to.be.equal(marketplaceContract.address);
+            expect(foreTokenAddress).to.be.equal(foreTokenContract.address);
+            expect(foreVerifiersAddress).to.be.equal(
+                foreVerifiersContract.address
+            );
+        });
+
+        it("Should return proper role addresses", async () => {
+            const [foundationWalletAddress, highGuardAddress] =
+                await contract.roleAddresses();
+            expect(foundationWalletAddress).to.be.equal(
+                foundationWallet.address
+            );
+            expect(highGuardAddress).to.be.equal(highGuardAccount.address);
         });
 
         describe("Market configuration", () => {
@@ -125,8 +174,8 @@ describe("Protocol configuration", () => {
             it("Should expose proper configuration", async () => {
                 expect(await marketConfig.config()).to.be.eql([
                     ethers.utils.parseEther("1000"),
-                    BigNumber.from(1800),
-                    BigNumber.from(1800),
+                    BigNumber.from(86400),
+                    BigNumber.from(86400),
                     BigNumber.from(100),
                     BigNumber.from(150),
                     BigNumber.from(50),
@@ -141,12 +190,12 @@ describe("Protocol configuration", () => {
             });
 
             it("Should expose proper dispute period", async () => {
-                expect(await marketConfig.disputePeriod()).to.be.equal(1800);
+                expect(await marketConfig.disputePeriod()).to.be.equal(86400);
             });
 
             it("Should expose proper verification period", async () => {
                 expect(await marketConfig.verificationPeriod()).to.be.equal(
-                    1800
+                    86400
                 );
             });
 
@@ -177,8 +226,8 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("10"),
                         ethers.utils.parseEther("20"),
                         ethers.utils.parseEther("30"),
-                        40,
-                        50,
+                        43200,
+                        43200,
                         60,
                         70,
                         90,
@@ -195,8 +244,8 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("10"),
                         ethers.utils.parseEther("20"),
                         ethers.utils.parseEther("30"),
-                        40,
-                        50,
+                        43200,
+                        43200,
                         100,
                         100,
                         200,
@@ -213,8 +262,8 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("10"),
                         ethers.utils.parseEther("20"),
                         ethers.utils.parseEther("1001"),
-                        40,
-                        50,
+                        43200,
+                        43200,
                         10,
                         10,
                         10,
@@ -231,8 +280,8 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("10"),
                         ethers.utils.parseEther("1001"),
                         ethers.utils.parseEther("10"),
-                        40,
-                        50,
+                        43200,
+                        43200,
                         10,
                         10,
                         10,
@@ -249,8 +298,8 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("1001"),
                         ethers.utils.parseEther("10"),
                         ethers.utils.parseEther("10"),
-                        40,
-                        50,
+                        43200,
+                        43200,
                         10,
                         10,
                         10,
@@ -272,8 +321,8 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("10"),
                         ethers.utils.parseEther("10"),
                         ethers.utils.parseEther("10"),
-                        40,
-                        50,
+                        43200,
+                        43200,
                         10,
                         10,
                         10,
@@ -283,8 +332,8 @@ describe("Protocol configuration", () => {
 
             expect(await oldConfig.config()).to.be.eql([
                 ethers.utils.parseEther("1000"),
-                BigNumber.from(1800),
-                BigNumber.from(1800),
+                BigNumber.from(86400),
+                BigNumber.from(86400),
                 BigNumber.from(100),
                 BigNumber.from(150),
                 BigNumber.from(50),
@@ -302,8 +351,8 @@ describe("Protocol configuration", () => {
                         ethers.utils.parseEther("10"),
                         ethers.utils.parseEther("10"),
                         ethers.utils.parseEther("10"),
-                        40,
-                        50,
+                        43200,
+                        43200,
                         10,
                         10,
                         10,
@@ -326,8 +375,8 @@ describe("Protocol configuration", () => {
                             ethers.utils.parseEther("10"),
                             ethers.utils.parseEther("20"),
                             ethers.utils.parseEther("30"),
-                            40,
-                            50,
+                            43200,
+                            43200,
                             60,
                             70,
                             90,
@@ -342,6 +391,60 @@ describe("Protocol configuration", () => {
                     "MarketConfigurationUpdated"
                 );
             });
+        });
+    });
+
+    describe("Change tier config", () => {
+        it("Should allow to execute only by owner", async () => {
+            await assertIsAvailableOnlyForOwner(async (account) => {
+                return contract.connect(account).editTier(2, 40, 11600);
+            });
+        });
+
+        it("Should not allow 0 multiplier for first tier", async () => {
+            await expect(
+                contract.connect(owner).editTier(0, 0, 0)
+            ).to.revertedWith(
+                "ProtocolConfig: 1st tier multiplier must be greater than zero"
+            );
+        });
+
+        it("Should not allow 0 minimum validations for second tier", async () => {
+            await expect(
+                contract.connect(owner).editTier(1, 0, 0)
+            ).to.revertedWith("ProtocolConfig: Cant disable non last element");
+        });
+
+        it("Should not allow less validations than previous tier", async () => {
+            await expect(
+                contract.connect(owner).editTier(2, 29, 11750)
+            ).to.revertedWith(
+                "ProtocolConfig: Sort error, minVerifications must be higher then previous tier"
+            );
+        });
+
+        it("Should not allow more validations than next tier", async () => {
+            await expect(
+                contract.connect(owner).editTier(2, 150, 11750)
+            ).to.revertedWith(
+                "ProtocolConfig: Sort error, minVerifications must be smaller then next tier"
+            );
+        });
+
+        it("Should not allow smaller multiplier than previous tier", async () => {
+            await expect(
+                contract.connect(owner).editTier(2, 75, 11000)
+            ).to.revertedWith(
+                "ProtocolConfig: Sort error, multiplier must be higher then previous tier"
+            );
+        });
+
+        it("Should not allow bigger multiplier than next tier", async () => {
+            await expect(
+                contract.connect(owner).editTier(2, 75, 12250)
+            ).to.revertedWith(
+                "ProtocolConfig: Sort error, multiplier must be smaller then next tier"
+            );
         });
     });
 

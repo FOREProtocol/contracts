@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
-
+pragma solidity 0.8.20;
 
 interface IProtocolConfig {
     function marketConfig() external view returns (address);
@@ -17,9 +16,13 @@ interface IProtocolConfig {
 
     function owner() external view returns (address);
 
-    function getTier(uint256 tierIndex) external view returns(uint256, uint256);
+    function getTier(
+        uint256 tierIndex
+    ) external view returns (uint256, uint256);
 
-    function getTierMultiplier(uint256 tierIndex) external view returns(uint256);
+    function getTierMultiplier(
+        uint256 tierIndex
+    ) external view returns (uint256);
 
     function renounceOwnership() external;
 
@@ -29,9 +32,12 @@ interface IProtocolConfig {
 
     function marketCreationPrice() external view returns (uint256);
 
-    function addresses() external view returns(address, address, address, address, address, address, address);
+    function addresses()
+        external
+        view
+        returns (address, address, address, address, address, address, address);
 
-    function roleAddresses() external view returns(address, address, address);
+    function roleAddresses() external view returns (address, address, address);
 
-    function isFactoryWhitelisted(address adr) external view returns(bool);
+    function isFactoryWhitelisted(address adr) external view returns (bool);
 }

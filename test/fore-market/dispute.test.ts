@@ -100,7 +100,6 @@ describe("BasicMarket / Dispute", () => {
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
-        await txExec(foreToken.setProtocol(foreProtocol.address));
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
         await txExec(
@@ -120,6 +119,14 @@ describe("BasicMarket / Dispute", () => {
         const previousBlock = await ethers.provider.getBlock("latest");
         blockTimestamp = previousBlock.timestamp;
 
+        await txExec(
+            foreToken
+                .connect(alice)
+                .approve(
+                    basicFactory.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
         // creating market
         const marketHash =
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
@@ -146,9 +153,41 @@ describe("BasicMarket / Dispute", () => {
         );
 
         contract = await attachContract<BasicMarket>("BasicMarket", newAddress);
+        await executeInSingleBlock(() => [
+            foreToken
+                .connect(alice)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(bob)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(carol)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+            foreToken
+                .connect(dave)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
+        ]);
 
         // create verifiers tokens
         await executeInSingleBlock(() => [
+            foreToken
+                .connect(owner)
+                .approve(
+                    foreProtocol.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                ),
             foreProtocol.connect(owner).mintVerifier(alice.address),
             foreProtocol.connect(owner).mintVerifier(bob.address),
             foreProtocol.connect(owner).mintVerifier(carol.address),
@@ -195,10 +234,10 @@ describe("BasicMarket / Dispute", () => {
 
         describe("after dispute period start", () => {
             beforeEach(async () => {
-                await contract.connect(bob)
-                await timetravel(blockTimestamp + 300000 + 1800 + 1);
+                await contract.connect(bob);
+                await timetravel(blockTimestamp + 300000 + 86400 + 1);
             });
-    
+
             it("Should fail without required amount of funds", async () => {
                 await expect(
                     contract
@@ -208,11 +247,11 @@ describe("BasicMarket / Dispute", () => {
                         )
                 ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
             });
-    
+
             describe("sucessfully", () => {
                 let tx: ContractTransaction;
                 let recipt: ContractReceipt;
-    
+
                 beforeEach(async () => {
                     [tx, recipt] = await txExec(
                         contract
@@ -222,7 +261,7 @@ describe("BasicMarket / Dispute", () => {
                             )
                     );
                 });
-    
+
                 it("Should emit ERC20 Transfer event", async () => {
                     await expect(tx)
                         .to.emit(foreToken, "Transfer")
@@ -232,7 +271,7 @@ describe("BasicMarket / Dispute", () => {
                             ethers.utils.parseEther("1000")
                         );
                 });
-    
+
                 it("Should emit OpenDispute event", async () => {
                     await expect(tx)
                         .to.emit(
@@ -241,7 +280,7 @@ describe("BasicMarket / Dispute", () => {
                         )
                         .withArgs(alice.address);
                 });
-    
+
                 it("Should update dispute state", async () => {
                     expect(await contract.marketInfo()).to.be.eql([
                         ethers.utils.parseEther("50"), // side A
@@ -274,7 +313,7 @@ describe("BasicMarket / Dispute", () => {
         let tx: ContractTransaction;
         let recipt: ContractReceipt;
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
             [tx, recipt] = await txExec(
                 contract
                     .connect(bob)
@@ -312,7 +351,7 @@ describe("BasicMarket / Dispute", () => {
 
         describe("with open dispute", () => {
             beforeEach(async () => {
-                await timetravel(blockTimestamp + 300000 + 1800 + 1);
+                await timetravel(blockTimestamp + 300000 + 86400 + 1);
                 await txExec(
                     contract
                         .connect(alice)
@@ -616,7 +655,7 @@ describe("BasicMarket / Dispute", () => {
 
         describe("with open dispute", () => {
             beforeEach(async () => {
-                await timetravel(blockTimestamp + 300000 + 1800 + 1);
+                await timetravel(blockTimestamp + 300000 + 86400 + 1);
                 await txExec(
                     contract
                         .connect(alice)
@@ -720,7 +759,7 @@ describe("BasicMarket / Dispute", () => {
 
     describe("with closed market", () => {
         beforeEach(async () => {
-            await timetravel(blockTimestamp + 300000 + 1800 + 1800 + 1);
+            await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
             await txExec(contract.connect(bob).closeMarket());
         });
 
