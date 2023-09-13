@@ -7,6 +7,8 @@ import {
     TokenPowerDecreasedEvent,
     TokenPowerIncreasedEvent,
     TransferAllowanceChangedEvent,
+    TokenValidationIncreasedEvent,
+    BaseURIEvent,
 } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { FakeContract, smock } from "@defi-wonderland/smock";
@@ -141,7 +143,7 @@ describe("Fore NFT Verifiers token", () => {
             );
 
             assertEvent<ProtocolChangedEvent>(recipt, "ProtocolChanged", {
-                addr: foreProtocol.address,
+                newAddress: foreProtocol.address,
             });
         });
 
@@ -152,16 +154,40 @@ describe("Fore NFT Verifiers token", () => {
                 );
             });
 
-            it("Should not allow to change protocol again", async () => {
+            it("Should not allow to change protocol to zero", async () => {
                 await expect(
-                    contract.connect(owner).setProtocol(foreProtocol.address)
-                ).to.be.revertedWith("ProtocolAlreadySet()");
+                    contract
+                        .connect(owner)
+                        .setProtocol(ethers.constants.AddressZero)
+                ).to.be.revertedWith(
+                    "ForeVerifiers: Procotol address cannot be zero"
+                );
             });
 
             it("Should return proper protocol address", async () => {
                 expect(await contract.protocol()).to.be.equal(
                     foreProtocol.address
                 );
+            });
+        });
+    });
+
+    describe("Change base uri", () => {
+        it("Should allow to execute only by owner", async () => {
+            await assertIsAvailableOnlyForOwner(async (account) => {
+                return contract
+                    .connect(account)
+                    .editBaseUri("https://test.com/%.json");
+            });
+        });
+
+        it("Should emit BaseURI event", async () => {
+            const [tx, recipt] = await txExec(
+                contract.connect(owner).editBaseUri("https://test.com/%.json")
+            );
+
+            assertEvent<BaseURIEvent>(recipt, "BaseURI", {
+                value: "https://test.com/%.json",
             });
         });
     });
@@ -426,23 +452,13 @@ describe("Fore NFT Verifiers token", () => {
                     );
                 });
 
-                /* it("Should be allowed to transfer tokens by operator", async () => {
-                    await txExec(
-                        contract
-                            .connect(operator)
-                            .transferFrom(alice.address, operator.address, 0)
+                it("Should check approval ", async () => {
+                    const bobHasApproval = await contract.isApprovedForAll(
+                        alice.address,
+                        bob.address
                     );
-                }); */
-
-                /* it("Should preserve default behavior of approving in case of non operator", async () => {
-                    await expect(
-                        contract
-                            .connect(bob)
-                            .transferFrom(alice.address, operator.address, 0)
-                    ).to.be.revertedWith(
-                        "ERC721: caller is not token owner nor approved"
-                    );
-                }); */
+                    expect(bobHasApproval).to.be.equal(false);
+                });
 
                 it("Should not be allowed to transfer tokens by default", async () => {
                     await expect(
@@ -494,6 +510,76 @@ describe("Fore NFT Verifiers token", () => {
                     });
                 });
             });
+        });
+
+        describe("increasing validations", () => {
+            describe("with token minted", () => {
+                beforeEach(async () => {
+                    await txExec(
+                        contract
+                            .connect(foreProtocol.wallet)
+                            .mintWithPower(alice.address, 10, 0, 0)
+                    );
+                });
+
+                it("Only market can increase validations", async () => {
+                    await assertIsAvailableOnlyForOwner(
+                        async (account) => {
+                            return contract
+                                .connect(account)
+                                .increaseValidation(0);
+                        },
+                        market,
+                        "OnlyOperatorAllowed()"
+                    );
+                });
+
+                describe("successfully", () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+
+                    beforeEach(async () => {
+                        [tx, recipt] = await txExec(
+                            contract.connect(market).increaseValidation(0)
+                        );
+                    });
+
+                    it("Should emit TokenValidationIncreased event", async () => {
+                        assertEvent<TokenValidationIncreasedEvent>(
+                            recipt,
+                            "TokenValidationIncreased",
+                            {
+                                id: BigNumber.from(0),
+                                newValidationCount: BigNumber.from(1),
+                            }
+                        );
+                    });
+
+                    it("Should revert with wrong token id", async () => {
+                        await expect(
+                            contract.connect(market).increaseValidation(1)
+                        ).to.be.revertedWith("TokenNotExists");
+                    });
+                });
+            });
+        });
+    });
+
+    describe("Supports interface", () => {
+        it("does not support random interface", async () => {
+            await expect(contract.supportsInterface("0x0")).to.be.reverted;
+        });
+
+        it("does support ERC165", async () => {
+            expect(await contract.supportsInterface("0x01ffc9a7")).to.be.equal(
+                true
+            );
+        });
+
+        it("does support ERC721", async () => {
+            expect(await contract.supportsInterface("0x80ac58cd")).to.be.equal(
+                true
+            );
         });
     });
 });

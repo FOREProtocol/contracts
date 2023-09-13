@@ -1,10 +1,10 @@
 import { BasicMarket } from "@/BasicMarket";
-import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
-import { MarketLib } from "@/MarketLib";
+import { CloseMarketEvent, MarketLib } from "@/MarketLib";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -12,6 +12,7 @@ import { expect } from "chai";
 import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { ethers } from "hardhat";
 import {
+    assertEvent,
     attachContract,
     deployLibrary,
     deployMockedContract,
@@ -392,6 +393,22 @@ describe("BasicMarket / Closing", () => {
                     false, // confirmed
                     false, // solved
                 ]);
+            });
+        });
+    });
+
+    describe("with no participants", () => {
+        let tx: ContractTransaction;
+        let recipt: ContractReceipt;
+
+        beforeEach(async () => {
+            await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
+            [tx, recipt] = await txExec(contract.connect(bob).closeMarket());
+        });
+
+        it("Should emit invalid market", async () => {
+            assertEvent<CloseMarketEvent>(recipt, "CloseMarket", {
+                result: 4,
             });
         });
     });

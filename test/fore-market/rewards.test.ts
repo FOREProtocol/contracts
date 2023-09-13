@@ -348,6 +348,97 @@ describe("BasicMarket / Rewards", () => {
             });
         });
 
+        describe("Prediction reward", () => {
+            it("Should revert when market not closed", async () => {
+                await expect(
+                    contract
+                        .connect(predictorSideA1)
+                        .withdrawPredictionReward(predictorSideA1.address)
+                ).to.be.revertedWith("MarketIsNotClosedYet");
+            });
+
+            describe("after closing", () => {
+                beforeEach(async () => {
+                    await timetravel(blockTimestamp + 4000000);
+
+                    contract.connect(marketCreator).closeMarket();
+                });
+
+                it("Should calculate reward", async () => {
+                    expect(
+                        await contract
+                            .connect(predictorSideA1)
+                            .calculatePredictionReward(predictorSideA1.address)
+                    ).to.be.equal(ethers.utils.parseEther("1187.5"));
+                });
+
+                it("Should revert when no rewards exists", async () => {
+                    await expect(
+                        contract
+                            .connect(predictorSideA1)
+                            .withdrawPredictionReward(verifierSideB2.address)
+                    ).to.be.revertedWith("NothingToWithdraw");
+                });
+
+                describe("after withdrawn", () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+                    beforeEach(async () => {
+                        [tx, recipt] = await txExec(
+                            contract
+                                .connect(predictorSideA1)
+                                .withdrawPredictionReward(
+                                    predictorSideA1.address
+                                )
+                        );
+                    });
+
+                    it("Should emit WithdrawReward event", async () => {
+                        await expect(tx)
+                            .to.emit(
+                                { ...marketLib, address: contract.address },
+                                "WithdrawReward"
+                            )
+                            .withArgs(
+                                predictorSideA1.address,
+                                1,
+                                ethers.utils.parseEther("1187.5")
+                            );
+                    });
+
+                    it("Should emit Fore token Transfer event", async () => {
+                        await expect(tx)
+                            .to.emit(foreToken, "Transfer")
+                            .withArgs(
+                                contract.address,
+                                predictorSideA1.address,
+                                ethers.utils.parseEther("1187.5")
+                            );
+                    });
+
+                    it("Should revert when rewards already withdrawn", async () => {
+                        await expect(
+                            contract
+                                .connect(predictorSideA1)
+                                .withdrawPredictionReward(
+                                    predictorSideA1.address
+                                )
+                        ).to.be.revertedWith("AlreadyWithdrawn");
+                    });
+
+                    it("Should calculate 0 reward", async () => {
+                        expect(
+                            await contract
+                                .connect(predictorSideA1)
+                                .calculatePredictionReward(
+                                    predictorSideA1.address
+                                )
+                        ).to.be.equal(0);
+                    });
+                });
+            });
+        });
+
         describe("Verifier reward", () => {
             it("Should return 0 before market closed", async () => {
                 expect(await contract.calculateVerificationReward(0)).to.be.eql(
@@ -479,6 +570,14 @@ describe("BasicMarket / Rewards", () => {
                                 3
                             );
                     });
+
+                    it("Should revert when rewards already withdrawn", async () => {
+                        await expect(
+                            contract
+                                .connect(verifierSideB2)
+                                .withdrawVerificationReward(0, false)
+                        ).to.be.revertedWith("AlreadyWithdrawn");
+                    });
                 });
 
                 describe("Withdraw reward (proper verification)", () => {
@@ -521,6 +620,12 @@ describe("BasicMarket / Rewards", () => {
                                 verifierSideB2.address,
                                 3
                             );
+                    });
+
+                    it("Should emit token valuation increased event", async () => {
+                        await expect(tx)
+                            .to.emit(foreVerifiers, "TokenValidationIncreased")
+                            .withArgs(3, 1);
                     });
                 });
 
@@ -718,6 +823,242 @@ describe("BasicMarket / Rewards", () => {
         });
     });
 
+    describe("Valid market B WON", () => {
+        beforeEach(async () => {
+            /// predictions
+            await contract
+                .connect(predictorSideA1)
+                .predict(ethers.utils.parseEther("500"), true);
+            await contract
+                .connect(predictorSideA2)
+                .predict(ethers.utils.parseEther("500"), true);
+            await contract
+                .connect(predictorSideB1)
+                .predict(ethers.utils.parseEther("1000"), false);
+            await contract
+                .connect(predictorSideB2)
+                .predict(ethers.utils.parseEther("2000"), false);
+
+            await timetravel(blockTimestamp + 300000 + 1);
+            await executeInSingleBlock(() => [
+                contract.connect(verifierSideA1).verify(0, false),
+                contract.connect(verifierSideA2).verify(1, false),
+            ]);
+        });
+
+        describe("Prediction reward", () => {
+            it("Should revert when market not closed", async () => {
+                await expect(
+                    contract
+                        .connect(predictorSideB2)
+                        .withdrawPredictionReward(predictorSideB2.address)
+                ).to.be.revertedWith("MarketIsNotClosedYet");
+            });
+
+            describe("after closing", () => {
+                beforeEach(async () => {
+                    await timetravel(blockTimestamp + 4000000);
+
+                    contract.connect(marketCreator).closeMarket();
+                });
+
+                it("Should calculate reward", async () => {
+                    expect(
+                        await contract
+                            .connect(predictorSideB2)
+                            .calculatePredictionReward(predictorSideB2.address)
+                    ).to.be.equal(
+                        ethers.utils.parseEther("3166.666666666666666666")
+                    );
+                });
+
+                it("Should revert when no rewards exists", async () => {
+                    await expect(
+                        contract
+                            .connect(predictorSideB2)
+                            .withdrawPredictionReward(verifierSideB2.address)
+                    ).to.be.revertedWith("NothingToWithdraw");
+                });
+
+                describe("after withdrawn", () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+                    beforeEach(async () => {
+                        [tx, recipt] = await txExec(
+                            contract
+                                .connect(predictorSideB2)
+                                .withdrawPredictionReward(
+                                    predictorSideB2.address
+                                )
+                        );
+                    });
+
+                    it("Should emit WithdrawReward event", async () => {
+                        await expect(tx)
+                            .to.emit(
+                                { ...marketLib, address: contract.address },
+                                "WithdrawReward"
+                            )
+                            .withArgs(
+                                predictorSideB2.address,
+                                1,
+                                ethers.utils.parseEther(
+                                    "3166.666666666666666666"
+                                )
+                            );
+                    });
+
+                    it("Should emit Fore token Transfer event", async () => {
+                        await expect(tx)
+                            .to.emit(foreToken, "Transfer")
+                            .withArgs(
+                                contract.address,
+                                predictorSideB2.address,
+                                ethers.utils.parseEther(
+                                    "3166.666666666666666666"
+                                )
+                            );
+                    });
+
+                    it("Should revert when rewards already withdrawn", async () => {
+                        await expect(
+                            contract
+                                .connect(predictorSideB2)
+                                .withdrawPredictionReward(
+                                    predictorSideB2.address
+                                )
+                        ).to.be.revertedWith("AlreadyWithdrawn");
+                    });
+
+                    it("Should calculate 0 reward", async () => {
+                        expect(
+                            await contract
+                                .connect(predictorSideB2)
+                                .calculatePredictionReward(
+                                    predictorSideB2.address
+                                )
+                        ).to.be.equal(0);
+                    });
+                });
+            });
+        });
+    });
+
+    describe("Valid market DRAW", () => {
+        beforeEach(async () => {
+            /// predictions
+            await contract
+                .connect(predictorSideA1)
+                .predict(ethers.utils.parseEther("500"), true);
+            await contract
+                .connect(predictorSideA2)
+                .predict(ethers.utils.parseEther("500"), true);
+            await contract
+                .connect(predictorSideB1)
+                .predict(ethers.utils.parseEther("1000"), false);
+            await contract
+                .connect(predictorSideB2)
+                .predict(ethers.utils.parseEther("2000"), false);
+
+            await timetravel(blockTimestamp + 300000 + 1);
+            await executeInSingleBlock(() => [
+                contract.connect(verifierSideA1).verify(0, true),
+                contract.connect(verifierSideA2).verify(1, false),
+            ]);
+        });
+
+        describe("Prediction reward", () => {
+            it("Should revert when market not closed", async () => {
+                await expect(
+                    contract
+                        .connect(predictorSideA1)
+                        .withdrawPredictionReward(predictorSideA1.address)
+                ).to.be.revertedWith("MarketIsNotClosedYet");
+            });
+
+            describe("after closing", () => {
+                beforeEach(async () => {
+                    await timetravel(blockTimestamp + 4000000);
+
+                    contract.connect(marketCreator).closeMarket();
+                });
+
+                it("Should calculate reward", async () => {
+                    expect(
+                        await contract
+                            .connect(predictorSideA1)
+                            .calculatePredictionReward(predictorSideA1.address)
+                    ).to.be.equal(ethers.utils.parseEther("475"));
+                });
+
+                it("Should revert when no rewards exists", async () => {
+                    await expect(
+                        contract
+                            .connect(predictorSideA1)
+                            .withdrawPredictionReward(verifierSideB2.address)
+                    ).to.be.revertedWith("NothingToWithdraw");
+                });
+
+                describe("after withdrawn", () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+                    beforeEach(async () => {
+                        [tx, recipt] = await txExec(
+                            contract
+                                .connect(predictorSideA1)
+                                .withdrawPredictionReward(
+                                    predictorSideA1.address
+                                )
+                        );
+                    });
+
+                    it("Should emit WithdrawReward event", async () => {
+                        await expect(tx)
+                            .to.emit(
+                                { ...marketLib, address: contract.address },
+                                "WithdrawReward"
+                            )
+                            .withArgs(
+                                predictorSideA1.address,
+                                1,
+                                ethers.utils.parseEther("475")
+                            );
+                    });
+
+                    it("Should emit Fore token Transfer event", async () => {
+                        await expect(tx)
+                            .to.emit(foreToken, "Transfer")
+                            .withArgs(
+                                contract.address,
+                                predictorSideA1.address,
+                                ethers.utils.parseEther("475")
+                            );
+                    });
+
+                    it("Should revert when rewards already withdrawn", async () => {
+                        await expect(
+                            contract
+                                .connect(predictorSideA1)
+                                .withdrawPredictionReward(
+                                    predictorSideA1.address
+                                )
+                        ).to.be.revertedWith("AlreadyWithdrawn");
+                    });
+
+                    it("Should calculate 0 reward", async () => {
+                        expect(
+                            await contract
+                                .connect(predictorSideA1)
+                                .calculatePredictionReward(
+                                    predictorSideA1.address
+                                )
+                        ).to.be.equal(0);
+                    });
+                });
+            });
+        });
+    });
+
     describe("Invalid market", () => {
         beforeEach(async () => {
             await contract
@@ -734,6 +1075,16 @@ describe("BasicMarket / Rewards", () => {
                 await expect(
                     contract.connect(marketCreator).marketCreatorFeeWithdraw()
                 ).to.be.revertedWith("OnlyForValidMarkets");
+            });
+        });
+
+        describe("Prediction reward", () => {
+            it("Should return 0 reward", async () => {
+                expect(
+                    await contract
+                        .connect(verifierSideA1)
+                        .calculatePredictionReward(verifierSideA1.address)
+                ).to.be.equal(ethers.utils.parseEther("0"));
             });
         });
     });

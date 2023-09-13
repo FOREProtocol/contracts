@@ -24,7 +24,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     error NotAuthorized();
 
     event BaseURI(string value);
-    event ProtocolChanged(IForeProtocol addr);
+    event ProtocolChanged(address newAddress);
     event TransferAllowanceChanged(bool status);
     event TokenMinted(
         uint id,
@@ -123,16 +123,16 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
 
     /**
      * @notice Changes factory contract
-     * @param addr New contract
+     * @param newAddress New protocol address
      */
-    function setProtocol(IForeProtocol addr) external onlyOwner {
-        if (address(protocol) != address(0)) {
-            revert ProtocolAlreadySet();
-        }
+    function setProtocol(address newAddress) external onlyOwner {
+        require(
+            newAddress != address(0),
+            "ForeVerifiers: Procotol address cannot be zero"
+        );
+        protocol = IForeProtocol(newAddress);
 
-        protocol = addr;
-
-        emit ProtocolChanged(addr);
+        emit ProtocolChanged(newAddress);
     }
 
     /**

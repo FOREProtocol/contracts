@@ -295,6 +295,16 @@ describe("BasicMarket / Dispute", () => {
                         false, // solved
                     ]);
                 });
+
+                it("Should revert when dispute already exists", async () => {
+                    await expect(
+                        contract
+                            .connect(bob)
+                            .openDispute(
+                                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                            )
+                    ).to.be.revertedWith("DisputeAlreadyExists");
+                });
             });
         });
 
@@ -347,6 +357,14 @@ describe("BasicMarket / Dispute", () => {
                 contract.connect(bob).verify(1, true),
                 contract.connect(carol).verify(2, true),
             ]);
+        });
+
+        describe("with no open dispute", () => {
+            it("Revert with not started yet", async () => {
+                await expect(
+                    contract.connect(highGuardAccount).resolveDispute(1)
+                ).to.be.revertedWith("DisputePeriodIsNotStartedYet");
+            });
         });
 
         describe("with open dispute", () => {
@@ -459,6 +477,24 @@ describe("BasicMarket / Dispute", () => {
                         false, // confirmed
                         true, // solved
                     ]);
+                });
+
+                it("Should revert when dispute already solved", async () => {
+                    await expect(
+                        contract.connect(highGuardAccount).resolveDispute(1)
+                    ).to.be.revertedWith("DisputeAlreadySolved");
+                });
+
+                it("Should revert when null result", async () => {
+                    await expect(
+                        contract.connect(highGuardAccount).resolveDispute(0)
+                    ).to.be.revertedWith("ResultCantBeNull");
+                });
+
+                it("Should revert when invalid result", async () => {
+                    await expect(
+                        contract.connect(highGuardAccount).resolveDispute(4)
+                    ).to.be.revertedWith("ResultCantBeInvalid");
                 });
             });
 
@@ -754,6 +790,27 @@ describe("BasicMarket / Dispute", () => {
                     ]);
                 });
             });
+        });
+    });
+
+    describe("after dispute period ends", () => {
+        beforeEach(async () => {
+            await timetravel(blockTimestamp + 300000 + 1);
+            await executeInSingleBlock(() => [
+                contract.connect(alice).verify(0, true),
+                contract.connect(bob).verify(1, false),
+            ]);
+            await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
+        });
+
+        it("Should not be able to open dispute", async () => {
+            await expect(
+                contract
+                    .connect(alice)
+                    .openDispute(
+                        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+                    )
+            ).to.be.revertedWith("DisputePeriodIsEnded");
         });
     });
 

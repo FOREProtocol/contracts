@@ -1,5 +1,5 @@
 import { BasicMarket } from "@/BasicMarket";
-import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { BaseURIEvent, ForeProtocol, UpgradeTierEvent } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
 import { MarketLib } from "@/MarketLib";
 import { ForeToken } from "@/ForeToken";
@@ -12,6 +12,8 @@ import { expect } from "chai";
 import { BigNumber, ContractTransaction } from "ethers";
 import { ethers } from "hardhat";
 import {
+    assertEvent,
+    assertIsAvailableOnlyForOwner,
     attachContract,
     deployContract,
     deployLibrary,
@@ -19,8 +21,6 @@ import {
     findEvent,
     txExec,
 } from "./helpers/utils";
-import { config } from "dotenv";
-
 describe("ForeProtocol", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
@@ -163,6 +163,26 @@ describe("ForeProtocol", () => {
         });
     });
 
+    describe("Change base uri", () => {
+        it("Should allow to execute only by owner", async () => {
+            await assertIsAvailableOnlyForOwner(async (account) => {
+                return protocol
+                    .connect(account)
+                    .editBaseUri("https://test.com/%.json");
+            });
+        });
+
+        it("Should emit BaseURI event", async () => {
+            const [tx, recipt] = await txExec(
+                protocol.connect(owner).editBaseUri("https://test.com/%.json")
+            );
+
+            assertEvent<BaseURIEvent>(recipt, "BaseURI", {
+                value: "https://test.com/%.json",
+            });
+        });
+    });
+
     describe("For non created token", () => {
         it("tokenURI() should revert", async () => {
             await expect(protocol.tokenURI(1)).to.be.revertedWith(
@@ -301,7 +321,7 @@ describe("ForeProtocol", () => {
                     );
             });
 
-            it("Should call foreVerifiers.mintWithPower()", async () => {
+            it("Should call foreVerifiers.increasePower()", async () => {
                 expect(foreVerifiers.increasePower.getCall(0).args).to.be.eql([
                     BigNumber.from(0),
                     ethers.utils.parseEther("80"),
@@ -317,6 +337,65 @@ describe("ForeProtocol", () => {
                         ethers.utils.parseEther("80"),
                         ethers.utils.parseEther("100")
                     );
+            });
+        });
+    });
+
+    describe("Upgrading verifier NFT", () => {
+        beforeEach(async () => {
+            await foreVerifiers.setVariable("protocol", owner.address);
+        });
+
+        describe("enough validations to upgrade", () => {
+            beforeEach(async () => {
+                await txExec(
+                    foreVerifiers
+                        .connect(owner)
+                        .mintWithPower(alice.address, 15000, 2, 1500)
+                );
+
+                await foreVerifiers.setVariable("protocol", protocol.address);
+            });
+
+            it("Should allow upgrade to next tier", async () => {
+                const [tx, recipt] = await txExec(
+                    protocol.connect(alice).upgradeTier(0)
+                );
+
+                assertEvent<UpgradeTierEvent>(recipt, "UpgradeTier", {
+                    oldTokenId: BigNumber.from(0),
+                    newTokenId: BigNumber.from(1),
+                    newTier: BigNumber.from(3),
+                    verificationsNum: BigNumber.from(1500),
+                });
+            });
+
+            it("Should revert when trying to upgrade to invalid tier", async () => {
+                await txExec(protocol.connect(alice).upgradeTier(0));
+
+                await expect(
+                    protocol.connect(alice).upgradeTier(1)
+                ).to.revertedWith(
+                    "ForeProtocol: Cant upgrade, next tier invalid"
+                );
+            });
+        });
+
+        describe("not enough validations to upgrade", () => {
+            beforeEach(async () => {
+                await txExec(
+                    foreVerifiers
+                        .connect(owner)
+                        .mintWithPower(alice.address, 15000, 2, 75)
+                );
+
+                await foreVerifiers.setVariable("protocol", protocol.address);
+            });
+
+            it("Should revert with can't upgrade", async () => {
+                await expect(
+                    protocol.connect(alice).upgradeTier(0)
+                ).to.revertedWith("ForeProtocol: Cant upgrade");
             });
         });
     });
@@ -493,6 +572,24 @@ describe("ForeProtocol", () => {
                     alice.address,
                     BigNumber.from(0)
                 );
+        });
+    });
+
+    describe("Supports interface", () => {
+        it("does not support random interface", async () => {
+            await expect(protocol.supportsInterface("0x0")).to.be.reverted;
+        });
+
+        it("does support ERC165", async () => {
+            expect(await protocol.supportsInterface("0x01ffc9a7")).to.be.equal(
+                true
+            );
+        });
+
+        it("does support ERC721", async () => {
+            expect(await protocol.supportsInterface("0x80ac58cd")).to.be.equal(
+                true
+            );
         });
     });
 });
