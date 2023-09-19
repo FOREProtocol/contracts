@@ -285,7 +285,7 @@ describe("BasicMarket / Rewards", () => {
             it("Should allow to execute only by token owner", async () => {
                 await timetravel(blockTimestamp + 4000000);
 
-                contract.connect(marketCreator).closeMarket();
+                await contract.connect(marketCreator).closeMarket();
 
                 await assertIsAvailableOnlyForOwner(
                     async (account) => {
@@ -304,7 +304,7 @@ describe("BasicMarket / Rewards", () => {
                 beforeEach(async () => {
                     await timetravel(blockTimestamp + 4000000);
 
-                    contract.connect(marketCreator).closeMarket();
+                    await contract.connect(marketCreator).closeMarket();
 
                     [tx, recipt] = await txExec(
                         contract
@@ -346,6 +346,59 @@ describe("BasicMarket / Rewards", () => {
                         );
                 });
             });
+
+            describe("after closing with exchausted token balance", () => {
+                let tx: ContractTransaction;
+                let recipt: ContractReceipt;
+                beforeEach(async () => {
+                    await timetravel(blockTimestamp + 4000000);
+
+                    await contract.connect(marketCreator).closeMarket();
+
+                    await foreToken.setVariable("_balances", {
+                        [contract.address]: ethers.utils.parseEther("20"),
+                    });
+
+                    [tx, recipt] = await txExec(
+                        contract
+                            .connect(marketCreator)
+                            .marketCreatorFeeWithdraw()
+                    );
+                });
+
+                it("Should emit WithdrawReward event", async () => {
+                    await expect(tx)
+                        .to.emit(
+                            { ...marketLib, address: contract.address },
+                            "WithdrawReward"
+                        )
+                        .withArgs(
+                            marketCreator.address,
+                            3,
+                            ethers.utils.parseEther("20")
+                        );
+                });
+
+                it("Should emit NFT Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreProtocol, "Transfer")
+                        .withArgs(
+                            marketCreator.address,
+                            ethers.constants.AddressZero,
+                            0
+                        );
+                });
+
+                it("Should emit Fore token Transfer event", async () => {
+                    await expect(tx)
+                        .to.emit(foreToken, "Transfer")
+                        .withArgs(
+                            contract.address,
+                            marketCreator.address,
+                            ethers.utils.parseEther("20")
+                        );
+                });
+            });
         });
 
         describe("Prediction reward", () => {
@@ -361,7 +414,7 @@ describe("BasicMarket / Rewards", () => {
                 beforeEach(async () => {
                     await timetravel(blockTimestamp + 4000000);
 
-                    contract.connect(marketCreator).closeMarket();
+                    await contract.connect(marketCreator).closeMarket();
                 });
 
                 it("Should calculate reward", async () => {
@@ -682,6 +735,59 @@ describe("BasicMarket / Rewards", () => {
                             );
                     });
                 });
+
+                describe("Withdraw reward with exhausted token balance", () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+                    const num = ethers.utils.parseEther("100");
+
+                    beforeEach(async () => {
+                        await foreToken.setVariable("_balances", {
+                            [contract.address]: ethers.utils.parseEther("80"),
+                        });
+
+                        [tx, recipt] = await txExec(
+                            contract
+                                .connect(verifierSideB2)
+                                .withdrawVerificationReward(0, true)
+                        );
+                    });
+
+                    it("Should emit WithdrawReward event", async () => {
+                        await expect(tx)
+                            .to.emit(
+                                { ...marketLib, address: contract.address },
+                                "WithdrawReward"
+                            )
+                            .withArgs(verifierSideB2.address, 2, num);
+                    });
+
+                    it("Should emit Fore token Transfer event", async () => {
+                        await expect(tx)
+                            .to.emit(foreToken, "Transfer")
+                            .withArgs(
+                                contract.address,
+                                verifierSideB2.address,
+                                ethers.utils.parseEther("80")
+                            );
+                    });
+
+                    it("Should emit vNFT Transfer event", async () => {
+                        await expect(tx)
+                            .to.emit(foreVerifiers, "Transfer")
+                            .withArgs(
+                                contract.address,
+                                verifierSideB2.address,
+                                3
+                            );
+                    });
+
+                    it("Should emit token valuation increased event", async () => {
+                        await expect(tx)
+                            .to.emit(foreVerifiers, "TokenValidationIncreased")
+                            .withArgs(3, 1);
+                    });
+                });
             });
 
             describe("after closing", () => {
@@ -690,7 +796,7 @@ describe("BasicMarket / Rewards", () => {
                 beforeEach(async () => {
                     await timetravel(blockTimestamp + 4000000);
 
-                    contract.connect(marketCreator).closeMarket();
+                    await contract.connect(marketCreator).closeMarket();
                 });
 
                 it("Should return proper power", async () => {
@@ -867,7 +973,7 @@ describe("BasicMarket / Rewards", () => {
                 beforeEach(async () => {
                     await timetravel(blockTimestamp + 4000000);
 
-                    contract.connect(marketCreator).closeMarket();
+                    await contract.connect(marketCreator).closeMarket();
                 });
 
                 it("Should calculate reward", async () => {
@@ -948,6 +1054,49 @@ describe("BasicMarket / Rewards", () => {
                         ).to.be.equal(0);
                     });
                 });
+
+                describe("after withdrawn with exhausted token balance", () => {
+                    let tx: ContractTransaction;
+                    let recipt: ContractReceipt;
+                    beforeEach(async () => {
+                        await foreToken.setVariable("_balances", {
+                            [contract.address]: ethers.utils.parseEther("3000"),
+                        });
+
+                        [tx, recipt] = await txExec(
+                            contract
+                                .connect(predictorSideB2)
+                                .withdrawPredictionReward(
+                                    predictorSideB2.address
+                                )
+                        );
+                    });
+
+                    it("Should emit WithdrawReward event", async () => {
+                        await expect(tx)
+                            .to.emit(
+                                { ...marketLib, address: contract.address },
+                                "WithdrawReward"
+                            )
+                            .withArgs(
+                                predictorSideB2.address,
+                                1,
+                                ethers.utils.parseEther(
+                                    "3166.666666666666666666"
+                                )
+                            );
+                    });
+
+                    it("Should emit Fore token Transfer event", async () => {
+                        await expect(tx)
+                            .to.emit(foreToken, "Transfer")
+                            .withArgs(
+                                contract.address,
+                                predictorSideB2.address,
+                                ethers.utils.parseEther("3000")
+                            );
+                    });
+                });
             });
         });
     });
@@ -988,7 +1137,7 @@ describe("BasicMarket / Rewards", () => {
                 beforeEach(async () => {
                     await timetravel(blockTimestamp + 4000000);
 
-                    contract.connect(marketCreator).closeMarket();
+                    await contract.connect(marketCreator).closeMarket();
                 });
 
                 it("Should calculate reward", async () => {

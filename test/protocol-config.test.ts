@@ -437,6 +437,18 @@ describe("Protocol configuration", () => {
             });
         });
 
+        it("Should change multiplier for first tier", async () => {
+            await txExec(contract.connect(owner).editTier(0, 0, 1000));
+        });
+
+        it("Should change multiplier for last tier", async () => {
+            await txExec(contract.connect(owner).editTier(3, 150, 15000));
+        });
+
+        it("Should change min verifications for last tier", async () => {
+            await txExec(contract.connect(owner).editTier(3, 200, 12250));
+        });
+
         it("Should not allow 0 multiplier for first tier", async () => {
             await expect(
                 contract.connect(owner).editTier(0, 0, 0)
