@@ -136,6 +136,57 @@ describe("Fore ERC20 token vesting", function () {
                 ).to.be.revertedWith("ArrayLengthsMismatch(2)");
             });
 
+            it("Should fail with wrongly prepared start timestamps", async () => {
+                await expect(
+                    contract
+                        .connect(owner)
+                        .addVestingEntries(
+                            [alice.address, bob.address],
+                            [
+                                ethers.utils.parseEther("10"),
+                                ethers.utils.parseEther("10"),
+                            ],
+                            [blockTimestamp + 10000],
+                            [blockTimestamp + 50000],
+                            [0]
+                        )
+                ).to.be.revertedWith("ArrayLengthsMismatch(2)");
+            });
+
+            it("Should fail with wrongly prepared end timestamps", async () => {
+                await expect(
+                    contract
+                        .connect(owner)
+                        .addVestingEntries(
+                            [alice.address, bob.address],
+                            [
+                                ethers.utils.parseEther("10"),
+                                ethers.utils.parseEther("10"),
+                            ],
+                            [blockTimestamp + 10000, blockTimestamp + 10000],
+                            [blockTimestamp + 50000],
+                            [0]
+                        )
+                ).to.be.revertedWith("ArrayLengthsMismatch(2)");
+            });
+
+            it("Should fail with wrongly prepared initial unlocks", async () => {
+                await expect(
+                    contract
+                        .connect(owner)
+                        .addVestingEntries(
+                            [alice.address, bob.address],
+                            [
+                                ethers.utils.parseEther("10"),
+                                ethers.utils.parseEther("10"),
+                            ],
+                            [blockTimestamp + 10000, blockTimestamp + 10000],
+                            [blockTimestamp + 50000, blockTimestamp + 50000],
+                            [0]
+                        )
+                ).to.be.revertedWith("ArrayLengthsMismatch(2)");
+            });
+
             describe("successfully", () => {
                 let tx: ContractTransaction;
                 let recipt: ContractReceipt;

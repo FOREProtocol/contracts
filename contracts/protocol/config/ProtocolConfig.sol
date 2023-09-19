@@ -132,7 +132,7 @@ contract ProtocolConfig is Ownable {
         bool[] memory statuses
     ) external onlyOwner {
         uint256 len = factoryAddresses.length;
-        require(len == statuses.length, "ProtocoConfig: Len mismatch ");
+        require(len == statuses.length, "ProtocolConfig: Len mismatch");
         for (uint256 i = 0; i < len; i++) {
             require(
                 factoryAddresses[i] != address(0),
@@ -378,7 +378,7 @@ contract ProtocolConfig is Ownable {
      * @param _amount Price (FORE)
      */
     function setVerifierMintPrice(uint256 _amount) external onlyOwner {
-        require(_amount <= 1000 ether, "ProtocoConfig: Max price exceed");
+        require(_amount <= 1000 ether, "ProtocolConfig: Max price exceed");
         verifierMintPrice = _amount;
         emit VerifierMintPriceChanged(_amount);
     }
@@ -388,7 +388,7 @@ contract ProtocolConfig is Ownable {
      * @param _amount Price (FORE)
      */
     function setMarketCreationPrice(uint256 _amount) external onlyOwner {
-        require(_amount <= 1000 ether, "ProtocoConfig: Max price exceed");
+        require(_amount <= 1000 ether, "ProtocolConfig: Max price exceed");
         marketCreationPrice = _amount;
         emit MarketCreationChanged(_amount);
     }

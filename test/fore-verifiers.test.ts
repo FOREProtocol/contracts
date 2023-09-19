@@ -565,6 +565,35 @@ describe("Fore NFT Verifiers token", () => {
         });
     });
 
+    describe("Market functions", () => {
+        beforeEach(async () => {
+            await txExec(
+                contract.connect(owner).setProtocol(foreProtocol.address)
+            );
+        });
+        it("Should allow burn called from market", async () => {
+            await txExec(contract.connect(market).marketBurn(1));
+        });
+
+        it("Should allow transfer called from market", async () => {
+            await txExec(
+                contract.connect(market).marketTransfer(alice.address, 10)
+            );
+        });
+
+        it("Should revert burn from non markets", async () => {
+            await expect(
+                contract.connect(alice).marketBurn(100)
+            ).to.be.revertedWith("ForeVerifiers: Not a market");
+        });
+
+        it("Should revert transfer from non markets", async () => {
+            await expect(
+                contract.connect(alice).marketTransfer(alice.address, 10)
+            ).to.be.revertedWith("ForeVerifiers: Not a market");
+        });
+    });
+
     describe("Supports interface", () => {
         it("does not support random interface", async () => {
             await expect(contract.supportsInterface("0x0")).to.be.reverted;

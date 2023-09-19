@@ -236,6 +236,42 @@ describe("Protocol configuration", () => {
             });
         });
 
+        it("Should not allow invalid dispute period", async () => {
+            await expect(
+                contract
+                    .connect(owner)
+                    .setMarketConfig(
+                        ethers.utils.parseEther("10"),
+                        ethers.utils.parseEther("20"),
+                        ethers.utils.parseEther("30"),
+                        20000,
+                        43200,
+                        60,
+                        70,
+                        90,
+                        100
+                    )
+            ).to.revertedWith("ForeFactory: Invalid dispute period");
+        });
+
+        it("Should not allow invalid validation period", async () => {
+            await expect(
+                contract
+                    .connect(owner)
+                    .setMarketConfig(
+                        ethers.utils.parseEther("10"),
+                        ethers.utils.parseEther("20"),
+                        ethers.utils.parseEther("30"),
+                        43200,
+                        20000,
+                        60,
+                        70,
+                        90,
+                        100
+                    )
+            ).to.revertedWith("ForeFactory: Invalid validation period");
+        });
+
         it("Should not allow fees exceeding limits", async () => {
             await expect(
                 contract
@@ -449,61 +485,86 @@ describe("Protocol configuration", () => {
     });
 
     describe("Set whitelist status", () => {
-        let tx: ContractTransaction;
-        let recipt: ContractReceipt;
+        describe("Successful", () => {
+            let tx: ContractTransaction;
+            let recipt: ContractReceipt;
 
-        beforeEach(async () => {
-            [tx, recipt] = await txExec(
-                contract
-                    .connect(owner)
-                    .setFactoryStatus([alice.address], [true])
-            );
-        });
-
-        it("Should allow to execute only by owner", async () => {
-            await assertIsAvailableOnlyForOwner(async (account) => {
-                return contract
-                    .connect(account)
-                    .setFactoryStatus([foundationWallet.address], [true]);
-            });
-        });
-
-        it("Should emit SetStatusForFactory event", async () => {
-            assertEvent<SetStatusForFactoryEvent>(
-                recipt,
-                "SetStatusForFactory",
-                {
-                    add: alice.address,
-                    status: true,
-                }
-            );
-        });
-
-        it("Should have enabled status", async () => {
-            expect(
-                await contract.isFactoryWhitelisted(alice.address)
-            ).to.be.equal(true);
-        });
-
-        describe("Edit few statuses", () => {
             beforeEach(async () => {
                 [tx, recipt] = await txExec(
                     contract
                         .connect(owner)
-                        .setFactoryStatus(
-                            [alice.address, owner.address],
-                            [false, true]
-                        )
+                        .setFactoryStatus([alice.address], [true])
                 );
             });
 
-            it("Should properly change statuses", async () => {
+            it("Should allow to execute only by owner", async () => {
+                await assertIsAvailableOnlyForOwner(async (account) => {
+                    return contract
+                        .connect(account)
+                        .setFactoryStatus([foundationWallet.address], [true]);
+                });
+            });
+
+            it("Should emit SetStatusForFactory event", async () => {
+                assertEvent<SetStatusForFactoryEvent>(
+                    recipt,
+                    "SetStatusForFactory",
+                    {
+                        add: alice.address,
+                        status: true,
+                    }
+                );
+            });
+
+            it("Should have enabled status", async () => {
                 expect(
                     await contract.isFactoryWhitelisted(alice.address)
-                ).to.be.equal(false);
-                expect(
-                    await contract.isFactoryWhitelisted(owner.address)
                 ).to.be.equal(true);
+            });
+
+            describe("Edit few statuses", () => {
+                beforeEach(async () => {
+                    [tx, recipt] = await txExec(
+                        contract
+                            .connect(owner)
+                            .setFactoryStatus(
+                                [alice.address, owner.address],
+                                [false, true]
+                            )
+                    );
+                });
+
+                it("Should properly change statuses", async () => {
+                    expect(
+                        await contract.isFactoryWhitelisted(alice.address)
+                    ).to.be.equal(false);
+                    expect(
+                        await contract.isFactoryWhitelisted(owner.address)
+                    ).to.be.equal(true);
+                });
+            });
+        });
+
+        describe("Invalid status", () => {
+            it("Should revert when empty status", async () => {
+                await expect(
+                    contract
+                        .connect(owner)
+                        .setFactoryStatus([foundationWallet.address], [])
+                ).to.be.revertedWith("ProtocolConfig: Len mismatch");
+            });
+
+            it("Should revert when empty factory address", async () => {
+                await expect(
+                    contract
+                        .connect(owner)
+                        .setFactoryStatus(
+                            [ethers.constants.AddressZero],
+                            [true]
+                        )
+                ).to.be.revertedWith(
+                    "ProtocolConfig: Factory address cannot be zero"
+                );
             });
         });
     });
@@ -515,6 +576,16 @@ describe("Protocol configuration", () => {
                     .connect(account)
                     .setFoundationWallet(alice.address);
             });
+        });
+
+        it("Should revert when ZERO address", async () => {
+            await expect(
+                contract
+                    .connect(owner)
+                    .setFoundationWallet(ethers.constants.AddressZero)
+            ).to.be.revertedWith(
+                "ProtocolConfig: Foundation address cannot be zero"
+            );
         });
 
         it("Should emit MarketConfigurationUpdated event", async () => {
@@ -539,6 +610,16 @@ describe("Protocol configuration", () => {
             });
         });
 
+        it("Should revert when ZERO address", async () => {
+            await expect(
+                contract
+                    .connect(owner)
+                    .setHighGuard(ethers.constants.AddressZero)
+            ).to.be.revertedWith(
+                "ProtocolConfig: HighGuard address cannot be zero"
+            );
+        });
+
         it("Should emit HighGuardChanged event", async () => {
             const [tx, recipt] = await txExec(
                 contract.connect(owner).setHighGuard(alice.address)
@@ -555,6 +636,16 @@ describe("Protocol configuration", () => {
             await assertIsAvailableOnlyForOwner(async (account) => {
                 return contract.connect(account).setMarketplace(alice.address);
             });
+        });
+
+        it("Should revert when ZERO address", async () => {
+            await expect(
+                contract
+                    .connect(owner)
+                    .setMarketplace(ethers.constants.AddressZero)
+            ).to.be.revertedWith(
+                "ProtocolConfig: Marketplace address cannot be zero"
+            );
         });
 
         it("Should emit HighGuardChanged event", async () => {
@@ -582,7 +673,7 @@ describe("Protocol configuration", () => {
                 contract
                     .connect(owner)
                     .setVerifierMintPrice(ethers.utils.parseEther("1001"))
-            ).to.revertedWith("ProtocoConfig: Max price exceed");
+            ).to.revertedWith("ProtocolConfig: Max price exceed");
         });
 
         it("Should emit VerifierMintPriceChanged event", async () => {
@@ -616,7 +707,7 @@ describe("Protocol configuration", () => {
                 contract
                     .connect(owner)
                     .setMarketCreationPrice(ethers.utils.parseEther("1001"))
-            ).to.revertedWith("ProtocoConfig: Max price exceed");
+            ).to.revertedWith("ProtocolConfig: Max price exceed");
         });
 
         it("Should emit MarketCreationChanged event", async () => {
@@ -634,5 +725,102 @@ describe("Protocol configuration", () => {
                 }
             );
         });
+    });
+});
+
+describe("Constructor arguments", () => {
+    let owner: SignerWithAddress;
+    let foundationWallet: SignerWithAddress;
+    let highGuardAccount: SignerWithAddress;
+    let marketplaceContract: SignerWithAddress;
+    let foreTokenContract: SignerWithAddress;
+    let foreVerifiersContract: SignerWithAddress;
+
+    beforeEach(async () => {
+        [
+            owner,
+            foundationWallet,
+            highGuardAccount,
+            marketplaceContract,
+            foreTokenContract,
+            foreVerifiersContract,
+        ] = await ethers.getSigners();
+    });
+
+    it("Should revert with empty foundation wallet", async () => {
+        await expect(
+            deployContract<ProtocolConfig>(
+                "ProtocolConfig",
+                ethers.constants.AddressZero,
+                highGuardAccount.address,
+                marketplaceContract.address,
+                foreTokenContract.address,
+                foreVerifiersContract.address,
+                ethers.utils.parseEther("2"),
+                ethers.utils.parseEther("3")
+            )
+        ).to.revertedWith("ProtocolConfig: Foundation address cannot be zero");
+    });
+
+    it("Should revert with empty highguard wallet", async () => {
+        await expect(
+            deployContract<ProtocolConfig>(
+                "ProtocolConfig",
+                foundationWallet.address,
+                ethers.constants.AddressZero,
+                marketplaceContract.address,
+                foreTokenContract.address,
+                foreVerifiersContract.address,
+                ethers.utils.parseEther("2"),
+                ethers.utils.parseEther("3")
+            )
+        ).to.revertedWith("ProtocolConfig: HighGuard address cannot be zero");
+    });
+
+    it("Should revert with empty marketplace address", async () => {
+        await expect(
+            deployContract<ProtocolConfig>(
+                "ProtocolConfig",
+                foundationWallet.address,
+                highGuardAccount.address,
+                ethers.constants.AddressZero,
+                foreTokenContract.address,
+                foreVerifiersContract.address,
+                ethers.utils.parseEther("2"),
+                ethers.utils.parseEther("3")
+            )
+        ).to.revertedWith("ProtocolConfig: Marketplace address cannot be zero");
+    });
+
+    it("Should revert with empty fore token address", async () => {
+        await expect(
+            deployContract<ProtocolConfig>(
+                "ProtocolConfig",
+                foundationWallet.address,
+                highGuardAccount.address,
+                marketplaceContract.address,
+                ethers.constants.AddressZero,
+                foreVerifiersContract.address,
+                ethers.utils.parseEther("2"),
+                ethers.utils.parseEther("3")
+            )
+        ).to.revertedWith("ProtocolConfig: FOREToken address cannot be zero");
+    });
+
+    it("Should revert with empty fore verifiers address", async () => {
+        await expect(
+            deployContract<ProtocolConfig>(
+                "ProtocolConfig",
+                foundationWallet.address,
+                highGuardAccount.address,
+                marketplaceContract.address,
+                foreTokenContract.address,
+                ethers.constants.AddressZero,
+                ethers.utils.parseEther("2"),
+                ethers.utils.parseEther("3")
+            )
+        ).to.revertedWith(
+            "ProtocolConfig: FOREVerifiers address cannot be zero"
+        );
     });
 });

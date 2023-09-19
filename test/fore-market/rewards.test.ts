@@ -460,6 +460,14 @@ describe("BasicMarket / Rewards", () => {
                 );
             });
 
+            it("Should revert when not highguard or verifier", async () => {
+                await expect(
+                    contract
+                        .connect(marketCreator)
+                        .withdrawVerificationReward(0, false)
+                ).to.be.revertedWith("BasicMarket: Only Verifier or HighGuard");
+            });
+
             it("Should revert when market not closed", async () => {
                 await expect(
                     contract
@@ -574,7 +582,7 @@ describe("BasicMarket / Rewards", () => {
                     it("Should revert when rewards already withdrawn", async () => {
                         await expect(
                             contract
-                                .connect(verifierSideB2)
+                                .connect(highGuardAccount)
                                 .withdrawVerificationReward(0, false)
                         ).to.be.revertedWith("AlreadyWithdrawn");
                     });
