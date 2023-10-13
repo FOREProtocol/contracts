@@ -415,9 +415,6 @@ contract BasicMarket is ReentrancyGuard {
         }
 
         if (vNftBurn) {
-            uint256 power = foreVerifiers.powerOf(
-                verifications[verificationId].tokenId
-            );
             foreVerifiers.marketBurn(power - toDisputeCreator - toHighGuard);
             foreVerifiers.burn(v.tokenId);
         } else {
