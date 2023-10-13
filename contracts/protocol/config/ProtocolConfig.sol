@@ -218,7 +218,6 @@ contract ProtocolConfig is Ownable {
             multiplier > 0,
             "ProtocolConfig: Multiplier must be greater than zero"
         );
-        // First Tier
         if (tierIndex == 0) {
             require(
                 minVerifications < nextTier.minVerifications,
@@ -228,11 +227,8 @@ contract ProtocolConfig is Ownable {
                 multiplier < nextTier.multiplier,
                 "ProtocolConfig: First tier multiplier must be less than the next tier"
             );
-        }
-        // All other Tiers
-        else {
+        } else {
             Tier memory prevTier = _tiers[tierIndex - 1];
-            // Middle Tiers (if next tier exists and its minVerifications is not 0)
             if (nextTier.minVerifications != 0) {
                 require(
                     prevTier.minVerifications < minVerifications &&
@@ -244,9 +240,7 @@ contract ProtocolConfig is Ownable {
                         multiplier < nextTier.multiplier,
                     "ProtocolConfig: Multiplier of this tier must be between the previous and next tier"
                 );
-            }
-            // Last Tier
-            else {
+            } else {
                 require(
                     prevTier.minVerifications < minVerifications,
                     "ProtocolConfig: Last tier minVerifications must be greater than the previous tier"

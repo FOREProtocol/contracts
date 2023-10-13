@@ -378,7 +378,7 @@ contract BasicMarket is ReentrancyGuard {
             "BasicMarket: Only Verifier or HighGuard"
         );
 
-        uint256 powerOf = foreVerifiers.powerOf(
+        uint256 power = foreVerifiers.powerOf(
             verifications[verificationId].tokenId
         );
         (
@@ -389,7 +389,7 @@ contract BasicMarket is ReentrancyGuard {
         ) = MarketLib.withdrawVerificationReward(
                 m,
                 v,
-                powerOf,
+                power,
                 marketConfig.verificationFee()
             );
         verifications[verificationId].withdrawn = true;
