@@ -82,7 +82,7 @@ describe("BasicMarket / Dispute", () => {
             foreToken.address,
             foreVerifiers.address,
             ethers.utils.parseEther("10"),
-            ethers.utils.parseEther("20")
+            ethers.utils.parseEther("50")
         );
 
         // preparing fore markets (factory)
@@ -228,7 +228,6 @@ describe("BasicMarket / Dispute", () => {
             await executeInSingleBlock(() => [
                 contract.connect(alice).verify(0, false),
                 contract.connect(bob).verify(1, false),
-                contract.connect(carol).verify(2, false),
             ]);
         });
 
@@ -286,7 +285,7 @@ describe("BasicMarket / Dispute", () => {
                         ethers.utils.parseEther("50"), // side A
                         ethers.utils.parseEther("50"), // side B
                         ethers.utils.parseEther("0"), // verified A
-                        ethers.utils.parseEther("50"), // verified B
+                        ethers.utils.parseEther("100"), // verified B
                         alice.address, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
@@ -355,7 +354,6 @@ describe("BasicMarket / Dispute", () => {
             await executeInSingleBlock(() => [
                 contract.connect(alice).verify(0, true),
                 contract.connect(bob).verify(1, true),
-                contract.connect(carol).verify(2, true),
             ]);
         });
 
@@ -444,7 +442,7 @@ describe("BasicMarket / Dispute", () => {
                     expect(await contract.marketInfo()).to.be.eql([
                         ethers.utils.parseEther("50"), // side A
                         ethers.utils.parseEther("50"), // side B
-                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("100"), // verified A
                         ethers.utils.parseEther("0"), // verified B
                         alice.address, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
@@ -468,7 +466,7 @@ describe("BasicMarket / Dispute", () => {
                     expect(await contract.marketInfo()).to.be.eql([
                         ethers.utils.parseEther("50"), // side A
                         ethers.utils.parseEther("50"), // side B
-                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("100"), // verified A
                         ethers.utils.parseEther("0"), // verified B
                         alice.address, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
@@ -542,7 +540,7 @@ describe("BasicMarket / Dispute", () => {
                     expect(await contract.marketInfo()).to.be.eql([
                         ethers.utils.parseEther("50"), // side A
                         ethers.utils.parseEther("50"), // side B
-                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("100"), // verified A
                         ethers.utils.parseEther("0"), // verified B
                         alice.address, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
@@ -566,7 +564,7 @@ describe("BasicMarket / Dispute", () => {
                     expect(await contract.marketInfo()).to.be.eql([
                         ethers.utils.parseEther("50"), // side A
                         ethers.utils.parseEther("50"), // side B
-                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("100"), // verified A
                         ethers.utils.parseEther("0"), // verified B
                         alice.address, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
@@ -642,7 +640,7 @@ describe("BasicMarket / Dispute", () => {
                     expect(await contract.marketInfo()).to.be.eql([
                         ethers.utils.parseEther("50"), // side A
                         ethers.utils.parseEther("50"), // side B
-                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("100"), // verified A
                         ethers.utils.parseEther("0"), // verified B
                         alice.address, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
@@ -666,7 +664,7 @@ describe("BasicMarket / Dispute", () => {
                     expect(await contract.marketInfo()).to.be.eql([
                         ethers.utils.parseEther("50"), // side A
                         ethers.utils.parseEther("50"), // side B
-                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("100"), // verified A
                         ethers.utils.parseEther("0"), // verified B
                         alice.address, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
@@ -755,8 +753,8 @@ describe("BasicMarket / Dispute", () => {
                     expect(await contract.marketInfo()).to.be.eql([
                         ethers.utils.parseEther("50"), // side A
                         ethers.utils.parseEther("50"), // side B
-                        ethers.utils.parseEther("20"), // verified A
-                        ethers.utils.parseEther("20"), // verified B
+                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("50"), // verified B
                         alice.address, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
@@ -779,8 +777,8 @@ describe("BasicMarket / Dispute", () => {
                     expect(await contract.marketInfo()).to.be.eql([
                         ethers.utils.parseEther("50"), // side A
                         ethers.utils.parseEther("50"), // side B
-                        ethers.utils.parseEther("20"), // verified A
-                        ethers.utils.parseEther("20"), // verified B
+                        ethers.utils.parseEther("50"), // verified A
+                        ethers.utils.parseEther("50"), // verified B
                         alice.address, // dispute creator
                         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp

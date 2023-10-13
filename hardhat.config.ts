@@ -94,44 +94,9 @@ const config: HardhatUserConfig = {
             saveDeployments: true,
             deploy: ["deploy/fantom/"],
         },
-        goerli: {
-            url: process.env.GOERLI_URL || "",
-            chainId: 5,
-            accounts: {
-                mnemonic:
-                    process.env.MNEMONIC_TESTNET !== undefined
-                        ? process.env.MNEMONIC_TESTNET
-                        : "",
-            },
-            verify: {
-                etherscan: {
-                    apiKey: process.env.ETHERSCAN_API_KEY,
-                },
-            },
-            saveDeployments: true,
-            deploy: ["deploy/fantom/"],
-        },
-        ftmTestnet: {
-            url: process.env.FANTOMTESTNET_URL || "",
-            chainId: 4002,
-            accounts: {
-                mnemonic:
-                    process.env.MNEMONIC_TESTNET !== undefined
-                        ? process.env.MNEMONIC_TESTNET
-                        : "",
-            },
-            verify: {
-                etherscan: {
-                    apiUrl: "https://api-testnet.ftmscan.com",
-                    apiKey: process.env.FTMSCAN_API_KEY,
-                },
-            },
-            saveDeployments: true,
-            deploy: ["deploy/fantom/"],
-        },
-        polygonTestnet: {
-            url: process.env.POLYGON_TESTNET_URL || "",
-            chainId: 80001,
+        arbitrumTestnet: {
+            url: process.env.ARBITRUM_TESTNET_URL || "",
+            chainId: 421613,
             accounts: {
                 mnemonic:
                     process.env.MNEMONIC_TESTNET !== undefined
@@ -139,7 +104,7 @@ const config: HardhatUserConfig = {
                         : "",
             },
             saveDeployments: true,
-            deploy: ["deploy/polygon_testnet/"],
+            deploy: ["deploy/arbitrum/"],
         },
     },
     gasReporter: {

@@ -213,39 +213,47 @@ contract ProtocolConfig is Ownable {
         uint256 minVerifications,
         uint256 multiplier
     ) external onlyOwner {
+        Tier memory nextTier = _tiers[tierIndex + 1];
+        require(
+            multiplier > 0,
+            "ProtocolConfig: Multiplier must be greater than zero"
+        );
+        // First Tier
         if (tierIndex == 0) {
             require(
-                multiplier > 0,
-                "ProtocolConfig: 1st tier multiplier must be greater than zero"
+                minVerifications < nextTier.minVerifications,
+                "ProtocolConfig: First tier minVerifications must be less than the next tier"
             );
-        } else {
+            require(
+                multiplier < nextTier.multiplier,
+                "ProtocolConfig: First tier multiplier must be less than the next tier"
+            );
+        }
+        // All other Tiers
+        else {
             Tier memory prevTier = _tiers[tierIndex - 1];
-            Tier memory nextTier = _tiers[tierIndex + 1];
-            if (minVerifications == 0) {
+            // Middle Tiers (if next tier exists and its minVerifications is not 0)
+            if (nextTier.minVerifications != 0) {
                 require(
-                    nextTier.minVerifications == 0,
-                    "ProtocolConfig: Cant disable non last element"
+                    prevTier.minVerifications < minVerifications &&
+                        minVerifications < nextTier.minVerifications,
+                    "ProtocolConfig: minVerifications of this tier must be between the previous and next tier"
                 );
-            } else {
+                require(
+                    prevTier.multiplier < multiplier &&
+                        multiplier < nextTier.multiplier,
+                    "ProtocolConfig: Multiplier of this tier must be between the previous and next tier"
+                );
+            }
+            // Last Tier
+            else {
                 require(
                     prevTier.minVerifications < minVerifications,
-                    "ProtocolConfig: Sort error, minVerifications must be higher then previous tier"
+                    "ProtocolConfig: Last tier minVerifications must be greater than the previous tier"
                 );
-                if (nextTier.minVerifications > 0) {
-                    require(
-                        nextTier.minVerifications > minVerifications,
-                        "ProtocolConfig: Sort error, minVerifications must be smaller then next tier"
-                    );
-                }
-            }
-            require(
-                prevTier.multiplier < multiplier,
-                "ProtocolConfig: Sort error, multiplier must be higher then previous tier"
-            );
-            if (nextTier.multiplier > 0) {
                 require(
-                    nextTier.multiplier > multiplier,
-                    "ProtocolConfig: Sort error, multiplier must be smaller then next tier"
+                    prevTier.multiplier < multiplier,
+                    "ProtocolConfig: Last tier multiplier must be greater than the previous tier"
                 );
             }
         }

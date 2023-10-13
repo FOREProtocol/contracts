@@ -1,5 +1,4 @@
 module.exports = {
-    skipFiles: [
-        'external'
-    ]
+    modifierWhitelist: ["nonReentrant"],
+    skipFiles: ["external"],
 };

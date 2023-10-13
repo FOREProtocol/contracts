@@ -69,15 +69,15 @@ library MarketLib {
     uint256 constant DIVIDER = 10000;
 
     /// FUNCTIONS
-    /// @dev Checks if one side of the market verifies more than the total market size divided by two
+    /// @dev Checks if one side of the market verifies more than the total market size
     /// @param m Market info
     /// @return 0 true if verified
     function _isVerified(Market memory m) internal pure returns (bool) {
         uint256 totalMarketSize = m.sideA + m.sideB;
         return
             totalMarketSize > 0 &&
-            (((totalMarketSize / 2 <= m.verifiedB)) ||
-                ((totalMarketSize / 2 <= m.verifiedA)));
+            ((totalMarketSize <= m.verifiedB) ||
+                (totalMarketSize <= m.verifiedA));
     }
 
     /// @notice Checks if one side of the market is fully verified
@@ -109,11 +109,11 @@ library MarketLib {
         if (_isVerified(m)) {
             return 0;
         }
-
+        uint256 totalMarketSize = m.sideA + m.sideB;
         if (side) {
-            return m.sideB - m.verifiedA;
+            return totalMarketSize - m.verifiedA;
         } else {
-            return m.sideA - m.verifiedB;
+            return totalMarketSize - m.verifiedB;
         }
     }
 

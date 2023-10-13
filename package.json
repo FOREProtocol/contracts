@@ -11,8 +11,8 @@
         "test": "npx hardhat test",
         "coverage": "npx hardhat coverage",
         "docgen": "npx hardhat docgen && npx hardhat export --export-all docs/contracts.json",
-        "mainnet": "npx hardhat deploy --network fantom",
-        "testnet": "npx hardhat deploy --network ftmTestnet",
+        "mainnet": "npx hardhat deploy --network arbitrum",
+        "testnet": "npx hardhat deploy --network arbitrumTestnet",
         "node": "npx hardhat node",
         "size": "npx hardhat size-contracts"
     },

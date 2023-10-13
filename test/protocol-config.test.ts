@@ -449,25 +449,59 @@ describe("Protocol configuration", () => {
             await txExec(contract.connect(owner).editTier(3, 200, 12250));
         });
 
-        it("Should not allow 0 multiplier for first tier", async () => {
+        it("Should not allow 0 multiplier", async () => {
             await expect(
                 contract.connect(owner).editTier(0, 0, 0)
             ).to.revertedWith(
-                "ProtocolConfig: 1st tier multiplier must be greater than zero"
+                "ProtocolConfig: Multiplier must be greater than zero"
             );
         });
 
         it("Should not allow 0 minimum validations for second tier", async () => {
             await expect(
-                contract.connect(owner).editTier(1, 0, 0)
-            ).to.revertedWith("ProtocolConfig: Cant disable non last element");
+                contract.connect(owner).editTier(1, 0, 10000)
+            ).to.revertedWith(
+                "ProtocolConfig: minVerifications of this tier must be between the previous and next tier"
+            );
+        });
+
+        it("Should not allow bigger min verifications than next tier for first element", async () => {
+            await expect(
+                contract.connect(owner).editTier(0, 30, 10000)
+            ).to.revertedWith(
+                "ProtocolConfig: First tier minVerifications must be less than the next tier"
+            );
+        });
+
+        it("Should not allow bigger multiplier than next tier for first element", async () => {
+            await expect(
+                contract.connect(owner).editTier(0, 0, 11000)
+            ).to.revertedWith(
+                "ProtocolConfig: First tier multiplier must be less than the next tier"
+            );
         });
 
         it("Should not allow less validations than previous tier", async () => {
             await expect(
                 contract.connect(owner).editTier(2, 29, 11750)
             ).to.revertedWith(
-                "ProtocolConfig: Sort error, minVerifications must be higher then previous tier"
+                "ProtocolConfig: minVerifications of this tier must be between the previous and next tier"
+            );
+        });
+
+        it("Should not allow smaller min verifications than previous tier for last element", async () => {
+            await expect(
+                contract.connect(owner).editTier(3, 10, 20000)
+            ).to.revertedWith(
+                "ProtocolConfig: Last tier minVerifications must be greater than the previous tier"
+            );
+        });
+
+        it("Should not allow smaller multiplier than previous tier for last element", async () => {
+            await expect(
+                contract.connect(owner).editTier(3, 150, 5000)
+            ).to.revertedWith(
+                "ProtocolConfig: Last tier multiplier must be greater than the previous tier"
             );
         });
 
@@ -475,7 +509,7 @@ describe("Protocol configuration", () => {
             await expect(
                 contract.connect(owner).editTier(2, 150, 11750)
             ).to.revertedWith(
-                "ProtocolConfig: Sort error, minVerifications must be smaller then next tier"
+                "ProtocolConfig: minVerifications of this tier must be between the previous and next tier"
             );
         });
 
@@ -483,7 +517,7 @@ describe("Protocol configuration", () => {
             await expect(
                 contract.connect(owner).editTier(2, 75, 11000)
             ).to.revertedWith(
-                "ProtocolConfig: Sort error, multiplier must be higher then previous tier"
+                "ProtocolConfig: Multiplier of this tier must be between the previous and next tier"
             );
         });
 
@@ -491,7 +525,7 @@ describe("Protocol configuration", () => {
             await expect(
                 contract.connect(owner).editTier(2, 75, 12250)
             ).to.revertedWith(
-                "ProtocolConfig: Sort error, multiplier must be smaller then next tier"
+                "ProtocolConfig: Multiplier of this tier must be between the previous and next tier"
             );
         });
     });

@@ -9,7 +9,7 @@ import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, ContractTransaction, Signer } from "ethers";
+import { BigNumber, ContractTransaction } from "ethers";
 import { ethers } from "hardhat";
 import {
     assertEvent,
@@ -17,8 +17,6 @@ import {
     deployLibrary,
     deployMockedContract,
     executeInSingleBlock,
-    findEvent,
-    impersonateContract,
     sendERC20Tokens,
     timetravel,
     txExec,
@@ -30,8 +28,6 @@ describe("BasicMarket / Closing", () => {
 
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreProtocolAccount: Signer;
-    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
     let carol: SignerWithAddress;
@@ -90,14 +86,11 @@ describe("BasicMarket / Closing", () => {
             protocolConfig.address,
             "https://markets.api.foreprotocol.io/market/"
         );
-        foreProtocolAccount = await impersonateContract(foreProtocol.address);
 
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",
             foreProtocol.address
         );
-        basicFactoryAccount = await impersonateContract(basicFactory.address);
-
         // factory assignment
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
@@ -264,7 +257,7 @@ describe("BasicMarket / Closing", () => {
                 expect(await contract.marketInfo()).to.be.eql([
                     ethers.utils.parseEther("70"), // side A
                     ethers.utils.parseEther("30"), // side B
-                    ethers.utils.parseEther("30"), // verified A
+                    ethers.utils.parseEther("40"), // verified A
                     ethers.utils.parseEther("0"), // verified B
                     ethers.constants.AddressZero, // dispute creator
                     BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp

@@ -350,7 +350,7 @@ contract BasicMarket is ReentrancyGuard {
     {
         MarketLib.Market memory m = _market;
         MarketLib.Verification memory v = verifications[verificationId];
-        uint256 power = foreVerifiers.multipliedPowerOf(
+        uint256 power = foreVerifiers.powerOf(
             verifications[verificationId].tokenId
         );
         (toVerifier, toDisputeCreator, toHighGuard, vNftBurn) = MarketLib
@@ -378,7 +378,7 @@ contract BasicMarket is ReentrancyGuard {
             "BasicMarket: Only Verifier or HighGuard"
         );
 
-        uint256 multipliedPower = foreVerifiers.multipliedPowerOf(
+        uint256 powerOf = foreVerifiers.powerOf(
             verifications[verificationId].tokenId
         );
         (
@@ -389,7 +389,7 @@ contract BasicMarket is ReentrancyGuard {
         ) = MarketLib.withdrawVerificationReward(
                 m,
                 v,
-                multipliedPower,
+                powerOf,
                 marketConfig.verificationFee()
             );
         verifications[verificationId].withdrawn = true;
@@ -453,7 +453,7 @@ contract BasicMarket is ReentrancyGuard {
         }
         foreToken.safeTransfer(msg.sender, toWithdraw);
 
-        emit MarketLib.WithdrawReward(msg.sender, 3, toWithdraw);
+        emit WithdrawReward(msg.sender, 3, toWithdraw);
     }
 }
 

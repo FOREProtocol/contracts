@@ -14,8 +14,7 @@ docs/*
 /scripts
 !/scripts/deploy.ts
 
-deployments/ftmTestnet
-deployments/goerli
+deployments/arbitrumTestnet
 deployments/localhost
 deployments/hardhat
 
