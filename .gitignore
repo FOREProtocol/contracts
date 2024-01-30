@@ -19,3 +19,7 @@ deployments/localhost
 deployments/hardhat
 
 scripts/data/vesting.csv
+
+# Foundry files
+cache_forge
+out
