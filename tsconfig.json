@@ -10,21 +10,12 @@
         "noImplicitThis": true,
         "noImplicitReturns": true,
         "strictNullChecks": false,
+        "resolveJsonModule": true,
         "baseUrl": ".",
         "paths": {
-            "@/*": [
-                "artifacts/*",
-                "typechain/*"
-            ]
+            "@/*": ["artifacts/*", "typechain/*"]
         }
     },
-    "include": [
-        "./scripts",
-        "./test",
-        "./typechain",
-        "./deploy"
-    ],
-    "files": [
-        "./hardhat.config.ts"
-    ]
+    "include": ["./scripts", "./test", "./typechain", "./deploy"],
+    "files": ["./hardhat.config.ts"]
 }

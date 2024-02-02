@@ -8,13 +8,14 @@
         "lint": "solhint 'contracts/*.sol'",
         "lint:fix": "solhint 'contracts/**/*.sol' --fix",
         "format": "prettier --write .",
-        "test": "npx hardhat test",
+        "test": "npm run permit2:build && npx hardhat test",
         "coverage": "npx hardhat coverage",
         "docgen": "npx hardhat docgen && npx hardhat export --export-all docs/contracts.json",
         "mainnet": "npx hardhat deploy --network arbitrum",
         "testnet": "npx hardhat deploy --network arbitrumTestnet",
         "node": "npx hardhat node",
-        "size": "npx hardhat size-contracts"
+        "size": "npx hardhat size-contracts",
+        "permit2:build": "cd lib/permit2 && forge build"
     },
     "author": "",
     "license": "ISC",
