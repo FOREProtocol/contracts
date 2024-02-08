@@ -305,3 +305,22 @@ export async function sendERC20Tokens(
         })
     );
 }
+
+export async function getPreviousBlock(): Promise<Block> {
+    return await ethers.provider.getBlock("latest");
+}
+
+export function toDeadline(expiration: number): number {
+    return Math.floor((Date.now() + expiration) / 1000);
+}
+
+export function generateRandomHexString(length: number): string {
+    let result = "0x";
+    const characters = "0123456789abcdef";
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(
+            Math.floor(Math.random() * characters.length)
+        );
+    }
+    return result;
+}
