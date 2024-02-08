@@ -23,6 +23,26 @@ contract ApprovalManagerRouter is ReentrancyGuard {
     /// @notice ForeToken
     IERC20 public immutable foreToken;
 
+    /// EVENTS
+    event PermitPredict(
+        address indexed sender,
+        address indexed market,
+        uint256 amount,
+        bool side
+    );
+    event Predict(
+        address indexed sender,
+        address indexed market,
+        uint256 amount,
+        bool side
+    );
+    event PermitUsed(
+        address indexed owner,
+        address indexed spender,
+        address indexed token,
+        uint256 amount
+    );
+
     constructor(
         IForeProtocol protocolAddress,
         IAllowanceTransfer permit2Address
@@ -32,7 +52,14 @@ contract ApprovalManagerRouter is ReentrancyGuard {
         permit2 = permit2Address;
     }
 
-    modifier isValidOperator(address operator) {
+    /// @dev Modifier to restrict function access to authorized Fore Protocol operators.
+    /// @param operator The address to check for Fore operator authorization.
+    /// @notice Reverts with `InvalidOperator` if the operator is unauthorized or the zero address.
+    modifier onlyForeOperator(address operator) {
+        if (operator == address(0)) {
+            revert InvalidOperator();
+        }
+
         bool isValid = foreProtocol.isForeOperator(operator);
         if (!isValid) {
             revert InvalidOperator();
@@ -52,11 +79,13 @@ contract ApprovalManagerRouter is ReentrancyGuard {
         address market,
         uint160 amount,
         bool side
-    ) external isValidOperator(market) nonReentrant {
+    ) external onlyForeOperator(market) nonReentrant {
         _permit(permitSingle, signature);
         _transferAndApprove(market, amount);
 
         IBasicMarket(market).predict(amount, side);
+
+        emit PermitPredict(msg.sender, market, amount, side);
     }
 
     /// @notice Add new prediction via Router
@@ -67,10 +96,12 @@ contract ApprovalManagerRouter is ReentrancyGuard {
         address market,
         uint160 amount,
         bool side
-    ) external isValidOperator(market) nonReentrant {
+    ) external onlyForeOperator(market) nonReentrant {
         _transferAndApprove(market, amount);
 
         IBasicMarket(market).predict(amount, side);
+
+        emit Predict(msg.sender, market, amount, side);
     }
 
     /// @notice Permit a spender to a given amount of the owners token via Permit2
@@ -87,6 +118,13 @@ contract ApprovalManagerRouter is ReentrancyGuard {
             revert InvalidSpender();
         }
         permit2.permit(msg.sender, permitSingle, signature);
+
+        emit PermitUsed(
+            msg.sender,
+            permitSingle.spender,
+            permitSingle.details.token,
+            permitSingle.details.amount
+        );
     }
 
     /// @notice Transfer tokens from one address to another and subsequently approve the tokens to the spender
