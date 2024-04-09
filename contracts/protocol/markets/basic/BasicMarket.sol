@@ -1,29 +1,38 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "../../IForeProtocol.sol";
-import "../../../verifiers/IForeVerifiers.sol";
-import "../../config/IProtocolConfig.sol";
-import "../../config/IMarketConfig.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./library/MarketLib.sol";
+import "../../IForeProtocol.sol";
+import "../../../verifiers/IForeVerifiers.sol";
+import "../../config/IProtocolConfig.sol";
+import "../../config/IMarketConfig.sol";
+import "../../../token/ITokenIncentiveRegistry.sol";
 
 contract BasicMarket is ReentrancyGuard {
     using SafeERC20 for IERC20Burnable;
 
+    using SafeERC20 for IERC20;
+
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
+
+    /// @notice Prediction flat fee rate
+    uint32 public predictionFlatFeeRate;
 
     /// @notice Market token id
     uint256 public marketId;
 
-    /// @notice Protocol
-    IForeProtocol public protocol;
-
     /// @notice Factory
     address public immutable factory;
+
+    /// @notice Fee receiver
+    address public feeReceiver;
+
+    /// @notice Protocol
+    IForeProtocol public protocol;
 
     /// @notice Protocol config
     IProtocolConfig public protocolConfig;
@@ -36,6 +45,9 @@ contract BasicMarket is ReentrancyGuard {
 
     /// @notice Fore Token
     IERC20Burnable public foreToken;
+
+    /// @notice Token Registry
+    ITokenIncentiveRegistry public tokenRegistry;
 
     /// @notice Market info
     MarketLib.Market internal _market;
@@ -101,9 +113,12 @@ contract BasicMarket is ReentrancyGuard {
         uint256 amountA,
         uint256 amountB,
         address protocolAddress,
+        address _tokenRegistry,
+        address _feeReceiver,
         uint64 endPredictionTimestamp,
         uint64 startVerificationTimestamp,
-        uint64 tokenId
+        uint64 tokenId,
+        uint32 _predictionFlatFeeRate
     ) external {
         if (msg.sender != address(factory)) {
             revert("BasicMarket: Only Factory");
@@ -114,8 +129,12 @@ contract BasicMarket is ReentrancyGuard {
         marketConfig = IMarketConfig(protocolConfig.marketConfig());
         foreToken = IERC20Burnable(protocol.foreToken());
         foreVerifiers = IForeVerifiers(protocol.foreVerifiers());
+        tokenRegistry = ITokenIncentiveRegistry(_tokenRegistry);
 
         marketHash = mHash;
+        predictionFlatFeeRate = _predictionFlatFeeRate;
+        feeReceiver = _feeReceiver;
+
         MarketLib.init(
             _market,
             predictionsA,
@@ -132,9 +151,21 @@ contract BasicMarket is ReentrancyGuard {
 
     /// @notice Add new prediction
     /// @param amount Amount of ForeToken
-    /// @param side Predicition side (true - positive result, false - negative result)
-    function predict(uint256 amount, bool side) external {
-        foreToken.safeTransferFrom(msg.sender, address(this), amount);
+    /// @param side Prediction side (true - positive result, false - negative result)
+    /// @param token Alternative token
+    function predict(uint256 amount, bool side, IERC20 token) external {
+        if (!tokenRegistry.isTokenEnabled(address(token))) {
+            revert("Basic Market: Token is not enabled");
+        }
+
+        uint256 predictionFee = _calculatePredictionFee(address(token), amount);
+        token.safeTransferFrom(
+            msg.sender,
+            address(this),
+            amount + predictionFee
+        );
+        token.safeTransfer(feeReceiver, predictionFee);
+
         MarketLib.predict(
             _market,
             predictionsA,
@@ -145,9 +176,9 @@ contract BasicMarket is ReentrancyGuard {
         );
     }
 
-    ///@notice Doing new verification
-    ///@param tokenId vNFT token id
-    ///@param side side of verification
+    /// @notice Doing new verification
+    /// @param tokenId vNFT token id
+    /// @param side side of verification
     function verify(uint256 tokenId, bool side) external nonReentrant {
         if (foreVerifiers.ownerOf(tokenId) != msg.sender) {
             revert("BasicMarket: Incorrect owner");
@@ -211,9 +242,9 @@ contract BasicMarket is ReentrancyGuard {
         );
     }
 
-    ///@notice Resolves Dispute
-    ///@param result Dipsute result type
-    ///@dev Only HighGuard
+    /// @notice Resolves Dispute
+    /// @param result Dipsute result type
+    /// @dev Only HighGuard
     function resolveDispute(MarketLib.ResultType result) external {
         address highGuard = protocolConfig.highGuard();
         address receiver = MarketLib.resolveDispute(
@@ -226,9 +257,9 @@ contract BasicMarket is ReentrancyGuard {
         _closeMarket(result);
     }
 
-    ///@dev Closes market
-    ///@param result Market close result type
-    ///Is not best optimized becouse of deep stack
+    /// @dev Closes market
+    /// @param result Market close result type
+    /// @dev Is not best optimized becouse of deep stack
     function _closeMarket(MarketLib.ResultType result) private {
         (
             uint256 burnFee,
@@ -278,7 +309,29 @@ contract BasicMarket is ReentrancyGuard {
         }
     }
 
-    ///@notice Closes _market
+    /// @dev Calculates prediction fee - external
+    /// @param token Token
+    /// @param amount Prediction amount
+    function calculatePredictionFee(
+        address token,
+        uint256 amount
+    ) external view returns (uint256) {
+        return _calculatePredictionFee(token, amount);
+    }
+
+    /// @dev Calculates prediction fee
+    /// @param token Token
+    /// @param amount Prediction amount
+    function _calculatePredictionFee(
+        address token,
+        uint256 amount
+    ) private view returns (uint256) {
+        uint8 discountRate = tokenRegistry.getDiscountRate(token);
+        uint256 baseFee = (amount * predictionFlatFeeRate) / 100;
+        return baseFee - (baseFee * discountRate) / 100;
+    }
+
+    /// @notice Closes _market
     function closeMarket() external {
         MarketLib.Market memory m = _market;
         (uint256 disputePeriod, uint256 verificationPeriod) = marketConfig
@@ -295,10 +348,10 @@ contract BasicMarket is ReentrancyGuard {
         _closeMarket(MarketLib.calculateMarketResult(m));
     }
 
-    ///@notice Returns prediction reward in ForeToken
-    ///@dev Returns full available amount to withdraw(Deposited fund + reward of winnings - Protocol fees)
-    ///@param predictor Predictior address
-    ///@return 0 Amount to withdraw
+    /// @notice Returns prediction reward in ForeToken
+    /// @dev Returns full available amount to withdraw(Deposited fund + reward of winnings - Protocol fees)
+    /// @param predictor Predictior address
+    /// @return 0 Amount to withdraw
     function calculatePredictionReward(
         address predictor
     ) external view returns (uint256) {
@@ -314,9 +367,9 @@ contract BasicMarket is ReentrancyGuard {
         );
     }
 
-    ///@notice Withdraw prediction rewards
-    ///@dev predictor Predictor Address
-    ///@param predictor Predictor address
+    /// @notice Withdraw prediction rewards
+    /// @dev predictor Predictor Address
+    /// @param predictor Predictor address
     function withdrawPredictionReward(address predictor) external {
         MarketLib.Market memory m = _market;
         uint256 toWithdraw = MarketLib.withdrawPredictionReward(
@@ -334,8 +387,8 @@ contract BasicMarket is ReentrancyGuard {
         foreToken.safeTransfer(predictor, toWithdraw);
     }
 
-    ///@notice Calculates Verification Reward
-    ///@param verificationId Id of Verification
+    /// @notice Calculates Verification Reward
+    /// @param verificationId Id of Verification
     function calculateVerificationReward(
         uint256 verificationId
     )
@@ -362,9 +415,9 @@ contract BasicMarket is ReentrancyGuard {
             );
     }
 
-    ///@notice Withdrawss Verification Reward
-    ///@param verificationId Id of verification
-    ///@param withdrawAsTokens If true witdraws tokens, false - withraws power
+    /// @notice Withdrawss Verification Reward
+    /// @param verificationId Id of verification
+    /// @param withdrawAsTokens If true witdraws tokens, false - withraws power
     function withdrawVerificationReward(
         uint256 verificationId,
         bool withdrawAsTokens
@@ -422,7 +475,7 @@ contract BasicMarket is ReentrancyGuard {
         }
     }
 
-    ///@notice Withdraw Market Creators Reward
+    /// @notice Withdraw Market Creators Reward
     function marketCreatorFeeWithdraw() external {
         MarketLib.Market memory m = _market;
         uint256 tokenId = marketId;

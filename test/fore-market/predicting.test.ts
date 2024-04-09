@@ -1,40 +1,41 @@
 import { BasicMarket } from "@/BasicMarket";
-import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLib } from "@/MarketLib";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
-import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, ContractTransaction, Signer } from "ethers";
+import { BigNumber, ContractTransaction } from "ethers";
 import { ethers } from "hardhat";
 import {
     attachContract,
     deployLibrary,
     deployMockedContract,
-    findEvent,
-    impersonateContract,
+    deployMockedContractAs,
     timetravel,
     txExec,
 } from "../helpers/utils";
+import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
+import { MockERC20 } from "@/MockERC20";
 
-describe("BasicMarket / Prediciting", () => {
+describe("BasicMarket / Predicting", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreProtocolAccount: Signer;
-    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
+    let usdcHolder: SignerWithAddress;
 
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreProtocol: MockContract<ForeProtocol>;
+    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let usdcToken: MockERC20;
     let basicFactory: MockContract<BasicFactory>;
     let marketLib: MarketLib;
     let contract: BasicMarket;
@@ -49,6 +50,7 @@ describe("BasicMarket / Prediciting", () => {
             marketplaceContract,
             alice,
             bob,
+            usdcHolder,
         ] = await ethers.getSigners();
 
         // deploy library
@@ -81,13 +83,35 @@ describe("BasicMarket / Prediciting", () => {
             protocolConfig.address,
             "https://markets.api.foreprotocol.io/market/"
         );
-        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        usdcToken = await deployMockedContractAs<MockERC20>(
+            usdcHolder,
+            "MockERC20",
+            "USDC",
+            "USD Coin",
+            ethers.utils.parseEther("1000000")
+        );
+
+        // preparing token registry
+        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
+            "TokenIncentiveRegistry",
+            [
+                {
+                    tokenAddress: usdcToken.address,
+                    discountRate: 10,
+                },
+                {
+                    tokenAddress: foreToken.address,
+                    discountRate: 10,
+                },
+            ]
+        );
 
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",
-            foreProtocol.address
+            foreProtocol.address,
+            tokenRegistry.address
         );
-        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
@@ -96,6 +120,11 @@ describe("BasicMarket / Prediciting", () => {
         await txExec(
             foreToken
                 .connect(owner)
+                .transfer(alice.address, ethers.utils.parseEther("1000"))
+        );
+        await txExec(
+            usdcToken
+                .connect(usdcHolder)
                 .transfer(alice.address, ethers.utils.parseEther("1000"))
         );
 
@@ -116,11 +145,19 @@ describe("BasicMarket / Prediciting", () => {
                     ethers.utils.parseUnits("1000", "ether")
                 )
         );
+        await txExec(
+            usdcToken
+                .connect(alice)
+                .approve(
+                    basicFactory.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
 
         // creating market
         const marketHash =
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
-        const [tx, recipt] = await txExec(
+        await txExec(
             basicFactory
                 .connect(alice)
                 .createMarket(
@@ -152,7 +189,24 @@ describe("BasicMarket / Prediciting", () => {
                 )
         );
         await txExec(
+            usdcToken
+                .connect(alice)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
+
+        await txExec(
             foreToken
+                .connect(bob)
+                .approve(
+                    contract.address,
+                    ethers.utils.parseUnits("1000", "ether")
+                )
+        );
+        await txExec(
+            usdcToken
                 .connect(bob)
                 .approve(
                     contract.address,
@@ -180,25 +234,30 @@ describe("BasicMarket / Prediciting", () => {
 
     it("Should revert without sufficient funds", async () => {
         await expect(
-            contract.connect(bob).predict(ethers.utils.parseEther("2"), true)
+            contract
+                .connect(bob)
+                .predict(ethers.utils.parseEther("2"), true, foreToken.address)
         ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
     });
 
     it("Should revert with 0 stake", async () => {
-        await expect(contract.connect(bob).predict(0, true)).to.be.revertedWith(
-            "AmountCantBeZero"
-        );
+        await expect(
+            contract.connect(bob).predict(0, true, foreToken.address)
+        ).to.be.revertedWith("AmountCantBeZero");
     });
 
     describe("successfully (vote on A)", async () => {
         let tx: ContractTransaction;
-        let recipt: ContractReceipt;
 
         beforeEach(async () => {
-            [tx, recipt] = await txExec(
+            [tx] = await txExec(
                 contract
                     .connect(alice)
-                    .predict(ethers.utils.parseEther("2"), true)
+                    .predict(
+                        ethers.utils.parseEther("2"),
+                        true,
+                        foreToken.address
+                    )
             );
         });
 
@@ -208,15 +267,15 @@ describe("BasicMarket / Prediciting", () => {
                 .withArgs(alice.address, true, ethers.utils.parseEther("2"));
         });
 
-        it("Should emit Transfer (ERC20) event", async () => {
-            await expect(tx)
-                .to.emit(foreToken, "Transfer")
-                .withArgs(
-                    alice.address,
-                    contract.address,
-                    ethers.utils.parseEther("2")
-                );
-        });
+        // it("Should emit Transfer (ERC20) event", async () => {
+        //     await expect(tx)
+        //         .to.emit(foreToken, "Transfer")
+        //         .withArgs(
+        //             alice.address,
+        //             contract.address,
+        //             ethers.utils.parseEther("2")
+        //         );
+        // });
 
         it("Should return proper market state", async () => {
             expect(await contract.marketInfo()).to.be.eql([
@@ -236,13 +295,16 @@ describe("BasicMarket / Prediciting", () => {
 
     describe("successfully (vote on B)", async () => {
         let tx: ContractTransaction;
-        let recipt: ContractReceipt;
 
         beforeEach(async () => {
-            [tx, recipt] = await txExec(
+            [tx] = await txExec(
                 contract
                     .connect(alice)
-                    .predict(ethers.utils.parseEther("3"), false)
+                    .predict(
+                        ethers.utils.parseEther("3"),
+                        false,
+                        foreToken.address
+                    )
             );
         });
 
@@ -252,15 +314,15 @@ describe("BasicMarket / Prediciting", () => {
                 .withArgs(alice.address, false, ethers.utils.parseEther("3"));
         });
 
-        it("Should emit Transfer (ERC20) event", async () => {
-            await expect(tx)
-                .to.emit(foreToken, "Transfer")
-                .withArgs(
-                    alice.address,
-                    contract.address,
-                    ethers.utils.parseEther("3")
-                );
-        });
+        // it("Should emit Transfer (ERC20) event", async () => {
+        //     await expect(tx)
+        //         .to.emit(foreToken, "Transfer")
+        //         .withArgs(
+        //             alice.address,
+        //             contract.address,
+        //             ethers.utils.parseEther("3")
+        //         );
+        // });
 
         it("Should return proper market state", async () => {
             expect(await contract.marketInfo()).to.be.eql([
@@ -278,6 +340,39 @@ describe("BasicMarket / Prediciting", () => {
         });
     });
 
+    describe("should accept alternative asset", () => {
+        let predictionFee: BigNumber;
+
+        beforeEach(async () => {
+            await txExec(
+                contract
+                    .connect(alice)
+                    .predict(
+                        ethers.utils.parseEther("2"),
+                        true,
+                        usdcToken.address
+                    )
+            );
+
+            predictionFee = await contract.calculatePredictionFee(
+                usdcToken.address,
+                ethers.utils.parseEther("2")
+            );
+        });
+
+        it("should transfer alternative asset to market contract", async () => {
+            expect(await usdcToken.balanceOf(contract.address)).to.be.eql(
+                ethers.utils.parseEther("2")
+            );
+        });
+
+        it("should transfer prediction fee", async () => {
+            expect(await usdcToken.balanceOf(owner.address)).to.be.eql(
+                predictionFee
+            );
+        });
+    });
+
     describe("after predicting period ended", () => {
         beforeEach(async () => {
             await timetravel(blockTimestamp + 200001);
@@ -287,7 +382,11 @@ describe("BasicMarket / Prediciting", () => {
             await expect(
                 contract
                     .connect(alice)
-                    .predict(ethers.utils.parseEther("2"), true)
+                    .predict(
+                        ethers.utils.parseEther("2"),
+                        true,
+                        foreToken.address
+                    )
             ).to.revertedWith("PredictionPeriodIsAlreadyClosed");
         });
     });

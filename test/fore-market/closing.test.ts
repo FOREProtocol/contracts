@@ -21,6 +21,8 @@ import {
     timetravel,
     txExec,
 } from "../helpers/utils";
+import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
+import { ERC20 } from "@/ERC20";
 
 describe("BasicMarket / Closing", () => {
     let owner: SignerWithAddress;
@@ -39,6 +41,8 @@ describe("BasicMarket / Closing", () => {
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreProtocol: MockContract<ForeProtocol>;
     let basicFactory: MockContract<BasicFactory>;
+    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let usdcToken: MockContract<ERC20>;
     let contract: BasicMarket;
 
     let blockTimestamp: number;
@@ -87,9 +91,27 @@ describe("BasicMarket / Closing", () => {
             "https://markets.api.foreprotocol.io/market/"
         );
 
+        usdcToken = await deployMockedContract<ERC20>(
+            "ERC20",
+            "USDC",
+            "USD Coin"
+        );
+
+        // preparing token registry
+        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
+            "TokenIncentiveRegistry",
+            [
+                {
+                    tokenAddress: usdcToken.address,
+                    discountRate: 10,
+                },
+            ]
+        );
+
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",
-            foreProtocol.address
+            foreProtocol.address,
+            tokenRegistry.address
         );
         // factory assignment
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
@@ -123,7 +145,7 @@ describe("BasicMarket / Closing", () => {
         const marketHash =
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
 
-        const [tx, recipt] = await txExec(
+        await txExec(
             basicFactory
                 .connect(alice)
                 .createMarket(
@@ -212,16 +234,13 @@ describe("BasicMarket / Closing", () => {
         // to burn (1%) = 1 FORE
         // burn and ver (1% + 1.5%) / 2 = 1.25 FORE
         // revenue (1%) = 1 FORE
-        // fundation (1%) = 1 FORE
+        // foundation (1%) = 1 FORE
 
         describe("successfully", () => {
             let tx: ContractTransaction;
-            let recipt: ContractReceipt;
 
             beforeEach(async () => {
-                [tx, recipt] = await txExec(
-                    contract.connect(bob).closeMarket()
-                );
+                [tx] = await txExec(contract.connect(bob).closeMarket());
             });
 
             it("Should emit ERC20 transfer event (foundation)", async () => {
@@ -284,12 +303,9 @@ describe("BasicMarket / Closing", () => {
 
         describe("successfully", () => {
             let tx: ContractTransaction;
-            let recipt: ContractReceipt;
 
             beforeEach(async () => {
-                [tx, recipt] = await txExec(
-                    contract.connect(bob).closeMarket()
-                );
+                [tx] = await txExec(contract.connect(bob).closeMarket());
             });
 
             it("Should emit CloseMarket event", async () => {
@@ -332,16 +348,13 @@ describe("BasicMarket / Closing", () => {
         // full market size: 100 FORE
         // to burn (1%) = 1 FORE
         // burn and ver (1% + 2%) = 3 FORE
-        // fundation (1%) = 1 FORE
+        // foundation (1%) = 1 FORE
 
         describe("successfully", () => {
             let tx: ContractTransaction;
-            let recipt: ContractReceipt;
 
             beforeEach(async () => {
-                [tx, recipt] = await txExec(
-                    contract.connect(bob).closeMarket()
-                );
+                [tx] = await txExec(contract.connect(bob).closeMarket());
             });
 
             it("Should emit ERC20 transfer event (foundation)", async () => {
@@ -391,16 +404,15 @@ describe("BasicMarket / Closing", () => {
     });
 
     describe("with no participants", () => {
-        let tx: ContractTransaction;
-        let recipt: ContractReceipt;
+        let receipt: ContractReceipt;
 
         beforeEach(async () => {
             await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
-            [tx, recipt] = await txExec(contract.connect(bob).closeMarket());
+            [, receipt] = await txExec(contract.connect(bob).closeMarket());
         });
 
         it("Should emit invalid market", async () => {
-            assertEvent<CloseMarketEvent>(recipt, "CloseMarket", {
+            assertEvent<CloseMarketEvent>(receipt, "CloseMarket", {
                 result: 4,
             });
         });

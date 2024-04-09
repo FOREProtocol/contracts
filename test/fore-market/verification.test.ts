@@ -1,27 +1,25 @@
 import { BasicMarket } from "@/BasicMarket";
-import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
-import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { MarketLib } from "@/MarketLib";
-import { BigNumber, ContractTransaction, Signer } from "ethers";
+import { BigNumber, ContractTransaction } from "ethers";
 import { ethers } from "hardhat";
 import { deployLibrary, executeInSingleBlock } from "../../test/helpers/utils";
 import {
     attachContract,
     deployMockedContract,
-    findEvent,
-    impersonateContract,
     sendERC20Tokens,
     timetravel,
     txExec,
-    waitForTxs,
 } from "../helpers/utils";
+import { MockERC20 } from "@/MockERC20";
+import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
 
 const sides = {
     A: true,
@@ -33,8 +31,6 @@ describe("BasicMarket / Verification", () => {
     let foundationWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreProtocolAccount: Signer;
-    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
     let carol: SignerWithAddress;
@@ -46,6 +42,8 @@ describe("BasicMarket / Verification", () => {
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreProtocol: MockContract<ForeProtocol>;
     let basicFactory: MockContract<BasicFactory>;
+    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let usdcToken: MockContract<MockERC20>;
     let contract: BasicMarket;
 
     let blockTimestamp: number;
@@ -92,13 +90,34 @@ describe("BasicMarket / Verification", () => {
             protocolConfig.address,
             "https://markets.api.foreprotocol.io/market/"
         );
-        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        usdcToken = await deployMockedContract<MockERC20>(
+            "MockERC20",
+            "USDC",
+            "USD Coin",
+            ethers.utils.parseEther("1000000")
+        );
+
+        // preparing token registry
+        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
+            "TokenIncentiveRegistry",
+            [
+                {
+                    tokenAddress: usdcToken.address,
+                    discountRate: 10,
+                },
+                {
+                    tokenAddress: foreToken.address,
+                    discountRate: 10,
+                },
+            ]
+        );
 
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",
-            foreProtocol.address
+            foreProtocol.address,
+            tokenRegistry.address
         );
-        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
@@ -147,7 +166,7 @@ describe("BasicMarket / Verification", () => {
         // creating market
         const marketHash =
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
-        const [tx, recipt] = await txExec(
+        await txExec(
             basicFactory
                 .connect(alice)
                 .createMarket(
@@ -218,10 +237,18 @@ describe("BasicMarket / Verification", () => {
             await executeInSingleBlock(() => [
                 contract
                     .connect(alice)
-                    .predict(ethers.utils.parseEther("50"), true),
+                    .predict(
+                        ethers.utils.parseEther("50"),
+                        true,
+                        foreToken.address
+                    ),
                 contract
                     .connect(bob)
-                    .predict(ethers.utils.parseEther("40"), false),
+                    .predict(
+                        ethers.utils.parseEther("40"),
+                        false,
+                        foreToken.address
+                    ),
             ]);
         });
 
@@ -230,7 +257,7 @@ describe("BasicMarket / Verification", () => {
                 expect(await contract.verificationHeight()).to.be.equal(0);
             });
 
-            it("Should revert if executed before predicition end", async () => {
+            it("Should revert if executed before prediction end", async () => {
                 await timetravel(blockTimestamp + 250000);
 
                 await expect(
@@ -251,13 +278,12 @@ describe("BasicMarket / Verification", () => {
             });
 
             for (const [sideName, sideValue] of Object.entries(sides)) {
-                describe(`verifing ${sideName} side`, () => {
-                    describe(`sucessfully`, () => {
+                describe(`verifying ${sideName} side`, () => {
+                    describe(`successfully`, () => {
                         let tx: ContractTransaction;
-                        let recipt: ContractReceipt;
 
                         beforeEach(async () => {
-                            [tx, recipt] = await txExec(
+                            [tx] = await txExec(
                                 contract.connect(bob).verify(1, sideValue)
                             );
                         });
@@ -293,7 +319,7 @@ describe("BasicMarket / Verification", () => {
                             ).to.be.equal(1);
                         });
 
-                        it("Should return proper verfication state", async () => {
+                        it("Should return proper verification state", async () => {
                             expect(await contract.verifications(0)).to.be.eql([
                                 bob.address,
                                 ethers.utils.parseEther("35"),
@@ -330,16 +356,11 @@ describe("BasicMarket / Verification", () => {
                 });
 
                 describe("adding verification to almost fully verified market", () => {
-                    let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
-
                     beforeEach(async () => {
-                        [tx, recipt] = await txExec(
-                            contract.connect(carol).verify(2, false)
-                        );
+                        await txExec(contract.connect(carol).verify(2, false));
                     });
 
-                    it("Should increase verfication side with partial token power", async () => {
+                    it("Should increase verification side with partial token power", async () => {
                         expect(await contract.marketInfo()).to.be.eql([
                             ethers.utils.parseEther("50"), // side A
                             ethers.utils.parseEther("40"), // side B
@@ -364,7 +385,7 @@ describe("BasicMarket / Verification", () => {
                         ]);
                     });
 
-                    it("Should not allow to verifiy fully verified market", async () => {
+                    it("Should not allow to verify fully verified market", async () => {
                         await expect(
                             contract.connect(dave).verify(3, false)
                         ).to.be.revertedWith("MarketIsFullyVerified");
@@ -391,10 +412,18 @@ describe("BasicMarket / Verification", () => {
             await executeInSingleBlock(() => [
                 contract
                     .connect(alice)
-                    .predict(ethers.utils.parseEther("50"), true),
+                    .predict(
+                        ethers.utils.parseEther("50"),
+                        true,
+                        foreToken.address
+                    ),
                 contract
                     .connect(bob)
-                    .predict(ethers.utils.parseEther("40"), true),
+                    .predict(
+                        ethers.utils.parseEther("40"),
+                        true,
+                        foreToken.address
+                    ),
             ]);
         });
 
@@ -403,7 +432,7 @@ describe("BasicMarket / Verification", () => {
                 expect(await contract.verificationHeight()).to.be.equal(0);
             });
 
-            it("Should revert if executed before predicition end", async () => {
+            it("Should revert if executed before prediction end", async () => {
                 await timetravel(blockTimestamp + 25000);
 
                 await expect(
@@ -424,13 +453,12 @@ describe("BasicMarket / Verification", () => {
             });
 
             for (const [sideName, sideValue] of Object.entries(sides)) {
-                describe(`verifing ${sideName} side`, () => {
-                    describe(`sucessfully`, () => {
+                describe(`verifying ${sideName} side`, () => {
+                    describe(`successfully`, () => {
                         let tx: ContractTransaction;
-                        let recipt: ContractReceipt;
 
                         beforeEach(async () => {
-                            [tx, recipt] = await txExec(
+                            [tx] = await txExec(
                                 contract.connect(bob).verify(1, sideValue)
                             );
                         });
@@ -475,10 +503,18 @@ describe("BasicMarket / Verification", () => {
             await executeInSingleBlock(() => [
                 contract
                     .connect(alice)
-                    .predict(ethers.utils.parseEther("50"), false),
+                    .predict(
+                        ethers.utils.parseEther("50"),
+                        false,
+                        foreToken.address
+                    ),
                 contract
                     .connect(bob)
-                    .predict(ethers.utils.parseEther("40"), false),
+                    .predict(
+                        ethers.utils.parseEther("40"),
+                        false,
+                        foreToken.address
+                    ),
             ]);
         });
 
@@ -487,7 +523,7 @@ describe("BasicMarket / Verification", () => {
                 expect(await contract.verificationHeight()).to.be.equal(0);
             });
 
-            it("Should revert if executed before predicition end", async () => {
+            it("Should revert if executed before prediction end", async () => {
                 await timetravel(blockTimestamp + 25000);
 
                 await expect(
@@ -508,13 +544,12 @@ describe("BasicMarket / Verification", () => {
             });
 
             for (const [sideName, sideValue] of Object.entries(sides)) {
-                describe(`verifing ${sideName} side`, () => {
-                    describe(`sucessfully`, () => {
+                describe(`verifying ${sideName} side`, () => {
+                    describe(`successfully`, () => {
                         let tx: ContractTransaction;
-                        let recipt: ContractReceipt;
 
                         beforeEach(async () => {
-                            [tx, recipt] = await txExec(
+                            [tx] = await txExec(
                                 contract.connect(bob).verify(1, sideValue)
                             );
                         });

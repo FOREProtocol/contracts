@@ -1,36 +1,33 @@
 import { BasicMarket } from "@/BasicMarket";
-import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MarketLib } from "@/MarketLib";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
-import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, ContractTransaction, Signer } from "ethers";
+import { BigNumber, ContractTransaction } from "ethers";
 import { ethers } from "hardhat";
 import {
     attachContract,
     deployLibrary,
     deployMockedContract,
     executeInSingleBlock,
-    findEvent,
-    impersonateContract,
     sendERC20Tokens,
     timetravel,
     txExec,
     assertIsAvailableOnlyForOwner,
 } from "../helpers/utils";
+import { MockERC20 } from "@/MockERC20";
+import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
 
 describe("BasicMarket / Rewards", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreProtocolAccount: Signer;
-    let basicFactoryAccount: Signer;
     let predictorSideA1: SignerWithAddress;
     let predictorSideA2: SignerWithAddress;
     let predictorSideB1: SignerWithAddress;
@@ -48,6 +45,8 @@ describe("BasicMarket / Rewards", () => {
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreProtocol: MockContract<ForeProtocol>;
     let basicFactory: MockContract<BasicFactory>;
+    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let usdcToken: MockContract<MockERC20>;
     let contract: BasicMarket;
 
     let blockTimestamp: number;
@@ -101,13 +100,34 @@ describe("BasicMarket / Rewards", () => {
             protocolConfig.address,
             "https://markets.api.foreprotocol.io/market/"
         );
-        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        usdcToken = await deployMockedContract<MockERC20>(
+            "MockERC20",
+            "USDC",
+            "USD Coin",
+            ethers.utils.parseEther("1000000")
+        );
+
+        // preparing token registry
+        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
+            "TokenIncentiveRegistry",
+            [
+                {
+                    tokenAddress: usdcToken.address,
+                    discountRate: 10,
+                },
+                {
+                    tokenAddress: foreToken.address,
+                    discountRate: 10,
+                },
+            ]
+        );
 
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",
-            foreProtocol.address
+            foreProtocol.address,
+            tokenRegistry.address
         );
-        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
@@ -120,10 +140,10 @@ describe("BasicMarket / Rewards", () => {
 
         // sending funds
         await sendERC20Tokens(foreToken, {
-            [predictorSideA1.address]: ethers.utils.parseEther("500"),
-            [predictorSideA2.address]: ethers.utils.parseEther("500"),
-            [predictorSideB1.address]: ethers.utils.parseEther("1000"),
-            [predictorSideB2.address]: ethers.utils.parseEther("2000"),
+            [predictorSideA1.address]: ethers.utils.parseEther("1000"),
+            [predictorSideA2.address]: ethers.utils.parseEther("1000"),
+            [predictorSideB1.address]: ethers.utils.parseEther("2000"),
+            [predictorSideB2.address]: ethers.utils.parseEther("4000"),
             [marketCreator.address]: ethers.utils.parseEther("1010"),
             [disputeCreator.address]: ethers.utils.parseEther("2000"),
         });
@@ -144,7 +164,7 @@ describe("BasicMarket / Rewards", () => {
         const marketHash =
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
 
-        const [tx, recipt] = await txExec(
+        await txExec(
             basicFactory
                 .connect(marketCreator)
                 .createMarket(
@@ -202,25 +222,25 @@ describe("BasicMarket / Rewards", () => {
                 .connect(predictorSideA1)
                 .approve(
                     contract.address,
-                    ethers.utils.parseUnits("500", "ether")
+                    ethers.utils.parseUnits("1000", "ether")
                 ),
             foreToken
                 .connect(predictorSideA2)
                 .approve(
                     contract.address,
-                    ethers.utils.parseUnits("500", "ether")
+                    ethers.utils.parseUnits("1000", "ether")
                 ),
             foreToken
                 .connect(predictorSideB1)
                 .approve(
                     contract.address,
-                    ethers.utils.parseUnits("1000", "ether")
+                    ethers.utils.parseUnits("2000", "ether")
                 ),
             foreToken
                 .connect(predictorSideB2)
                 .approve(
                     contract.address,
-                    ethers.utils.parseUnits("2000", "ether")
+                    ethers.utils.parseUnits("4000", "ether")
                 ),
         ]);
 
@@ -245,16 +265,32 @@ describe("BasicMarket / Rewards", () => {
             /// predictions
             await contract
                 .connect(predictorSideA1)
-                .predict(ethers.utils.parseEther("500"), true);
+                .predict(
+                    ethers.utils.parseEther("500"),
+                    true,
+                    foreToken.address
+                );
             await contract
                 .connect(predictorSideA2)
-                .predict(ethers.utils.parseEther("500"), true);
+                .predict(
+                    ethers.utils.parseEther("500"),
+                    true,
+                    foreToken.address
+                );
             await contract
                 .connect(predictorSideB1)
-                .predict(ethers.utils.parseEther("1000"), false);
+                .predict(
+                    ethers.utils.parseEther("1000"),
+                    false,
+                    foreToken.address
+                );
             await contract
                 .connect(predictorSideB2)
-                .predict(ethers.utils.parseEther("2000"), false);
+                .predict(
+                    ethers.utils.parseEther("2000"),
+                    false,
+                    foreToken.address
+                );
 
             await timetravel(blockTimestamp + 300005);
 
@@ -300,13 +336,13 @@ describe("BasicMarket / Rewards", () => {
 
             describe("after closing", () => {
                 let tx: ContractTransaction;
-                let recipt: ContractReceipt;
+
                 beforeEach(async () => {
                     await timetravel(blockTimestamp + 4000000);
 
                     await contract.connect(marketCreator).closeMarket();
 
-                    [tx, recipt] = await txExec(
+                    [tx] = await txExec(
                         contract
                             .connect(marketCreator)
                             .marketCreatorFeeWithdraw()
@@ -347,9 +383,9 @@ describe("BasicMarket / Rewards", () => {
                 });
             });
 
-            describe("after closing with exchausted token balance", () => {
+            describe("after closing with exhausted token balance", () => {
                 let tx: ContractTransaction;
-                let recipt: ContractReceipt;
+
                 beforeEach(async () => {
                     await timetravel(blockTimestamp + 4000000);
 
@@ -359,7 +395,7 @@ describe("BasicMarket / Rewards", () => {
                         [contract.address]: ethers.utils.parseEther("20"),
                     });
 
-                    [tx, recipt] = await txExec(
+                    [tx] = await txExec(
                         contract
                             .connect(marketCreator)
                             .marketCreatorFeeWithdraw()
@@ -435,9 +471,9 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("after withdrawn", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
+
                     beforeEach(async () => {
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(predictorSideA1)
                                 .withdrawPredictionReward(
@@ -513,7 +549,7 @@ describe("BasicMarket / Rewards", () => {
                 );
             });
 
-            it("Should revert when not highguard or verifier", async () => {
+            it("Should revert when not high guard or verifier", async () => {
                 await expect(
                     contract
                         .connect(marketCreator)
@@ -530,8 +566,6 @@ describe("BasicMarket / Rewards", () => {
             });
 
             describe("after positive dispute", () => {
-                let tx: ContractTransaction;
-                let recipt: ContractReceipt;
                 beforeEach(async () => {
                     await timetravel(blockTimestamp + 300005 + 86400);
                     await txExec(
@@ -592,11 +626,11 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("Increase NFT power (proper verification)", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
+
                     const num = ethers.utils.parseEther("100");
 
                     beforeEach(async () => {
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(verifierSideB2)
                                 .withdrawVerificationReward(0, false)
@@ -643,11 +677,11 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("Withdraw reward (proper verification)", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
+
                     const num = ethers.utils.parseEther("100");
 
                     beforeEach(async () => {
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(verifierSideB2)
                                 .withdrawVerificationReward(0, true)
@@ -692,13 +726,13 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("Withdraw reward (incorrect verification)", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
+
                     const num = ethers.utils
                         .parseEther("750")
                         .div(ethers.BigNumber.from("2"));
 
                     beforeEach(async () => {
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(verifierSideA1)
                                 .withdrawVerificationReward(1, true)
@@ -738,7 +772,7 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("Withdraw reward with exhausted token balance", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
+
                     const num = ethers.utils.parseEther("100");
 
                     beforeEach(async () => {
@@ -746,7 +780,7 @@ describe("BasicMarket / Rewards", () => {
                             [contract.address]: ethers.utils.parseEther("80"),
                         });
 
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(verifierSideB2)
                                 .withdrawVerificationReward(0, true)
@@ -791,8 +825,6 @@ describe("BasicMarket / Rewards", () => {
             });
 
             describe("after closing", () => {
-                let tx: ContractTransaction;
-                let recipt: ContractReceipt;
                 beforeEach(async () => {
                     await timetravel(blockTimestamp + 4000000);
 
@@ -855,13 +887,13 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("Withdraw reward (proper verification)", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
+
                     const num = ethers.utils
                         .parseEther("100")
                         .div(ethers.BigNumber.from("3"));
 
                     beforeEach(async () => {
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(verifierSideA1)
                                 .withdrawVerificationReward(1, true)
@@ -900,13 +932,9 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("Withdraw reward (incorrect verification)", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
-                    const num = ethers.utils
-                        .parseEther("750")
-                        .div(ethers.BigNumber.from("2"));
 
                     beforeEach(async () => {
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(verifierSideB2)
                                 .withdrawVerificationReward(0, true)
@@ -942,16 +970,32 @@ describe("BasicMarket / Rewards", () => {
             /// predictions
             await contract
                 .connect(predictorSideA1)
-                .predict(ethers.utils.parseEther("500"), true);
+                .predict(
+                    ethers.utils.parseEther("500"),
+                    true,
+                    foreToken.address
+                );
             await contract
                 .connect(predictorSideA2)
-                .predict(ethers.utils.parseEther("500"), true);
+                .predict(
+                    ethers.utils.parseEther("500"),
+                    true,
+                    foreToken.address
+                );
             await contract
                 .connect(predictorSideB1)
-                .predict(ethers.utils.parseEther("1000"), false);
+                .predict(
+                    ethers.utils.parseEther("1000"),
+                    false,
+                    foreToken.address
+                );
             await contract
                 .connect(predictorSideB2)
-                .predict(ethers.utils.parseEther("2000"), false);
+                .predict(
+                    ethers.utils.parseEther("2000"),
+                    false,
+                    foreToken.address
+                );
 
             await timetravel(blockTimestamp + 300000 + 1);
             await executeInSingleBlock(() => [
@@ -996,9 +1040,9 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("after withdrawn", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
+
                     beforeEach(async () => {
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(predictorSideB2)
                                 .withdrawPredictionReward(
@@ -1057,13 +1101,13 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("after withdrawn with exhausted token balance", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
+
                     beforeEach(async () => {
                         await foreToken.setVariable("_balances", {
                             [contract.address]: ethers.utils.parseEther("3000"),
                         });
 
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(predictorSideB2)
                                 .withdrawPredictionReward(
@@ -1106,16 +1150,32 @@ describe("BasicMarket / Rewards", () => {
             /// predictions
             await contract
                 .connect(predictorSideA1)
-                .predict(ethers.utils.parseEther("500"), true);
+                .predict(
+                    ethers.utils.parseEther("500"),
+                    true,
+                    foreToken.address
+                );
             await contract
                 .connect(predictorSideA2)
-                .predict(ethers.utils.parseEther("500"), true);
+                .predict(
+                    ethers.utils.parseEther("500"),
+                    true,
+                    foreToken.address
+                );
             await contract
                 .connect(predictorSideB1)
-                .predict(ethers.utils.parseEther("1000"), false);
+                .predict(
+                    ethers.utils.parseEther("1000"),
+                    false,
+                    foreToken.address
+                );
             await contract
                 .connect(predictorSideB2)
-                .predict(ethers.utils.parseEther("2000"), false);
+                .predict(
+                    ethers.utils.parseEther("2000"),
+                    false,
+                    foreToken.address
+                );
 
             await timetravel(blockTimestamp + 300000 + 1);
             await executeInSingleBlock(() => [
@@ -1158,9 +1218,9 @@ describe("BasicMarket / Rewards", () => {
 
                 describe("after withdrawn", () => {
                     let tx: ContractTransaction;
-                    let recipt: ContractReceipt;
+
                     beforeEach(async () => {
-                        [tx, recipt] = await txExec(
+                        [tx] = await txExec(
                             contract
                                 .connect(predictorSideA1)
                                 .withdrawPredictionReward(
@@ -1220,7 +1280,11 @@ describe("BasicMarket / Rewards", () => {
         beforeEach(async () => {
             await contract
                 .connect(predictorSideA1)
-                .predict(ethers.utils.parseEther("500"), true);
+                .predict(
+                    ethers.utils.parseEther("500"),
+                    true,
+                    foreToken.address
+                );
 
             await timetravel(blockTimestamp + 300005);
 
@@ -1228,7 +1292,7 @@ describe("BasicMarket / Rewards", () => {
         });
 
         describe("Market creator reward", () => {
-            it("Should rewert with OnlyForValidMarkets", async () => {
+            it("Should revert with OnlyForValidMarkets", async () => {
                 await expect(
                     contract.connect(marketCreator).marketCreatorFeeWithdraw()
                 ).to.be.revertedWith("OnlyForValidMarkets");

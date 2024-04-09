@@ -1,12 +1,10 @@
 import { BasicMarket } from "@/BasicMarket";
 import { BaseURIEvent, ForeProtocol, UpgradeTierEvent } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
-import { MarketLib } from "@/MarketLib";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
-import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber, ContractTransaction } from "ethers";
@@ -18,9 +16,11 @@ import {
     deployContract,
     deployLibrary,
     deployMockedContract,
-    findEvent,
     txExec,
 } from "./helpers/utils";
+import { MockERC20 } from "@/MockERC20";
+import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
+
 describe("ForeProtocol", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
@@ -34,7 +34,8 @@ describe("ForeProtocol", () => {
     let foreVerifiers: MockContract<ForeVerifiers>;
     let protocol: ForeProtocol;
     let contract: BasicFactory;
-    let marketLib: MarketLib;
+    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let usdcToken: MockContract<MockERC20>;
 
     beforeEach(async () => {
         [
@@ -63,10 +64,7 @@ describe("ForeProtocol", () => {
             ethers.utils.parseEther("20")
         );
 
-        marketLib = await deployLibrary("MarketLib", [
-            "BasicMarket",
-            "BasicFactory",
-        ]);
+        await deployLibrary("MarketLib", ["BasicMarket", "BasicFactory"]);
 
         protocol = await deployContract<ForeProtocol>(
             "ForeProtocol",
@@ -74,9 +72,28 @@ describe("ForeProtocol", () => {
             "https://markets.api.foreprotocol.io/market/"
         );
 
+        usdcToken = await deployMockedContract<MockERC20>(
+            "MockERC20",
+            "USDC",
+            "USD Coin",
+            ethers.utils.parseEther("1000000")
+        );
+
+        // preparing token registry
+        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
+            "TokenIncentiveRegistry",
+            [
+                {
+                    tokenAddress: usdcToken.address,
+                    discountRate: 10,
+                },
+            ]
+        );
+
         contract = await deployContract<BasicFactory>(
             "BasicFactory",
-            protocol.address
+            protocol.address,
+            tokenRegistry.address
         );
 
         await txExec(foreVerifiers.setProtocol(protocol.address));
@@ -173,11 +190,11 @@ describe("ForeProtocol", () => {
         });
 
         it("Should emit BaseURI event", async () => {
-            const [tx, recipt] = await txExec(
+            const [, receipt] = await txExec(
                 protocol.connect(owner).editBaseUri("https://test.com/%.json")
             );
 
-            assertEvent<BaseURIEvent>(recipt, "BaseURI", {
+            assertEvent<BaseURIEvent>(receipt, "BaseURI", {
                 value: "https://test.com/%.json",
             });
         });
@@ -218,12 +235,11 @@ describe("ForeProtocol", () => {
             ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
         });
 
-        describe("sucessfully", () => {
+        describe("successfully", () => {
             let tx: ContractTransaction;
-            let recipt: ContractReceipt;
 
             beforeEach(async () => {
-                [tx, recipt] = await txExec(
+                [tx] = await txExec(
                     protocol.connect(bob).mintVerifier(alice.address)
                 );
             });
@@ -291,12 +307,11 @@ describe("ForeProtocol", () => {
             ).to.be.revertedWith("ForeFactory: Buy limit reached");
         });
 
-        describe("sucessfully", () => {
+        describe("successfully", () => {
             let tx: ContractTransaction;
-            let recipt: ContractReceipt;
 
             beforeEach(async () => {
-                [tx, recipt] = await txExec(
+                [tx] = await txExec(
                     protocol
                         .connect(bob)
                         .buyPower(0, ethers.utils.parseEther("80"))
@@ -358,11 +373,11 @@ describe("ForeProtocol", () => {
             });
 
             it("Should allow upgrade to next tier", async () => {
-                const [tx, recipt] = await txExec(
+                const [, receipt] = await txExec(
                     protocol.connect(alice).upgradeTier(0)
                 );
 
-                assertEvent<UpgradeTierEvent>(recipt, "UpgradeTier", {
+                assertEvent<UpgradeTierEvent>(receipt, "UpgradeTier", {
                     oldTokenId: BigNumber.from(0),
                     newTokenId: BigNumber.from(1),
                     newTier: BigNumber.from(3),
@@ -429,7 +444,7 @@ describe("ForeProtocol", () => {
             ).to.revertedWith("FactoryIsNotWhitelisted");
         });
 
-        it("Should revert in case inversed dates", async () => {
+        it("Should revert in case inverse dates", async () => {
             await expect(
                 contract
                     .connect(alice)
@@ -466,14 +481,12 @@ describe("ForeProtocol", () => {
 
     describe("With market created", () => {
         let tx: ContractTransaction;
-        let recipt: ContractReceipt;
-
         let marketContract: BasicMarket;
 
         beforeEach(async () => {
             const marketHash =
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
-            [tx, recipt] = await txExec(
+            [tx] = await txExec(
                 contract
                     .connect(bob)
                     .createMarket(

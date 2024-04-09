@@ -1,35 +1,32 @@
 import { BasicMarket } from "@/BasicMarket";
-import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLib } from "@/MarketLib";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
-import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { ethers } from "hardhat";
 import {
     assertIsAvailableOnlyForOwner,
-    attachContract,
     deployContractAs,
     deployLibrary,
     deployMockedContract,
     impersonateContract,
     txExec,
 } from "../helpers/utils";
+import { ERC20 } from "@/ERC20";
+import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
 
 describe("BasicMarket / Initialization", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreProtocolAccount: Signer;
     let basicFactoryAccount: Signer;
-    let alice: SignerWithAddress;
-    let bob: SignerWithAddress;
 
     let marketLib: MarketLib;
     let protocolConfig: MockContract<ProtocolConfig>;
@@ -37,19 +34,15 @@ describe("BasicMarket / Initialization", () => {
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreProtocol: MockContract<ForeProtocol>;
     let basicFactory: MockContract<BasicFactory>;
+    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let usdcToken: MockContract<ERC20>;
     let contract: BasicMarket;
 
     let blockTimestamp: number;
 
     beforeEach(async () => {
-        [
-            owner,
-            foundationWallet,
-            highGuardAccount,
-            marketplaceContract,
-            alice,
-            bob,
-        ] = await ethers.getSigners();
+        [owner, foundationWallet, highGuardAccount, marketplaceContract, , ,] =
+            await ethers.getSigners();
 
         // deploy library
         marketLib = await deployLibrary("MarketLib", [
@@ -81,11 +74,28 @@ describe("BasicMarket / Initialization", () => {
             protocolConfig.address,
             "https://markets.api.foreprotocol.io/market/"
         );
-        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        usdcToken = await deployMockedContract<ERC20>(
+            "ERC20",
+            "USDC",
+            "USD Coin"
+        );
+
+        // preparing token registry
+        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
+            "TokenIncentiveRegistry",
+            [
+                {
+                    tokenAddress: usdcToken.address,
+                    discountRate: 10,
+                },
+            ]
+        );
 
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",
-            foreProtocol.address
+            foreProtocol.address,
+            tokenRegistry.address
         );
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
@@ -113,9 +123,12 @@ describe("BasicMarket / Initialization", () => {
                         ethers.utils.parseEther("1"),
                         ethers.utils.parseEther("2"),
                         foreProtocol.address,
+                        tokenRegistry.address,
+                        owner.address,
                         blockTimestamp + 100000,
                         blockTimestamp + 200000,
-                        0
+                        0,
+                        10
                     );
             },
             basicFactoryAccount,
@@ -125,10 +138,9 @@ describe("BasicMarket / Initialization", () => {
 
     describe("successfully", () => {
         let tx: ContractTransaction;
-        let recipt: ContractReceipt;
 
         beforeEach(async () => {
-            [tx, recipt] = await txExec(
+            [tx] = await txExec(
                 contract
                     .connect(basicFactoryAccount)
                     .initialize(
@@ -137,9 +149,12 @@ describe("BasicMarket / Initialization", () => {
                         ethers.utils.parseEther("1"),
                         ethers.utils.parseEther("2"),
                         foreProtocol.address,
+                        tokenRegistry.address,
+                        owner.address,
                         blockTimestamp + 100000,
                         blockTimestamp + 200000,
-                        0
+                        0,
+                        10
                     )
             );
         });
@@ -222,10 +237,9 @@ describe("BasicMarket / Initialization", () => {
 
     describe("with 0 A side", () => {
         let tx: ContractTransaction;
-        let recipt: ContractReceipt;
 
         beforeEach(async () => {
-            [tx, recipt] = await txExec(
+            [tx] = await txExec(
                 contract
                     .connect(basicFactoryAccount)
                     .initialize(
@@ -234,9 +248,12 @@ describe("BasicMarket / Initialization", () => {
                         0,
                         ethers.utils.parseEther("2"),
                         foreProtocol.address,
+                        tokenRegistry.address,
+                        owner.address,
                         blockTimestamp + 100000,
                         blockTimestamp + 200000,
-                        0
+                        0,
+                        10
                     )
             );
         });
@@ -257,10 +274,9 @@ describe("BasicMarket / Initialization", () => {
 
     describe("with 0 B side", () => {
         let tx: ContractTransaction;
-        let recipt: ContractReceipt;
 
         beforeEach(async () => {
-            [tx, recipt] = await txExec(
+            [tx] = await txExec(
                 contract
                     .connect(basicFactoryAccount)
                     .initialize(
@@ -269,9 +285,12 @@ describe("BasicMarket / Initialization", () => {
                         ethers.utils.parseEther("1"),
                         0,
                         foreProtocol.address,
+                        tokenRegistry.address,
+                        owner.address,
                         blockTimestamp + 100000,
                         blockTimestamp + 200000,
-                        0
+                        0,
+                        10
                     )
             );
         });

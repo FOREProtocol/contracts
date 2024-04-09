@@ -1,38 +1,33 @@
 import { BasicMarket } from "@/BasicMarket";
-import { ForeProtocol, MarketCreatedEvent } from "@/ForeProtocol";
+import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { MarketLib } from "@/MarketLib";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
-import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, ContractTransaction, Signer } from "ethers";
+import { BigNumber, ContractTransaction } from "ethers";
 import { ethers } from "hardhat";
 import {
     assertIsAvailableOnlyForOwner,
     attachContract,
-    deployContract,
     deployLibrary,
     deployMockedContract,
     executeInSingleBlock,
-    findEvent,
-    impersonateContract,
     sendERC20Tokens,
     timetravel,
     txExec,
-    waitForTxs,
 } from "../helpers/utils";
+import { ERC20 } from "@/ERC20";
+import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
 
 describe("BasicMarket / Dispute", () => {
     let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreProtocolAccount: Signer;
-    let basicFactoryAccount: Signer;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;
     let carol: SignerWithAddress;
@@ -44,6 +39,8 @@ describe("BasicMarket / Dispute", () => {
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreProtocol: MockContract<ForeProtocol>;
     let basicFactory: MockContract<BasicFactory>;
+    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let usdcToken: MockContract<ERC20>;
     let contract: BasicMarket;
 
     let blockTimestamp: number;
@@ -91,13 +88,29 @@ describe("BasicMarket / Dispute", () => {
             protocolConfig.address,
             "https://markets.api.foreprotocol.io/market/"
         );
-        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+
+        usdcToken = await deployMockedContract<ERC20>(
+            "ERC20",
+            "USDC",
+            "USD Coin"
+        );
+
+        // preparing token registry
+        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
+            "TokenIncentiveRegistry",
+            [
+                {
+                    tokenAddress: usdcToken.address,
+                    discountRate: 10,
+                },
+            ]
+        );
 
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",
-            foreProtocol.address
+            foreProtocol.address,
+            tokenRegistry.address
         );
-        basicFactoryAccount = await impersonateContract(basicFactory.address);
 
         // factory assignment
         await txExec(foreVerifiers.setProtocol(foreProtocol.address));
@@ -130,7 +143,7 @@ describe("BasicMarket / Dispute", () => {
         // creating market
         const marketHash =
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
-        const [tx, recipt] = await txExec(
+        await txExec(
             basicFactory
                 .connect(alice)
                 .createMarket(
@@ -247,12 +260,11 @@ describe("BasicMarket / Dispute", () => {
                 ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
             });
 
-            describe("sucessfully", () => {
+            describe("successfully", () => {
                 let tx: ContractTransaction;
-                let recipt: ContractReceipt;
 
                 beforeEach(async () => {
-                    [tx, recipt] = await txExec(
+                    [tx] = await txExec(
                         contract
                             .connect(alice)
                             .openDispute(
@@ -320,10 +332,10 @@ describe("BasicMarket / Dispute", () => {
 
     describe("after dispute period end with invalid market", () => {
         let tx: ContractTransaction;
-        let recipt: ContractReceipt;
+
         beforeEach(async () => {
             await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
-            [tx, recipt] = await txExec(
+            [tx] = await txExec(
                 contract
                     .connect(bob)
                     .openDispute(
@@ -400,10 +412,9 @@ describe("BasicMarket / Dispute", () => {
 
             describe("with resolved dispute (result confirmed - dispute rejected)", () => {
                 let tx: ContractTransaction;
-                let recipt: ContractReceipt;
 
                 beforeEach(async () => {
-                    [tx, recipt] = await txExec(
+                    [tx] = await txExec(
                         contract.connect(highGuardAccount).resolveDispute(1)
                     );
                 });
@@ -498,10 +509,9 @@ describe("BasicMarket / Dispute", () => {
 
             describe("with resolved dispute (result rejected - dispute accepted)", () => {
                 let tx: ContractTransaction;
-                let recipt: ContractReceipt;
 
                 beforeEach(async () => {
-                    [tx, recipt] = await txExec(
+                    [tx] = await txExec(
                         contract.connect(highGuardAccount).resolveDispute(2)
                     );
                 });
@@ -578,10 +588,9 @@ describe("BasicMarket / Dispute", () => {
 
             describe("with resolved dispute (dispute confirmed - draw)", () => {
                 let tx: ContractTransaction;
-                let recipt: ContractReceipt;
 
                 beforeEach(async () => {
-                    [tx, recipt] = await txExec(
+                    [tx] = await txExec(
                         contract.connect(highGuardAccount).resolveDispute(3)
                     );
                 });
@@ -701,10 +710,9 @@ describe("BasicMarket / Dispute", () => {
 
             describe("with resolved dispute (result DRAW - dispute rejected)", () => {
                 let tx: ContractTransaction;
-                let recipt: ContractReceipt;
 
                 beforeEach(async () => {
-                    [tx, recipt] = await txExec(
+                    [tx] = await txExec(
                         contract.connect(highGuardAccount).resolveDispute(3)
                     );
                 });

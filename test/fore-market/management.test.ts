@@ -3,7 +3,6 @@ import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactory } from "@/BasicFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
-import { MarketLib } from "@/MarketLib";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -17,41 +16,29 @@ import {
     impersonateContract,
     txExec,
 } from "../helpers/utils";
+import { ERC20 } from "@/ERC20";
+import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
 
 describe("ForeMarket / Management", () => {
-    let owner: SignerWithAddress;
     let foundationWallet: SignerWithAddress;
     let highGuardAccount: SignerWithAddress;
     let marketplaceContract: SignerWithAddress;
-    let foreProtocolAccount: Signer;
     let basicFactoryAccount: Signer;
-    let alice: SignerWithAddress;
-    let bob: SignerWithAddress;
     let protocolConfig: MockContract<ProtocolConfig>;
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreProtocol: MockContract<ForeProtocol>;
+    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let usdcToken: MockContract<ERC20>;
     let basicFactory: MockContract<BasicFactory>;
-    let marketLib: MarketLib;
     let contract: BasicMarket;
 
-    let blockTimestamp: number;
-
     beforeEach(async () => {
-        [
-            owner,
-            foundationWallet,
-            highGuardAccount,
-            marketplaceContract,
-            alice,
-            bob,
-        ] = await ethers.getSigners();
+        [, foundationWallet, highGuardAccount, marketplaceContract, ,] =
+            await ethers.getSigners();
 
         // deploy library
-        marketLib = await deployLibrary("MarketLib", [
-            "BasicMarket",
-            "BasicFactory",
-        ]);
+        await deployLibrary("MarketLib", ["BasicMarket", "BasicFactory"]);
 
         // preparing dependencies
         foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -77,11 +64,29 @@ describe("ForeMarket / Management", () => {
             protocolConfig.address,
             "https://markets.api.foreprotocol.io/market/"
         );
-        foreProtocolAccount = await impersonateContract(foreProtocol.address);
+        await impersonateContract(foreProtocol.address);
+
+        usdcToken = await deployMockedContract<ERC20>(
+            "ERC20",
+            "USDC",
+            "USD Coin"
+        );
+
+        // preparing token registry
+        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
+            "TokenIncentiveRegistry",
+            [
+                {
+                    tokenAddress: usdcToken.address,
+                    discountRate: 10,
+                },
+            ]
+        );
 
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",
-            foreProtocol.address
+            foreProtocol.address,
+            tokenRegistry.address
         );
         basicFactoryAccount = await impersonateContract(basicFactory.address);
 
@@ -93,9 +98,6 @@ describe("ForeMarket / Management", () => {
             basicFactoryAccount,
             "BasicMarket"
         );
-
-        const previousBlock = await ethers.provider.getBlock("latest");
-        blockTimestamp = previousBlock.timestamp;
     });
 
     it("Should return proper factory address", async () => {

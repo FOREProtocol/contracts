@@ -1,18 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "./BasicMarket.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "./BasicMarket.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
+import "../../../token/ITokenIncentiveRegistry.sol";
 
-contract BasicFactory {
+contract BasicFactory is Ownable {
     using SafeERC20 for IERC20Burnable;
 
     /// @notice Init creatin code
     /// @dev Needed to calculate market address
     bytes32 public constant INIT_CODE_PAIR_HASH =
         keccak256(abi.encodePacked(type(BasicMarket).creationCode));
+
+    /// @notice Prediction flat fee rate
+    uint32 public predictionFlatFeeRate = 10;
+
+    /// @notice Token registry
+    address public immutable tokenRegistry;
 
     /// @notice Protocol Contract
     IForeProtocol public immutable foreProtocol;
@@ -27,11 +35,12 @@ contract BasicFactory {
     IForeVerifiers public immutable foreVerifiers;
 
     /// @param protocolAddress Protocol Contract address
-    constructor(IForeProtocol protocolAddress) {
+    constructor(IForeProtocol protocolAddress, address _tokenRegistry) {
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
         foreToken = IERC20Burnable(protocolAddress.foreToken());
         foreVerifiers = IForeVerifiers(protocolAddress.foreVerifiers());
+        tokenRegistry = _tokenRegistry;
     }
 
     /// @notice Creates Market
@@ -81,9 +90,16 @@ contract BasicFactory {
             amountA,
             amountB,
             address(foreProtocol),
+            tokenRegistry,
+            owner(),
             endPredictionTimestamp,
             startVerificationTimestamp,
-            uint64(marketIdx)
+            uint64(marketIdx),
+            predictionFlatFeeRate
         );
+    }
+
+    function setPredictionFlatFeeRate(uint32 feeRate) external onlyOwner {
+        predictionFlatFeeRate = feeRate;
     }
 }
