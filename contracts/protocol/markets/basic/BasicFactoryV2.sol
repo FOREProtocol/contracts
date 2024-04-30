@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./BasicMarketV2.sol";
+import "./library/ArrayUtils.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
@@ -18,6 +19,9 @@ contract BasicFactoryV2 is Ownable {
     /// @dev Needed to calculate market address
     bytes32 public constant INIT_CODE_PAIR_HASH =
         keccak256(abi.encodePacked(type(BasicMarketV2).creationCode));
+
+    /// @notice Maximum sides allowed
+    uint32 constant MAX_SIDES = 10;
 
     /// @notice Prediction flat fee rate - 10%
     uint32 public predictionFlatFeeRate = 1000;
@@ -71,8 +75,7 @@ contract BasicFactoryV2 is Ownable {
      * @notice Creates a market
      * @param marketHash market hash
      * @param receiver market creator nft receiver
-     * @param amountA initial prediction for side A
-     * @param amountB initial prediction for side B
+     * @param amounts initial predictions for all sides
      * @param endPredictionTimestamp End predictions unix timestamp
      * @param startVerificationTimestamp Start Verification unix timestamp
      * @param token Alternative token
@@ -81,8 +84,7 @@ contract BasicFactoryV2 is Ownable {
     function createMarket(
         bytes32 marketHash,
         address receiver,
-        uint256 amountA,
-        uint256 amountB,
+        uint256[] calldata amounts,
         uint64 endPredictionTimestamp,
         uint64 startVerificationTimestamp,
         IERC20 token
@@ -93,6 +95,9 @@ contract BasicFactoryV2 is Ownable {
         if (!tokenRegistry.isTokenEnabled(address(token))) {
             revert("Basic Factory: Token is not enabled");
         }
+        if (amounts.length > MAX_SIDES) {
+            revert("Basic Factory: Maximum sides reached");
+        }
 
         BasicMarketV2 createdMarketContract = new BasicMarketV2{
             salt: marketHash
@@ -100,7 +105,7 @@ contract BasicFactoryV2 is Ownable {
         createdMarket = address(createdMarketContract);
 
         uint256 creationFee = config.marketCreationPrice();
-        uint256 amountSum = amountA + amountB;
+        uint256 amountSum = ArrayUtils.sum(amounts);
 
         if (address(token) == address(foreToken) && creationFee != 0) {
             foreToken.safeTransferFrom(
@@ -123,8 +128,7 @@ contract BasicFactoryV2 is Ownable {
             .MarketCreationInitialData(
                 marketHash,
                 receiver,
-                amountA,
-                amountB,
+                amounts,
                 address(foreProtocol),
                 address(tokenRegistry),
                 feeReceiver,

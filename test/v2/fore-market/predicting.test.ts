@@ -7,7 +7,7 @@ import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactoryV2 } from "@/BasicFactoryV2";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
-import { MarketLib } from "@/MarketLib";
+import { MarketLibV2 } from "@/MarketLibV2";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -27,6 +27,11 @@ const defaultIncentives = {
   marketCreatorDiscountRate: 1000,
   verificationDiscountRate: 1000,
   foundationDiscountRate: 1000,
+} as const;
+
+const SIDES = {
+  TRUE: 0,
+  FALSE: 1,
 } as const;
 
 const calculatePredictionFee = async (
@@ -55,7 +60,7 @@ describe("BasicMarketV2 / Predicting", () => {
   let tokenRegistry: Contract;
   let usdcToken: MockERC20;
   let basicFactory: MockContract<BasicFactoryV2>;
-  let marketLib: MarketLib;
+  let marketLib: MarketLibV2;
   let contract: BasicMarketV2;
 
   let blockTimestamp: number;
@@ -77,7 +82,7 @@ describe("BasicMarketV2 / Predicting", () => {
     ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLib", [
+    marketLib = await deployLibrary("MarketLibV2", [
       "BasicMarketV2",
       "BasicFactoryV2",
     ]);
@@ -174,8 +179,7 @@ describe("BasicMarketV2 / Predicting", () => {
         .createMarket(
           marketHash,
           alice.address,
-          0,
-          0,
+          [0, 0],
           BigNumber.from(blockTimestamp + 200000),
           BigNumber.from(blockTimestamp + 300000),
           foreToken.address
@@ -218,14 +222,15 @@ describe("BasicMarketV2 / Predicting", () => {
   describe("initial state", () => {
     it("Should return proper market state", async () => {
       expect(await contract.marketInfo()).to.be.eql([
-        BigNumber.from(0), // side A
-        BigNumber.from(0), // side B
-        BigNumber.from(0), // verified A
-        BigNumber.from(0), // verified B
+        [BigNumber.from(0), BigNumber.from(0)], // sides
+        [BigNumber.from(0), BigNumber.from(0)], // verifications
         ethers.constants.AddressZero, // dispute creator
+        BigNumber.from(0), // total markets size
+        BigNumber.from(0), // total verifications amount
         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
         0, // result
+        0, // winner side index
         false, // confirmed
         false, // solved
       ]);
@@ -234,14 +239,14 @@ describe("BasicMarketV2 / Predicting", () => {
 
   it("Should revert without sufficient funds", async () => {
     await expect(
-      contract.connect(bob).predict(ethers.utils.parseEther("2"), true)
+      contract.connect(bob).predict(ethers.utils.parseEther("2"), SIDES.TRUE)
     ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
   });
 
   it("Should revert with 0 stake", async () => {
-    await expect(contract.connect(bob).predict(0, true)).to.be.revertedWith(
-      "AmountCantBeZero"
-    );
+    await expect(
+      contract.connect(bob).predict(0, SIDES.TRUE)
+    ).to.be.revertedWith("AmountCantBeZero");
   });
 
   describe("successfully (vote on A)", async () => {
@@ -249,7 +254,9 @@ describe("BasicMarketV2 / Predicting", () => {
 
     beforeEach(async () => {
       [tx] = await txExec(
-        contract.connect(alice).predict(ethers.utils.parseEther("2"), true)
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("2"), SIDES.TRUE)
       );
       predictionFees.foreToken = await calculatePredictionFee(
         contract,
@@ -262,7 +269,7 @@ describe("BasicMarketV2 / Predicting", () => {
         .to.emit({ ...marketLib, address: contract.address }, "Predict")
         .withArgs(
           alice.address,
-          true,
+          SIDES.TRUE,
           ethers.utils.parseEther("2").sub(predictionFees.foreToken)
         );
     });
@@ -279,14 +286,18 @@ describe("BasicMarketV2 / Predicting", () => {
 
     it("Should return proper market state", async () => {
       expect(await contract.marketInfo()).to.be.eql([
-        ethers.utils.parseEther("2").sub(predictionFees.foreToken), // side A
-        BigNumber.from(0), // side B
-        BigNumber.from(0), // verified A
-        BigNumber.from(0), // verified B
+        [
+          ethers.utils.parseEther("2").sub(predictionFees.foreToken),
+          BigNumber.from(0),
+        ], // sides
+        [BigNumber.from(0), BigNumber.from(0)], // verifications
         ethers.constants.AddressZero, // dispute creator
+        ethers.utils.parseEther("2").sub(predictionFees.foreToken), // total markets size
+        BigNumber.from(0), // total verifications amount
         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
         0, // result
+        0, // winner side index
         false, // confirmed
         false, // solved
       ]);
@@ -298,7 +309,9 @@ describe("BasicMarketV2 / Predicting", () => {
 
     beforeEach(async () => {
       [tx] = await txExec(
-        contract.connect(alice).predict(ethers.utils.parseEther("3"), false)
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("3"), SIDES.FALSE)
       );
       predictionFees.foreToken = await calculatePredictionFee(
         contract,
@@ -311,7 +324,7 @@ describe("BasicMarketV2 / Predicting", () => {
         .to.emit({ ...marketLib, address: contract.address }, "Predict")
         .withArgs(
           alice.address,
-          false,
+          SIDES.FALSE,
           ethers.utils.parseEther("3").sub(predictionFees.foreToken)
         );
     });
@@ -328,14 +341,18 @@ describe("BasicMarketV2 / Predicting", () => {
 
     it("Should return proper market state", async () => {
       expect(await contract.marketInfo()).to.be.eql([
-        ethers.utils.parseEther("0"), // side A
-        ethers.utils.parseEther("3").sub(predictionFees.foreToken), // side B
-        BigNumber.from(0), // verified A
-        BigNumber.from(0), // verified B
+        [
+          ethers.utils.parseEther("0"),
+          ethers.utils.parseEther("3").sub(predictionFees.foreToken),
+        ], // sides
+        [BigNumber.from(0), BigNumber.from(0)], // verifications
         ethers.constants.AddressZero, // dispute creator
+        ethers.utils.parseEther("3").sub(predictionFees.foreToken), // total markets size
+        BigNumber.from(0), // total verifications amount
         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
         0, // result
+        0, // winner side index
         false, // confirmed
         false, // solved
       ]);
@@ -349,7 +366,9 @@ describe("BasicMarketV2 / Predicting", () => {
 
     it("Should revert if executed after end", async () => {
       await expect(
-        contract.connect(alice).predict(ethers.utils.parseEther("2"), true)
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("2"), SIDES.TRUE)
       ).to.revertedWith("PredictionPeriodIsAlreadyClosed");
     });
   });

@@ -11,7 +11,7 @@ import { BasicFactoryV2 } from "@/BasicFactoryV2";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
-import { CloseMarketEvent, MarketLib } from "@/MarketLib";
+import { CloseMarketEvent, MarketLibV2 } from "@/MarketLibV2";
 import { ERC20 } from "@/ERC20";
 
 import {
@@ -32,6 +32,11 @@ const defaultIncentives = {
   foundationDiscountRate: 1000,
 } as const;
 
+const SIDES = {
+  TRUE: 0,
+  FALSE: 1,
+} as const;
+
 describe("BasicMarketV2 / Closing", () => {
   let owner: SignerWithAddress;
   let foundationWallet: SignerWithAddress;
@@ -42,7 +47,7 @@ describe("BasicMarketV2 / Closing", () => {
   let bob: SignerWithAddress;
   let carol: SignerWithAddress;
   let dave: SignerWithAddress;
-  let marketLib: MarketLib;
+  let marketLib: MarketLibV2;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
@@ -68,7 +73,7 @@ describe("BasicMarketV2 / Closing", () => {
     ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLib", [
+    marketLib = await deployLibrary("MarketLibV2", [
       "BasicMarketV2",
       "BasicFactoryV2",
     ]);
@@ -149,8 +154,7 @@ describe("BasicMarketV2 / Closing", () => {
         .createMarket(
           marketHash,
           alice.address,
-          ethers.utils.parseEther("70"),
-          ethers.utils.parseEther("30"),
+          [ethers.utils.parseEther("70"), ethers.utils.parseEther("30")],
           blockTimestamp + 200000,
           blockTimestamp + 300000,
           foreToken.address
@@ -208,12 +212,8 @@ describe("BasicMarketV2 / Closing", () => {
   describe("verified side won (A)", () => {
     beforeEach(async () => {
       await timetravel(blockTimestamp + 300000 + 1);
-
-      await executeInSingleBlock(() => [
-        contract.connect(alice).verify(0, true),
-        contract.connect(bob).verify(1, true),
-      ]);
-
+      await contract.connect(alice).verify(0, SIDES.TRUE);
+      await contract.connect(bob).verify(1, SIDES.TRUE);
       await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
     });
 
@@ -253,19 +253,20 @@ describe("BasicMarketV2 / Closing", () => {
       it("Should emit CloseMarket event", async () => {
         await expect(tx)
           .to.emit({ ...marketLib, address: contract.address }, "CloseMarket")
-          .withArgs(1);
+          .withArgs(2);
       });
 
       it("Should update market state", async () => {
         expect(await contract.marketInfo()).to.be.eql([
-          ethers.utils.parseEther("70"), // side A
-          ethers.utils.parseEther("30"), // side B
-          ethers.utils.parseEther("40"), // verified A
-          ethers.utils.parseEther("0"), // verified B
+          [ethers.utils.parseEther("70"), ethers.utils.parseEther("30")], // sides
+          [ethers.utils.parseEther("40"), ethers.utils.parseEther("0")], // verifications
           ethers.constants.AddressZero, // dispute creator
+          ethers.utils.parseEther("70").add(ethers.utils.parseEther("30")), // total market size
+          ethers.utils.parseEther("40"), // total verifications amount
           BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
           BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-          1, // result
+          2, // result
+          0, // winner side index
           false, // confirmed
           false, // solved
         ]);
@@ -276,12 +277,9 @@ describe("BasicMarketV2 / Closing", () => {
   describe("verified side won (B)", () => {
     beforeEach(async () => {
       await timetravel(blockTimestamp + 300000 + 1);
-
-      await executeInSingleBlock(() => [
-        contract.connect(alice).verify(0, false),
-        contract.connect(bob).verify(1, false),
-        contract.connect(carol).verify(2, false),
-      ]);
+      await contract.connect(alice).verify(0, SIDES.FALSE);
+      await contract.connect(bob).verify(1, SIDES.FALSE);
+      await contract.connect(carol).verify(2, SIDES.FALSE);
       await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
     });
 
@@ -300,14 +298,15 @@ describe("BasicMarketV2 / Closing", () => {
 
       it("Should update market state", async () => {
         expect(await contract.marketInfo()).to.be.eql([
-          ethers.utils.parseEther("70"), // side A
-          ethers.utils.parseEther("30"), // side B
-          ethers.utils.parseEther("0"), // verified A
-          ethers.utils.parseEther("60"), // verified B
+          [ethers.utils.parseEther("70"), ethers.utils.parseEther("30")], // sides
+          [ethers.utils.parseEther("0"), ethers.utils.parseEther("60")], // verifications
           ethers.constants.AddressZero, // dispute creator
+          ethers.utils.parseEther("70").add(ethers.utils.parseEther("30")),
+          ethers.utils.parseEther("60"), // total verifications amount
           BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
           BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
           2, // result
+          1, // winner side index
           false, // confirmed
           false, // solved
         ]);
@@ -318,11 +317,8 @@ describe("BasicMarketV2 / Closing", () => {
   describe("with draw", () => {
     beforeEach(async () => {
       await timetravel(blockTimestamp + 300000 + 1);
-
-      await executeInSingleBlock(() => [
-        contract.connect(alice).verify(0, true),
-        contract.connect(bob).verify(1, false),
-      ]);
+      await contract.connect(alice).verify(0, SIDES.TRUE);
+      await contract.connect(bob).verify(1, SIDES.FALSE);
       await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
     });
 
@@ -366,14 +362,15 @@ describe("BasicMarketV2 / Closing", () => {
 
       it("Should update market state", async () => {
         expect(await contract.marketInfo()).to.be.eql([
-          ethers.utils.parseEther("70"), // side A
-          ethers.utils.parseEther("30"), // side B
-          ethers.utils.parseEther("20"), // verified A
-          ethers.utils.parseEther("20"), // verified B
+          [ethers.utils.parseEther("70"), ethers.utils.parseEther("30")], // sides
+          [ethers.utils.parseEther("20"), ethers.utils.parseEther("20")], // verifications
           ethers.constants.AddressZero, // dispute creator
+          ethers.utils.parseEther("70").add(ethers.utils.parseEther("30")), // total market size
+          ethers.utils.parseEther("20").add(ethers.utils.parseEther("20")), // total verifications amount
           BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
           BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
           3, // result
+          0, // winner side index
           false, // confirmed
           false, // solved
         ]);
