@@ -84,7 +84,7 @@ async function main() {
     if (!existingContract.foreVerifiers) {
         console.log("Deploying ForeVerifiers");
 
-        foreVerifiers = await ForeVerifiersArtifact.deploy();
+        foreVerifiers = await ForeVerifiersArtifact.deploy("");
         await foreVerifiers.deployed();
 
         console.log(foreVerifiers.address);
@@ -194,7 +194,8 @@ async function main() {
         console.log("Deploying ForeProtocol");
 
         foreProtocol = await ForeProtocolArtifact.deploy(
-            protocolConfig.address
+            protocolConfig.address,
+            ""
         );
         await foreProtocol.deployed();
 
@@ -206,7 +207,6 @@ async function main() {
     }
 
     // initial settings
-    await foreToken.setProtocol(foreProtocol.address, { gasLimit: 10000000 });
     await foreVerifiers.setProtocol(foreProtocol.address, {
         gasLimit: 10000000,
     });
@@ -227,9 +227,13 @@ async function main() {
     if (!existingContract.basicFactory) {
         console.log("Deploying BasicFactory");
 
-        basicFactory = await BasicFactoryArtifact.deploy(foreProtocol.address, {
-            gasLimit: 10000000,
-        });
+        basicFactory = await BasicFactoryArtifact.deploy(
+            foreProtocol.address,
+            "0x0000000000000000000000000000000000000000",
+            {
+                gasLimit: 10000000,
+            }
+        );
         await basicFactory.deployed();
 
         console.log(basicFactory.address);

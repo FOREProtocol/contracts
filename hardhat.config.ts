@@ -97,7 +97,7 @@ const config: HardhatUserConfig = {
         },
         arbitrumTestnet: {
             url: process.env.ARBITRUM_TESTNET_URL || "",
-            chainId: 421613,
+            chainId: 421614,
             accounts: {
                 mnemonic:
                     process.env.MNEMONIC_TESTNET !== undefined
