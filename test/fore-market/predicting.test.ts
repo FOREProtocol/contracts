@@ -41,6 +41,11 @@ describe("BasicMarket / Predicting", () => {
 
     let blockTimestamp: number;
 
+    const predictionFees = {
+        usdcToken: BigNumber.from(0),
+        foreToken: BigNumber.from(0),
+    };
+
     beforeEach(async () => {
         [
             owner,
@@ -259,27 +264,36 @@ describe("BasicMarket / Predicting", () => {
                         foreToken.address
                     )
             );
+
+            predictionFees.foreToken = await contract.calculatePredictionFee(
+                usdcToken.address,
+                ethers.utils.parseEther("2")
+            );
         });
 
         it("Should emit Predict event", async () => {
             await expect(tx)
                 .to.emit({ ...marketLib, address: contract.address }, "Predict")
-                .withArgs(alice.address, true, ethers.utils.parseEther("2"));
+                .withArgs(
+                    alice.address,
+                    true,
+                    ethers.utils.parseEther("2").sub(predictionFees.foreToken)
+                );
         });
 
-        // it("Should emit Transfer (ERC20) event", async () => {
-        //     await expect(tx)
-        //         .to.emit(foreToken, "Transfer")
-        //         .withArgs(
-        //             alice.address,
-        //             contract.address,
-        //             ethers.utils.parseEther("2")
-        //         );
-        // });
+        it("Should emit Transfer (ERC20) event", async () => {
+            await expect(tx)
+                .to.emit(foreToken, "Transfer")
+                .withArgs(
+                    alice.address,
+                    contract.address,
+                    ethers.utils.parseEther("2")
+                );
+        });
 
         it("Should return proper market state", async () => {
             expect(await contract.marketInfo()).to.be.eql([
-                ethers.utils.parseEther("2"), // side A
+                ethers.utils.parseEther("2").sub(predictionFees.foreToken), // side A
                 BigNumber.from(0), // side B
                 BigNumber.from(0), // verified A
                 BigNumber.from(0), // verified B
@@ -306,28 +320,37 @@ describe("BasicMarket / Predicting", () => {
                         foreToken.address
                     )
             );
+
+            predictionFees.foreToken = await contract.calculatePredictionFee(
+                usdcToken.address,
+                ethers.utils.parseEther("3")
+            );
         });
 
         it("Should emit Predict event", async () => {
             await expect(tx)
                 .to.emit({ ...marketLib, address: contract.address }, "Predict")
-                .withArgs(alice.address, false, ethers.utils.parseEther("3"));
+                .withArgs(
+                    alice.address,
+                    false,
+                    ethers.utils.parseEther("3").sub(predictionFees.foreToken)
+                );
         });
 
-        // it("Should emit Transfer (ERC20) event", async () => {
-        //     await expect(tx)
-        //         .to.emit(foreToken, "Transfer")
-        //         .withArgs(
-        //             alice.address,
-        //             contract.address,
-        //             ethers.utils.parseEther("3")
-        //         );
-        // });
+        it("Should emit Transfer (ERC20) event", async () => {
+            await expect(tx)
+                .to.emit(foreToken, "Transfer")
+                .withArgs(
+                    alice.address,
+                    contract.address,
+                    ethers.utils.parseEther("3")
+                );
+        });
 
         it("Should return proper market state", async () => {
             expect(await contract.marketInfo()).to.be.eql([
                 ethers.utils.parseEther("0"), // side A
-                ethers.utils.parseEther("3"), // side B
+                ethers.utils.parseEther("3").sub(predictionFees.foreToken), // side B
                 BigNumber.from(0), // verified A
                 BigNumber.from(0), // verified B
                 ethers.constants.AddressZero, // dispute creator
@@ -341,8 +364,6 @@ describe("BasicMarket / Predicting", () => {
     });
 
     describe("should accept alternative asset", () => {
-        let predictionFee: BigNumber;
-
         beforeEach(async () => {
             await txExec(
                 contract
@@ -354,7 +375,7 @@ describe("BasicMarket / Predicting", () => {
                     )
             );
 
-            predictionFee = await contract.calculatePredictionFee(
+            predictionFees.usdcToken = await contract.calculatePredictionFee(
                 usdcToken.address,
                 ethers.utils.parseEther("2")
             );
@@ -362,13 +383,13 @@ describe("BasicMarket / Predicting", () => {
 
         it("should transfer alternative asset to market contract", async () => {
             expect(await usdcToken.balanceOf(contract.address)).to.be.eql(
-                ethers.utils.parseEther("2")
+                ethers.utils.parseEther("2").sub(predictionFees.usdcToken)
             );
         });
 
         it("should transfer prediction fee", async () => {
             expect(await usdcToken.balanceOf(owner.address)).to.be.eql(
-                predictionFee
+                predictionFees.usdcToken
             );
         });
     });

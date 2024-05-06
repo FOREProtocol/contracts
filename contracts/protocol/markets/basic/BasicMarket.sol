@@ -157,20 +157,15 @@ contract BasicMarket is ReentrancyGuard {
         if (!tokenRegistry.isTokenEnabled(address(token))) {
             revert("Basic Market: Token is not enabled");
         }
-
         uint256 predictionFee = _calculatePredictionFee(address(token), amount);
-        token.safeTransferFrom(
-            msg.sender,
-            address(this),
-            amount + predictionFee
-        );
+        token.safeTransferFrom(msg.sender, address(this), amount);
         token.safeTransfer(feeReceiver, predictionFee);
 
         MarketLib.predict(
             _market,
             predictionsA,
             predictionsB,
-            amount,
+            amount - predictionFee,
             side,
             msg.sender
         );
