@@ -6,8 +6,8 @@ import { ForeVerifiers, TransferEvent } from "@/ForeVerifiers";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, ContractTransaction, Signer } from "ethers";
-import { ethers } from "hardhat";
+import { BigNumber, Contract, ContractTransaction, Signer } from "ethers";
+import { ethers, upgrades } from "hardhat";
 import {
     deployContract,
     deployMockedContract,
@@ -16,7 +16,6 @@ import {
     txExec,
     deployLibrary,
 } from "../helpers/utils";
-import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
 import { ERC20 } from "@/ERC20";
 
 describe("NFTMarketplace / NFT integration", () => {
@@ -28,7 +27,7 @@ describe("NFTMarketplace / NFT integration", () => {
     let bob: SignerWithAddress;
 
     let foreProtocol: MockContract<ForeProtocol>;
-    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let tokenRegistry: Contract;
     let usdcToken: MockContract<ERC20>;
     let basicFactory: MockContract<BasicFactory>;
     let foreProtocolAccount: Signer;
@@ -120,19 +119,16 @@ describe("NFTMarketplace / NFT integration", () => {
         );
 
         // preparing token registry
-        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
-            "TokenIncentiveRegistry",
-            [
-                {
-                    tokenAddress: usdcToken.address,
-                    discountRate: 10,
-                },
-                {
-                    tokenAddress: foreToken.address,
-                    discountRate: 10,
-                },
-            ]
+        const contractFactory = await ethers.getContractFactory(
+            "TokenIncentiveRegistry"
         );
+        const tokens = [
+            {
+                tokenAddress: usdcToken.address,
+                discountRate: 10,
+            },
+        ];
+        tokenRegistry = await upgrades.deployProxy(contractFactory, [tokens]);
 
         basicFactory = await deployMockedContract(
             "BasicFactory",

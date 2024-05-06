@@ -63,8 +63,10 @@
         "web3": "^1.7.3"
     },
     "dependencies": {
-        "@openzeppelin/contracts": "^4.9.0",
         "@gregoranders/csv": "^0.0.9",
+        "@openzeppelin/contracts": "^4.9.0",
+        "@openzeppelin/contracts-upgradeable": "^4.9.0",
+        "@openzeppelin/hardhat-upgrades": "^1.16.1",
         "hardhat-deploy": "^0.11.15"
     },
     "engines": {

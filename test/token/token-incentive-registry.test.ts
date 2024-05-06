@@ -1,36 +1,45 @@
-import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
 import { deployContract } from "../helpers/utils";
 import { ERC20 } from "@/ERC20";
 import { expect } from "chai";
+import { ethers, upgrades } from "hardhat";
+import { Contract } from "ethers";
 
 describe("Token Incentive Registry", function () {
-    let contract: TokenIncentiveRegistry;
-    let [usdc, token1, token2, token3, token4]: ERC20[] = [];
+    let contract: Contract;
+    let [usdcToken, token1, token2, token3, token4]: ERC20[] = [];
 
     beforeEach(async () => {
-        usdc = await deployContract("ERC20", "USDC", "USDC");
+        usdcToken = await deployContract("ERC20", "USDC", "USDC");
         token1 = await deployContract("ERC20", "Token1", "Token1");
         token2 = await deployContract("ERC20", "Token2", "Token2");
         token3 = await deployContract("ERC20", "Token3", "Token3");
         token4 = await deployContract("ERC20", "Token4", "Token4");
 
-        usdc.deployed();
+        usdcToken.deployed();
         token1.deployed();
         token2.deployed();
         token3.deployed();
 
-        contract = await deployContract("TokenIncentiveRegistry", [
+        const contractFactory = await ethers.getContractFactory(
+            "TokenIncentiveRegistry"
+        );
+        const tokens = [
             {
-                tokenAddress: usdc.address,
+                tokenAddress: usdcToken.address,
                 discountRate: 10,
             },
-        ]);
+        ];
+        contract = await upgrades.deployProxy(contractFactory, [tokens]);
     });
 
     describe("Initial values", () => {
         it("should add initial tokens", async () => {
-            expect(await contract.isTokenEnabled(usdc.address)).to.eql(true);
-            expect(await contract.getDiscountRate(usdc.address)).to.eql(10);
+            expect(await contract.isTokenEnabled(usdcToken.address)).to.eql(
+                true
+            );
+            expect(await contract.getDiscountRate(usdcToken.address)).to.eql(
+                10
+            );
         });
     });
 

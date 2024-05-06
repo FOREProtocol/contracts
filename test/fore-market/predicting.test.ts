@@ -8,8 +8,8 @@ import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, ContractTransaction } from "ethers";
-import { ethers } from "hardhat";
+import { BigNumber, Contract, ContractTransaction } from "ethers";
+import { ethers, upgrades } from "hardhat";
 import {
     attachContract,
     deployLibrary,
@@ -18,7 +18,6 @@ import {
     timetravel,
     txExec,
 } from "../helpers/utils";
-import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
 import { MockERC20 } from "@/MockERC20";
 
 describe("BasicMarket / Predicting", () => {
@@ -34,7 +33,7 @@ describe("BasicMarket / Predicting", () => {
     let foreToken: MockContract<ForeToken>;
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreProtocol: MockContract<ForeProtocol>;
-    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let tokenRegistry: Contract;
     let usdcToken: MockERC20;
     let basicFactory: MockContract<BasicFactory>;
     let marketLib: MarketLib;
@@ -93,19 +92,20 @@ describe("BasicMarket / Predicting", () => {
         );
 
         // preparing token registry
-        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
-            "TokenIncentiveRegistry",
-            [
-                {
-                    tokenAddress: usdcToken.address,
-                    discountRate: 10,
-                },
-                {
-                    tokenAddress: foreToken.address,
-                    discountRate: 10,
-                },
-            ]
+        const contractFactory = await ethers.getContractFactory(
+            "TokenIncentiveRegistry"
         );
+        const tokens = [
+            {
+                tokenAddress: usdcToken.address,
+                discountRate: 10,
+            },
+            {
+                tokenAddress: foreToken.address,
+                discountRate: 10,
+            },
+        ];
+        tokenRegistry = await upgrades.deployProxy(contractFactory, [tokens]);
 
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",

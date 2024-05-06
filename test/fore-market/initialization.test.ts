@@ -8,8 +8,8 @@ import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, ContractTransaction, Signer } from "ethers";
-import { ethers } from "hardhat";
+import { BigNumber, Contract, ContractTransaction, Signer } from "ethers";
+import { ethers, upgrades } from "hardhat";
 import {
     assertIsAvailableOnlyForOwner,
     deployContractAs,
@@ -19,7 +19,6 @@ import {
     txExec,
 } from "../helpers/utils";
 import { ERC20 } from "@/ERC20";
-import { TokenIncentiveRegistry } from "@/TokenIncentiveRegistry";
 
 describe("BasicMarket / Initialization", () => {
     let owner: SignerWithAddress;
@@ -34,7 +33,7 @@ describe("BasicMarket / Initialization", () => {
     let foreVerifiers: MockContract<ForeVerifiers>;
     let foreProtocol: MockContract<ForeProtocol>;
     let basicFactory: MockContract<BasicFactory>;
-    let tokenRegistry: MockContract<TokenIncentiveRegistry>;
+    let tokenRegistry: Contract;
     let usdcToken: MockContract<ERC20>;
     let contract: BasicMarket;
 
@@ -82,15 +81,16 @@ describe("BasicMarket / Initialization", () => {
         );
 
         // preparing token registry
-        tokenRegistry = await deployMockedContract<TokenIncentiveRegistry>(
-            "TokenIncentiveRegistry",
-            [
-                {
-                    tokenAddress: usdcToken.address,
-                    discountRate: 10,
-                },
-            ]
+        const contractFactory = await ethers.getContractFactory(
+            "TokenIncentiveRegistry"
         );
+        const tokens = [
+            {
+                tokenAddress: usdcToken.address,
+                discountRate: 10,
+            },
+        ];
+        tokenRegistry = await upgrades.deployProxy(contractFactory, [tokens]);
 
         basicFactory = await deployMockedContract<BasicFactory>(
             "BasicFactory",

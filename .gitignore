@@ -19,3 +19,6 @@ deployments/localhost
 deployments/hardhat
 
 scripts/data/vesting.csv
+
+# yarn
+yarn-error.log

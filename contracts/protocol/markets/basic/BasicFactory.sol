@@ -34,6 +34,9 @@ contract BasicFactory is Ownable {
     /// @notice ForeVerifiers
     IForeVerifiers public immutable foreVerifiers;
 
+    /// EVENTS
+    event SetPredictionFlatFeeRate(uint32 indexed feeRate);
+
     /// @param protocolAddress Protocol Contract address
     constructor(IForeProtocol protocolAddress, address _tokenRegistry) {
         foreProtocol = protocolAddress;
@@ -101,5 +104,7 @@ contract BasicFactory is Ownable {
 
     function setPredictionFlatFeeRate(uint32 feeRate) external onlyOwner {
         predictionFlatFeeRate = feeRate;
+
+        emit SetPredictionFlatFeeRate(feeRate);
     }
 }

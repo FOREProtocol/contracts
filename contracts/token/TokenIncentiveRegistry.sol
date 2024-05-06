@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 error TokenAlreadyRegistered();
 error TokenNotRegistered();
 error InvalidToken();
 error InvalidDiscountRate();
 
-contract TokenIncentiveRegistry is Ownable {
+contract TokenIncentiveRegistry is
+    Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable
+{
     struct TokenData {
         /// @notice Token address
         address tokenAddress;
@@ -20,20 +26,13 @@ contract TokenIncentiveRegistry is Ownable {
     mapping(address => uint8) public discountRateRegistry;
 
     /// EVENTS
-    event TokenAdded(
-        address indexed token,
-        uint8 discountRate,
-        uint256 timestamp
-    );
+    event TokenAdded(address indexed token, uint8 discountRate);
     event TokenRemoved(address indexed token, uint256 timestamp);
-    event SetDiscountRate(
-        address indexed token,
-        uint256 indexed discount,
-        uint256 timestamp
-    );
+    event SetDiscountRate(address indexed token, uint256 indexed discount);
 
-    /// CONSTRUCTOR
-    constructor(TokenData[] memory tokens) {
+    /// Initializer
+    function initialize(TokenData[] memory tokens) public initializer {
+        __Ownable_init();
         for (uint i = 0; i < tokens.length; i++) {
             address tokenAddress = tokens[i].tokenAddress;
             uint8 discountRate = tokens[i].discountRate;
@@ -66,7 +65,7 @@ contract TokenIncentiveRegistry is Ownable {
     /// @param token Address of the token
     /// @param discountRate Discount rate
     function addToken(address token, uint8 discountRate) external onlyOwner {
-        if (token == address(0) || !isERC20(token)) {
+        if (token == address(0)) {
             revert InvalidToken();
         }
         if (discountRateRegistry[token] != 0) {
@@ -77,7 +76,7 @@ contract TokenIncentiveRegistry is Ownable {
         }
         discountRateRegistry[token] = discountRate;
 
-        emit TokenAdded(token, discountRate, block.timestamp);
+        emit TokenAdded(token, discountRate);
     }
 
     /// @notice Sets token discount rate
@@ -95,7 +94,7 @@ contract TokenIncentiveRegistry is Ownable {
         }
         discountRateRegistry[token] = discountRate;
 
-        emit SetDiscountRate(token, discountRate, block.timestamp);
+        emit SetDiscountRate(token, discountRate);
     }
 
     /// @notice Disables token from the mapping
@@ -109,12 +108,6 @@ contract TokenIncentiveRegistry is Ownable {
         emit TokenRemoved(token, block.timestamp);
     }
 
-    /// @notice Checks if contract is ERC20 compliant
-    /// @param contractAddress Contract address
-    function isERC20(address contractAddress) private view returns (bool) {
-        (bool success, bytes memory data) = contractAddress.staticcall(
-            abi.encodeWithSignature("totalSupply()")
-        );
-        return success && data.length > 0;
-    }
+    /// @notice Ensure only the owner can upgrade the contract
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }
