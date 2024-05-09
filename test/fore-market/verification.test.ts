@@ -331,8 +331,8 @@ describe("BasicMarket / Verification", () => {
 
                         it("Should update market verification powers", async () => {
                             expect(await contract.marketInfo()).to.be.eql([
-                                ethers.utils.parseEther("50"), // side A
-                                ethers.utils.parseEther("40"), // side B
+                                ethers.utils.parseEther("45.5"), // side A
+                                ethers.utils.parseEther("36.4"), // side B
                                 ethers.utils.parseEther(sideValue ? "35" : "0"), // verified A
                                 ethers.utils.parseEther(sideValue ? "0" : "35"), // verified B
                                 ethers.constants.AddressZero, // dispute creator
@@ -362,10 +362,10 @@ describe("BasicMarket / Verification", () => {
 
                     it("Should increase verification side with partial token power", async () => {
                         expect(await contract.marketInfo()).to.be.eql([
-                            ethers.utils.parseEther("50"), // side A
-                            ethers.utils.parseEther("40"), // side B
+                            ethers.utils.parseEther("45.5"), // side A
+                            ethers.utils.parseEther("36.4"), // side B
                             ethers.utils.parseEther("0"), // verified A
-                            ethers.utils.parseEther("90"), // verified B
+                            ethers.utils.parseEther("81.9"), // verified B
                             ethers.constants.AddressZero, // dispute creator
                             BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                             BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
@@ -378,7 +378,7 @@ describe("BasicMarket / Verification", () => {
                     it("Should return proper power in verification entry", async () => {
                         expect(await contract.verifications(2)).to.be.eql([
                             carol.address,
-                            ethers.utils.parseEther("20"),
+                            ethers.utils.parseEther("11.9"),
                             BigNumber.from(2),
                             false,
                             false,
@@ -480,7 +480,7 @@ describe("BasicMarket / Verification", () => {
 
                         it("Should have zero market verification powers", async () => {
                             expect(await contract.marketInfo()).to.be.eql([
-                                ethers.utils.parseEther("90"), // side A
+                                ethers.utils.parseEther("81.9"), // side A
                                 ethers.utils.parseEther("0"), // side B
                                 ethers.utils.parseEther("0"), // verified A
                                 ethers.utils.parseEther("0"), // verified B
@@ -572,7 +572,7 @@ describe("BasicMarket / Verification", () => {
                         it("Should have zero market verification powers", async () => {
                             expect(await contract.marketInfo()).to.be.eql([
                                 ethers.utils.parseEther("0"), // side A
-                                ethers.utils.parseEther("90"), // side B
+                                ethers.utils.parseEther("81.9"), // side B
                                 ethers.utils.parseEther("0"), // verified A
                                 ethers.utils.parseEther("0"), // verified B
                                 ethers.constants.AddressZero, // dispute creator
