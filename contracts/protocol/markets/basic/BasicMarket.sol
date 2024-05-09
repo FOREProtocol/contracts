@@ -19,11 +19,17 @@ contract BasicMarket is ReentrancyGuard {
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
 
+    /// @notice Market token id
+    uint256 public marketId;
+
     /// @notice Prediction flat fee rate
     uint32 public predictionFlatFeeRate;
 
-    /// @notice Market token id
-    uint256 public marketId;
+    /// @notice Verification flat fee rate
+    uint32 public verificationFlatFeeRate;
+
+    /// @notice Foundation flat fee rate
+    uint32 public foundationFlatFeeRate;
 
     /// @notice Factory
     address public immutable factory;
@@ -66,6 +72,8 @@ contract BasicMarket is ReentrancyGuard {
 
     bytes32 public disputeMessage;
 
+    uint256 constant DIVIDER = 10000;
+
     ///EVENTS
     event MarketInitialized(uint256 marketId);
     event OpenDispute(address indexed creator);
@@ -99,54 +107,41 @@ contract BasicMarket is ReentrancyGuard {
     }
 
     /// @notice Initialization function
-    /// @param mHash _market hash
-    /// @param receiver _market creator nft receiver
-    /// @param amountA initial prediction for side A
-    /// @param amountB initial prediction for side B
-    /// @param endPredictionTimestamp End Prediction Timestamp
-    /// @param startVerificationTimestamp Start Verification Timestamp
-    /// @param tokenId _market creator token id (ForeMarkets)
+    /// @param payload Market initial payload data
     /// @dev Possible to call only via the factory
     function initialize(
-        bytes32 mHash,
-        address receiver,
-        uint256 amountA,
-        uint256 amountB,
-        address protocolAddress,
-        address _tokenRegistry,
-        address _feeReceiver,
-        uint64 endPredictionTimestamp,
-        uint64 startVerificationTimestamp,
-        uint64 tokenId,
-        uint32 _predictionFlatFeeRate
+        MarketLib.MarketCreationInitialData calldata payload
     ) external {
         if (msg.sender != address(factory)) {
             revert("BasicMarket: Only Factory");
         }
-
-        protocol = IForeProtocol(protocolAddress);
+        protocol = IForeProtocol(payload.protocolAddress);
         protocolConfig = IProtocolConfig(protocol.config());
         marketConfig = IMarketConfig(protocolConfig.marketConfig());
         foreToken = IERC20Burnable(protocol.foreToken());
         foreVerifiers = IForeVerifiers(protocol.foreVerifiers());
-        tokenRegistry = ITokenIncentiveRegistry(_tokenRegistry);
+        tokenRegistry = ITokenIncentiveRegistry(payload.tokenRegistry);
 
-        marketHash = mHash;
-        predictionFlatFeeRate = _predictionFlatFeeRate;
-        feeReceiver = _feeReceiver;
+        marketHash = payload.mHash;
+
+        predictionFlatFeeRate = payload.predictionFlatFeeRate;
+        verificationFlatFeeRate = payload.verificationFlatFeeRate;
+        foundationFlatFeeRate = payload.foundationFlatFeeRate;
+        feeReceiver = payload.feeReceiver;
 
         MarketLib.init(
             _market,
             predictionsA,
             predictionsB,
-            receiver,
-            amountA,
-            amountB,
-            endPredictionTimestamp,
-            startVerificationTimestamp,
-            tokenId
+            payload.receiver,
+            payload.amountA,
+            payload.amountB,
+            payload.endPredictionTimestamp,
+            payload.startVerificationTimestamp,
+            payload.tokenId
         );
-        marketId = tokenId;
+
+        marketId = payload.tokenId;
     }
 
     /// @notice Add new prediction
@@ -321,9 +316,11 @@ contract BasicMarket is ReentrancyGuard {
         address token,
         uint256 amount
     ) private view returns (uint256) {
-        uint8 discountRate = tokenRegistry.getDiscountRate(token);
-        uint256 baseFee = (amount * predictionFlatFeeRate) / 100;
-        return baseFee - (baseFee * discountRate) / 100;
+        (uint8 predictionDiscountRate, , , ) = tokenRegistry.getTokenIncentives(
+            token
+        );
+        uint256 baseFee = (amount * predictionFlatFeeRate) / DIVIDER;
+        return baseFee - (baseFee * predictionDiscountRate) / DIVIDER;
     }
 
     /// @notice Closes _market

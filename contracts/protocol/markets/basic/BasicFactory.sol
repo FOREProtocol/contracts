@@ -4,9 +4,9 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./BasicMarket.sol";
+import "./library/MarketLib.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
-import "../../../token/ITokenIncentiveRegistry.sol";
 
 contract BasicFactory is Ownable {
     using SafeERC20 for IERC20Burnable;
@@ -16,8 +16,17 @@ contract BasicFactory is Ownable {
     bytes32 public constant INIT_CODE_PAIR_HASH =
         keccak256(abi.encodePacked(type(BasicMarket).creationCode));
 
-    /// @notice Prediction flat fee rate
-    uint32 public predictionFlatFeeRate = 10;
+    /// @notice Prediction flat fee rate - 10%
+    uint32 public predictionFlatFeeRate = 1000;
+
+    /// @notice Market creation flat fee rate - 1%
+    uint32 public marketCreationFlatFeeRate = 100;
+
+    /// @notice Verification flat fee rate - 1%
+    uint32 public verificationFlatFeeRate = 100;
+
+    /// @notice Foundation flat fee rate - 18%
+    uint32 public foundationFlatFeeRate = 1800;
 
     /// @notice Token registry
     address public immutable tokenRegistry;
@@ -36,6 +45,9 @@ contract BasicFactory is Ownable {
 
     /// EVENTS
     event SetPredictionFlatFeeRate(uint32 indexed feeRate);
+    event SetMarketCreationFlatFeeRate(uint32 indexed feeRate);
+    event SetVerificationFlatFeeRate(uint32 indexed feeRate);
+    event SetFoundationFlatFeeRate(uint32 indexed feeRate);
 
     /// @param protocolAddress Protocol Contract address
     constructor(IForeProtocol protocolAddress, address _tokenRegistry) {
@@ -87,24 +99,63 @@ contract BasicFactory is Ownable {
             createdMarket
         );
 
-        createdMarketContract.initialize(
-            marketHash,
-            receiver,
-            amountA,
-            amountB,
-            address(foreProtocol),
-            tokenRegistry,
-            owner(),
-            endPredictionTimestamp,
-            startVerificationTimestamp,
-            uint64(marketIdx),
-            predictionFlatFeeRate
-        );
+        MarketLib.MarketCreationInitialData memory payload = MarketLib
+            .MarketCreationInitialData(
+                marketHash,
+                receiver,
+                amountA,
+                amountB,
+                address(foreProtocol),
+                tokenRegistry,
+                owner(),
+                endPredictionTimestamp,
+                startVerificationTimestamp,
+                uint64(marketIdx),
+                predictionFlatFeeRate,
+                verificationFlatFeeRate,
+                foundationFlatFeeRate
+            );
+
+        createdMarketContract.initialize(payload);
     }
 
+    /**
+     * @notice Sets the flat fee rate for prediction operations.
+     * @dev Can only be called by the contract owner. Emits a SetPredictionFlatFeeRate event.
+     * @param feeRate The new flat fee rate for predictions.
+     */
     function setPredictionFlatFeeRate(uint32 feeRate) external onlyOwner {
         predictionFlatFeeRate = feeRate;
-
         emit SetPredictionFlatFeeRate(feeRate);
+    }
+
+    /**
+     * @notice Sets the flat fee rate for market creation operations.
+     * @dev Can only be called by the contract owner. Emits a SetMarketCreationFlatFeeRate event.
+     * @param feeRate The new flat fee rate for market creation.
+     */
+    function setMarketCreationFlatFeeRate(uint32 feeRate) external onlyOwner {
+        marketCreationFlatFeeRate = feeRate;
+        emit SetMarketCreationFlatFeeRate(feeRate);
+    }
+
+    /**
+     * @notice Sets the flat fee rate for verification operations.
+     * @dev Can only be called by the contract owner. Emits a SetVerificationFlatFeeRate event.
+     * @param feeRate The new flat fee rate for verifications.
+     */
+    function setVerificationFlatFeeRate(uint32 feeRate) external onlyOwner {
+        verificationFlatFeeRate = feeRate;
+        emit SetVerificationFlatFeeRate(feeRate);
+    }
+
+    /**
+     * @notice Sets the flat fee rate for foundation-related operations.
+     * @dev Can only be called by the contract owner. Emits a SetFoundationFlatFeeRate event.
+     * @param feeRate The new flat fee rate for foundation operations.
+     */
+    function setFoundationFlatFeeRate(uint32 feeRate) external onlyOwner {
+        foundationFlatFeeRate = feeRate;
+        emit SetFoundationFlatFeeRate(feeRate);
     }
 }

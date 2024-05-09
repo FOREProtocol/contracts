@@ -66,6 +66,35 @@ library MarketLib {
         bool solved;
     }
 
+    struct MarketCreationInitialData {
+        /// @notice Market hash
+        bytes32 mHash;
+        /// @notice Market creator nft receiver
+        address receiver;
+        /// @notice Initial prediction for side A
+        uint256 amountA;
+        /// @notice Initial prediction for side B
+        uint256 amountB;
+        /// @notice FORE protocol address
+        address protocolAddress;
+        /// @notice Token registry address
+        address tokenRegistry;
+        /// @notice Fee receiver address
+        address feeReceiver;
+        /// @notice End prediction Timestamp
+        uint64 endPredictionTimestamp;
+        /// @notice Start verification Timestamp
+        uint64 startVerificationTimestamp;
+        /// @notice Market token Id
+        uint64 tokenId;
+        /// @notice Prediction flat fee rate
+        uint32 predictionFlatFeeRate;
+        /// @notice Verification flat fee rate
+        uint32 verificationFlatFeeRate;
+        /// @notice Foundation flat fee rate
+        uint32 foundationFlatFeeRate;
+    }
+
     uint256 constant DIVIDER = 10000;
 
     /// FUNCTIONS

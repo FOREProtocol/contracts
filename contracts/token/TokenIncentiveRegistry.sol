@@ -8,104 +8,162 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 error TokenAlreadyRegistered();
 error TokenNotRegistered();
 error InvalidToken();
-error InvalidDiscountRate();
+error InvalidIncentiveRates();
 
 contract TokenIncentiveRegistry is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable
 {
-    struct TokenData {
-        /// @notice Token address
-        address tokenAddress;
-        /// @notice Token discount rate
-        uint8 discountRate;
+    struct TokenIncentives {
+        /// @notice Prediction discount rate
+        uint8 predictionDiscountRate;
+        /// @notice Market creation discount rate
+        uint8 marketCreationDiscountRate;
+        /// @notice Prediction discount rate
+        uint8 verificationDiscountRate;
+        /// @notice Foundation discount rate
+        uint8 foundationDiscountRate;
     }
 
-    /// @notice List of discounts
-    mapping(address => uint8) public discountRateRegistry;
+    /**
+     * @notice Stores a mapping of ERC-20 token addresses to their associated incentive structures.
+     * @notice Each token address is linked to a TokenIncentives struct that details various discount
+     * rates applicable for different interactions.
+     */
+    mapping(address => TokenIncentives) public tokenIncentives;
 
     /// EVENTS
-    event TokenAdded(address indexed token, uint8 discountRate);
-    event TokenRemoved(address indexed token, uint256 timestamp);
-    event SetDiscountRate(address indexed token, uint256 indexed discount);
+    event TokenAdded(address indexed token, TokenIncentives incentives);
+    event TokenRemoved(address indexed token);
+    event SetIncentiveRates(address indexed token, TokenIncentives incentives);
 
-    /// Initializer
-    function initialize(TokenData[] memory tokens) public initializer {
+    /**
+     * @notice Initializes the contract with an initial set of tokens and their associated incentive rates.
+     * This is the setup function for upgradeable contracts, meant to be called once on deployment.
+     * @param tokenAddresses An array of token addresses to be registered. Each address must be non-zero.
+     * @param incentives An array of TokenIncentives structures corresponding to the addresses in `tokenAddresses`.
+     * Each set of incentives must have at least one non-zero rate to be valid.
+     * @dev This function reverts if a token address is zero or if the corresponding incentives are all zero.
+     * It ensures that the contract is only initialized once due to the `initializer` modifier.
+     */
+    function initialize(
+        address[] memory tokenAddresses,
+        TokenIncentives[] memory incentives
+    ) public initializer {
         __Ownable_init();
-        for (uint i = 0; i < tokens.length; i++) {
-            address tokenAddress = tokens[i].tokenAddress;
-            uint8 discountRate = tokens[i].discountRate;
-
-            if (tokenAddress == address(0)) {
+        for (uint i = 0; i < tokenAddresses.length; i++) {
+            if (tokenAddresses[i] == address(0)) {
                 revert InvalidToken();
             }
-            if (discountRate == 0) {
-                revert InvalidDiscountRate();
+            if (_isZeroIncentive(incentives[i])) {
+                revert InvalidIncentiveRates();
             }
-            discountRateRegistry[tokenAddress] = discountRate;
+            tokenIncentives[tokenAddresses[i]] = incentives[i];
         }
     }
 
-    /// @notice Returns the discount rate of the token
-    /// @param token Address of the token
-    /// @return Discount rate
-    function getDiscountRate(address token) external view returns (uint8) {
-        return discountRateRegistry[token];
+    /**
+     * @notice Retrieves the incentive rates associated with a specific token.
+     * @param tokenAddress The address of the token for which incentives are being queried.
+     * @return TokenIncentives A struct containing the various discount rates applicable to the token.
+     */
+    function getTokenIncentives(
+        address tokenAddress
+    ) external view returns (uint8, uint8, uint8, uint8) {
+        TokenIncentives memory incentives = tokenIncentives[tokenAddress];
+        return (
+            incentives.predictionDiscountRate,
+            incentives.marketCreationDiscountRate,
+            incentives.verificationDiscountRate,
+            incentives.foundationDiscountRate
+        );
     }
 
-    /// @notice Checks if token is added in the registry
-    /// @param token Address of the token
-    /// @return boolean
-    function isTokenEnabled(address token) external view returns (bool) {
-        return discountRateRegistry[token] != 0;
+    /**
+     * @dev Checks if the token is considered enabled based on the presence of any non-zero incentives.
+     * @param tokenAddress The address of the token to check.
+     * @return bool Returns true if any of the incentives for the token are non-zero, false otherwise.
+     */
+    function isTokenEnabled(address tokenAddress) external view returns (bool) {
+        return !_isZeroIncentive(tokenIncentives[tokenAddress]);
     }
 
-    /// @notice Adds a token to the registry and sets the discount rate
-    /// @param token Address of the token
-    /// @param discountRate Discount rate
-    function addToken(address token, uint8 discountRate) external onlyOwner {
-        if (token == address(0)) {
+    /**
+     * @notice Adds a new token with its corresponding incentives to the registry.
+     * @param tokenAddress The address of the token to add. Must not be the zero address.
+     * @param incentives The incentive rates associated with the token. At least one rate must be non-zero.
+     * @dev This function reverts if any of the incentive rates are zero, indicating no active incentives.
+     * It updates the `tokenIncentives` mapping and emits a `TokenAdded` event upon successful addition.
+     */
+    function addToken(
+        address tokenAddress,
+        TokenIncentives memory incentives
+    ) public {
+        if (tokenAddress == address(0)) {
             revert InvalidToken();
         }
-        if (discountRateRegistry[token] != 0) {
+        if (_isZeroIncentive(incentives)) {
+            revert InvalidIncentiveRates();
+        }
+        if (!_isZeroIncentive(tokenIncentives[tokenAddress])) {
             revert TokenAlreadyRegistered();
         }
-        if (discountRate == 0) {
-            revert InvalidDiscountRate();
-        }
-        discountRateRegistry[token] = discountRate;
 
-        emit TokenAdded(token, discountRate);
+        tokenIncentives[tokenAddress] = incentives;
+        emit TokenAdded(tokenAddress, incentives);
     }
 
-    /// @notice Sets token discount rate
-    /// @param token Address of the token
-    /// @param discountRate Discount rate
-    function setDiscountRate(
-        address token,
-        uint8 discountRate
-    ) external onlyOwner {
-        if (discountRateRegistry[token] == 0) {
+    /**
+     * @notice Removes a token from the registry.
+     * @param tokenAddress The address of the token to be removed.
+     * @dev This function deletes the token's entry from the `tokenIncentives` mapping.
+     * It emits a `TokenRemoved` event upon successful removal.
+     */
+    function removeToken(address tokenAddress) public {
+        if (_isZeroIncentive(tokenIncentives[tokenAddress])) {
             revert TokenNotRegistered();
         }
-        if (discountRate == 0) {
-            revert InvalidDiscountRate();
-        }
-        discountRateRegistry[token] = discountRate;
 
-        emit SetDiscountRate(token, discountRate);
+        delete tokenIncentives[tokenAddress];
+        emit TokenRemoved(tokenAddress);
     }
 
-    /// @notice Disables token from the mapping
-    /// @param token Address of the token
-    function removeToken(address token) external onlyOwner {
-        if (discountRateRegistry[token] == 0) {
+    /**
+     * @notice Updates the incentives for a token already in the registry.
+     * @param tokenAddress The address of the token whose incentives are to be updated.
+     * @param newIncentives The new incentives to apply to the token.
+     * @dev This function updates the `tokenIncentives` mapping with new incentives for the specified token.
+     * It emits a `SetIncentiveRates` event upon successfully updating the incentives.
+     */
+    function setTokenIncentives(
+        address tokenAddress,
+        TokenIncentives memory newIncentives
+    ) public {
+        if (_isZeroIncentive(newIncentives)) {
+            revert InvalidIncentiveRates();
+        }
+        if (_isZeroIncentive(tokenIncentives[tokenAddress])) {
             revert TokenNotRegistered();
         }
-        discountRateRegistry[token] = 0;
 
-        emit TokenRemoved(token, block.timestamp);
+        tokenIncentives[tokenAddress] = newIncentives;
+        emit SetIncentiveRates(tokenAddress, newIncentives);
+    }
+
+    /**
+     * @dev Determines if all incentive rates for a token are set to zero.
+     * @param incentives The TokenIncentives struct containing the discount rates for a token.
+     * @return bool Returns true if all discount rates are zero, indicating no incentives or a "disabled" state.
+     */
+    function _isZeroIncentive(
+        TokenIncentives memory incentives
+    ) internal pure returns (bool) {
+        return
+            incentives.predictionDiscountRate == 0 &&
+            incentives.marketCreationDiscountRate == 0 &&
+            incentives.verificationDiscountRate == 0 &&
+            incentives.foundationDiscountRate == 0;
     }
 
     /// @notice Ensure only the owner can upgrade the contract
