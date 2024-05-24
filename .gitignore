@@ -11,9 +11,6 @@ docs/
 solt/
 docs/*
 
-/scripts
-!/scripts/deploy.ts
-
 deployments/arbitrumTestnet
 deployments/localhost
 deployments/hardhat

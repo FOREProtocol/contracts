@@ -97,7 +97,7 @@ const config: HardhatUserConfig = {
         },
         arbitrumTestnet: {
             url: process.env.ARBITRUM_TESTNET_URL || "",
-            chainId: 421613,
+            chainId: 421614,
             accounts: {
                 mnemonic:
                     process.env.MNEMONIC_TESTNET !== undefined
@@ -125,6 +125,8 @@ const config: HardhatUserConfig = {
             fantom: process.env.FTMSCAN_API_KEY,
             ftmTestnet: process.env.FTMSCAN_API_KEY,
             goerli: process.env.ETHERSCAN_API_KEY,
+            arbitrumOne: process.env.ARBISCAN_API_KEY,
+            arbitrumSepolia: process.env.ARBISCAN_API_KEY,
         },
         customChains: [
             {
@@ -141,6 +143,14 @@ const config: HardhatUserConfig = {
                 urls: {
                     apiURL: "https://api.ftmscan.com",
                     browserURL: "https://ftmscan.com",
+                },
+            },
+            {
+                network: "arbitrumSepolia",
+                chainId: 421614,
+                urls: {
+                    apiURL: "https://api-sepolia.arbiscan.io/api",
+                    browserURL: "https://sepolia.arbiscan.io/",
                 },
             },
         ],

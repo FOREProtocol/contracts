@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./BasicMarketV2.sol";
-import "./library/MarketLib.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
