@@ -5,7 +5,7 @@ import { contractAddresses } from "../constants";
 async function main() {
   const FactoryArtifact = await ethers.getContractFactory("BasicFactoryV2", {
     libraries: {
-      MarketLib: contractAddresses.marketLib,
+      MarketLibV2: contractAddresses.marketLib,
     },
   });
   const factory = await FactoryArtifact.deploy(

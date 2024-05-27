@@ -82,6 +82,7 @@ library ArrayUtils {
 
     /**
      * @notice Checks if more than two elements in the input array have the same value
+     * @notice Not the best implementation because of nested loops
      * @param array The array of uint256 elements to check
      * @return A boolean indicating if more than two elements have the same value
      */
