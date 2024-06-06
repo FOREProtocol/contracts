@@ -11,6 +11,7 @@ import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
+import "../../../token/IERC20Burnable.sol";
 
 contract BasicMarketV2 is ReentrancyGuard {
     using SafeERC20 for IERC20Burnable;
@@ -414,6 +415,8 @@ contract BasicMarketV2 is ReentrancyGuard {
                 verificationFee
             );
 
+        verifications[verificationId].withdrawn = true;
+
         if (toVerifier != 0) {
             uint256 ownBalance = token.balanceOf(address(this));
             if (toVerifier > ownBalance) {
@@ -440,8 +443,6 @@ contract BasicMarketV2 is ReentrancyGuard {
         } else {
             foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
         }
-
-        verifications[verificationId].withdrawn = true;
     }
 
     /// @notice Withdraw Market Creators Reward
@@ -579,10 +580,4 @@ contract BasicMarketV2 is ReentrancyGuard {
             _calculateMarketCreatorFeeRate() +
             _calculateVerificationFeeRate();
     }
-}
-
-interface IERC20Burnable is IERC20 {
-    function burnFrom(address account, uint256 amount) external;
-
-    function burn(uint256 amount) external;
 }

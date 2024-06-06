@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "../protocol/config/IProtocolConfig.sol";
+import "../token/IERC20Burnable.sol";
 
 contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     using Strings for uint256;
@@ -343,10 +344,4 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         IERC20Burnable foreToken = IERC20Burnable(protocol.foreToken());
         foreToken.burn(amount);
     }
-}
-
-interface IERC20Burnable is IERC20 {
-    function burnFrom(address account, uint256 amount) external;
-
-    function burn(uint256 amount) external;
 }

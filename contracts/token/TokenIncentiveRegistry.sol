@@ -38,6 +38,11 @@ contract TokenIncentiveRegistry is
     event TokenRemoved(address indexed token);
     event SetIncentiveRates(address indexed token, TokenIncentives incentives);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @notice Initializes the contract with an initial set of tokens and their associated incentive rates.
      * This is the setup function for upgradeable contracts, meant to be called once on deployment.

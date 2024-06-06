@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./library/MarketLib.sol";
+import "../../../token/IERC20Burnable.sol";
 
 contract BasicMarket is ReentrancyGuard {
     using SafeERC20 for IERC20Burnable;
@@ -452,10 +453,4 @@ contract BasicMarket is ReentrancyGuard {
 
         emit WithdrawReward(msg.sender, 3, toWithdraw);
     }
-}
-
-interface IERC20Burnable is IERC20 {
-    function burnFrom(address account, uint256 amount) external;
-
-    function burn(uint256 amount) external;
 }
