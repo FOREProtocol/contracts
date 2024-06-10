@@ -21,18 +21,7 @@ import {
   timetravel,
   txExec,
 } from "../../helpers/utils";
-
-const defaultIncentives = {
-  predictionDiscountRate: 1000,
-  marketCreatorDiscountRate: 1000,
-  verificationDiscountRate: 1000,
-  foundationDiscountRate: 1000,
-} as const;
-
-const SIDES = {
-  TRUE: 0,
-  FALSE: 1,
-} as const;
+import { SIDES, defaultIncentives } from "../../helpers/constants";
 
 const calculatePredictionFee = async (
   contract: BasicMarketV2,

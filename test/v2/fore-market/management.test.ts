@@ -19,13 +19,7 @@ import {
   impersonateContract,
   txExec,
 } from "../../helpers/utils";
-
-const defaultIncentives = {
-  predictionDiscountRate: 1000,
-  marketCreatorDiscountRate: 1000,
-  verificationDiscountRate: 1000,
-  foundationDiscountRate: 1000,
-} as const;
+import { defaultIncentives } from "../../helpers/constants";
 
 describe("ForeMarketV2 / Management", () => {
   let foundationWallet: SignerWithAddress;

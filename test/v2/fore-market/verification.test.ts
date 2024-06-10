@@ -14,28 +14,15 @@ import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockERC20 } from "@/MockERC20";
 
 import {
-  deployLibrary,
-  executeInSingleBlock,
-} from "../../../test/helpers/utils";
-import {
   attachContract,
   deployMockedContract,
   sendERC20Tokens,
   timetravel,
   txExec,
+  deployLibrary,
+  executeInSingleBlock,
 } from "../../helpers/utils";
-
-const SIDES = {
-  TRUE: 0,
-  FALSE: 1,
-} as const;
-
-const defaultIncentives = {
-  predictionDiscountRate: 1000,
-  marketCreatorDiscountRate: 1000,
-  verificationDiscountRate: 1000,
-  foundationDiscountRate: 1000,
-} as const;
+import { SIDES, defaultIncentives } from "../../helpers/constants";
 
 describe("BasicMarketV2 / Verification", () => {
   let owner: SignerWithAddress;

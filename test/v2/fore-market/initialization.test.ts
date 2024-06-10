@@ -1,6 +1,8 @@
 import { ethers, upgrades } from "hardhat";
 import { BigNumber, Contract, ContractTransaction, Signer } from "ethers";
 import { expect } from "chai";
+import { MockContract } from "@defi-wonderland/smock/dist/src/types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
@@ -10,8 +12,6 @@ import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLibV2 } from "@/MarketLibV2";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { ERC20 } from "@/ERC20";
-import { MockContract } from "@defi-wonderland/smock/dist/src/types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 import {
   assertIsAvailableOnlyForOwner,
@@ -21,18 +21,7 @@ import {
   impersonateContract,
   txExec,
 } from "../../helpers/utils";
-
-const defaultIncentives = {
-  predictionDiscountRate: 1000,
-  marketCreatorDiscountRate: 1000,
-  verificationDiscountRate: 1000,
-  foundationDiscountRate: 1000,
-} as const;
-
-const SIDES = {
-  TRUE: 0,
-  FALSE: 1,
-} as const;
+import { SIDES, defaultIncentives } from "../../helpers/constants";
 
 describe("BasicMarketV2 / Initialization", () => {
   let owner: SignerWithAddress;

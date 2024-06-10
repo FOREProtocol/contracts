@@ -14,6 +14,7 @@ import "hardhat-interface-generator";
 import "solidity-coverage";
 import "hardhat-deploy";
 import "@openzeppelin/hardhat-upgrades";
+import "@nomicfoundation/hardhat-foundry";
 
 dotenv.config();
 

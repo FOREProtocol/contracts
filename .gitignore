@@ -19,3 +19,7 @@ scripts/data/vesting.csv
 
 # Yarn
 yarn-error.log
+
+# Foundry files
+cache_forge
+out
