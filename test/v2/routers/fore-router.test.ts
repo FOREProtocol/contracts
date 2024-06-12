@@ -330,7 +330,7 @@ describe("Fore Universal Router", function () {
         });
       });
 
-      describe("factory is blacklisted ", async () => {
+      describe("market is not a fore operator ", async () => {
         it("should revert", async () => {
           const data = MarketFactory.interface.encodeFunctionData("predict", [
             ethers.utils.parseEther("2"),
