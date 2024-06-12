@@ -5,6 +5,8 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
@@ -19,6 +21,7 @@ error CallFunctionFailed();
 contract ForeUniversalRouter is
     Initializable,
     UUPSUpgradeable,
+    PausableUpgradeable,
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable
 {
@@ -64,6 +67,7 @@ contract ForeUniversalRouter is
         IAllowanceTransfer permit2Address,
         address[] memory tokenAddresses
     ) public initializer {
+        __Pausable_init();
         __Ownable_init();
         __ReentrancyGuard_init();
 
@@ -112,6 +116,7 @@ contract ForeUniversalRouter is
         external
         payable
         onlyForeOperator(target)
+        whenNotPaused
         nonReentrant
         returns (bool success, bytes memory result)
     {
@@ -147,6 +152,7 @@ contract ForeUniversalRouter is
         external
         payable
         onlyForeOperator(target)
+        whenNotPaused
         nonReentrant
         returns (bool success, bytes memory result)
     {
@@ -169,7 +175,7 @@ contract ForeUniversalRouter is
     function permit(
         IAllowanceTransfer.PermitSingle calldata permitSingle,
         bytes calldata signature
-    ) external {
+    ) external whenNotPaused {
         _permit(permitSingle, signature);
     }
 
@@ -186,6 +192,22 @@ contract ForeUniversalRouter is
         tokens[token] = shouldAdd;
 
         emit ManagedToken(token, shouldAdd);
+    }
+
+    /**
+     * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the owner can call this function.
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the owner can call this function.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     /**

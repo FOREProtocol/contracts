@@ -4,6 +4,7 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
 error TokenAlreadyRegistered();
 error TokenNotRegistered();
@@ -13,6 +14,7 @@ error InvalidIncentiveRates();
 contract TokenIncentiveRegistry is
     Initializable,
     UUPSUpgradeable,
+    PausableUpgradeable,
     OwnableUpgradeable
 {
     struct TokenIncentives {
@@ -56,6 +58,7 @@ contract TokenIncentiveRegistry is
         address[] memory tokenAddresses,
         TokenIncentives[] memory incentives
     ) public initializer {
+        __Pausable_init();
         __Ownable_init();
         for (uint i = 0; i < tokenAddresses.length; i++) {
             if (tokenAddresses[i] == address(0)) {
@@ -104,7 +107,7 @@ contract TokenIncentiveRegistry is
     function addToken(
         address tokenAddress,
         TokenIncentives memory incentives
-    ) public {
+    ) external onlyOwner {
         if (tokenAddress == address(0)) {
             revert InvalidToken();
         }
@@ -125,7 +128,7 @@ contract TokenIncentiveRegistry is
      * @dev This function deletes the token's entry from the `tokenIncentives` mapping.
      * It emits a `TokenRemoved` event upon successful removal.
      */
-    function removeToken(address tokenAddress) public {
+    function removeToken(address tokenAddress) external onlyOwner {
         if (_isZeroIncentive(tokenIncentives[tokenAddress])) {
             revert TokenNotRegistered();
         }
@@ -144,7 +147,7 @@ contract TokenIncentiveRegistry is
     function setTokenIncentives(
         address tokenAddress,
         TokenIncentives memory newIncentives
-    ) public {
+    ) external onlyOwner {
         if (_isZeroIncentive(newIncentives)) {
             revert InvalidIncentiveRates();
         }
@@ -154,6 +157,22 @@ contract TokenIncentiveRegistry is
 
         tokenIncentives[tokenAddress] = newIncentives;
         emit SetIncentiveRates(tokenAddress, newIncentives);
+    }
+
+    /**
+     * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the owner can call this function.
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the owner can call this function.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     /**

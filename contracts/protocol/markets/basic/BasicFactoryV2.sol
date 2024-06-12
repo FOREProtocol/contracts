@@ -4,13 +4,14 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 import "./BasicMarketV2.sol";
 import "./library/ArrayUtils.sol";
-import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
+import "../../../verifiers/IForeVerifiers.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
 
-contract BasicFactoryV2 is Ownable {
+contract BasicFactoryV2 is Pausable, Ownable {
     using SafeERC20 for IERC20Burnable;
 
     using SafeERC20 for IERC20;
@@ -88,7 +89,7 @@ contract BasicFactoryV2 is Ownable {
         uint64 endPredictionTimestamp,
         uint64 startVerificationTimestamp,
         IERC20 token
-    ) external returns (address createdMarket) {
+    ) external whenNotPaused returns (address createdMarket) {
         if (endPredictionTimestamp > startVerificationTimestamp) {
             revert("Basic Factory: Date error");
         }
@@ -183,5 +184,21 @@ contract BasicFactoryV2 is Ownable {
     function setFoundationFlatFeeRate(uint32 feeRate) external onlyOwner {
         foundationFlatFeeRate = feeRate;
         emit SetFoundationFlatFeeRate(feeRate);
+    }
+
+    /**
+     * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the owner can call this function.
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the owner can call this function.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
