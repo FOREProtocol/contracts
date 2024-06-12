@@ -192,7 +192,7 @@ contract BasicMarketV2 is ReentrancyGuard {
 
     /// @notice Add new prediction
     /// @param amount Amount of ForeToken
-    /// @param side Prediction side (true - positive result, false - negative result)
+    /// @param side Prediction side (index of the sides array)
     function predict(uint256 amount, uint8 side) external {
         if (!tokenRegistry.isTokenEnabled(address(token))) {
             revert("Basic Market: Token is not enabled");
