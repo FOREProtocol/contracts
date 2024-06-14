@@ -114,22 +114,11 @@ contract BasicMarketV2 is ReentrancyGuard {
     uint256 constant DIVIDER = 10000;
 
     /// EVENTS
-    event MarketInitialized(uint256 marketId);
-    event OpenDispute(address indexed creator);
-    event CloseMarket(MarketLibV2.ResultType result);
-    event Verify(
-        address indexed verifier,
-        uint256 power,
-        uint256 verificationId,
-        uint256 indexed tokenId,
-        bool side
-    );
     event WithdrawReward(
         address indexed receiver,
         uint256 indexed rewardType,
         uint256 amount
     );
-    event Predict(address indexed sender, bool side, uint256 amount);
 
     constructor() {
         factory = msg.sender;
