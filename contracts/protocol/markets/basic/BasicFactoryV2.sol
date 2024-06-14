@@ -102,8 +102,12 @@ contract BasicFactoryV2 is Ownable {
         uint256 creationFee = config.marketCreationPrice();
         uint256 amountSum = amountA + amountB;
 
-        if (address(token) == address(foreToken)) {
-            foreToken.burnFrom(msg.sender, creationFee);
+        if (address(token) == address(foreToken) && creationFee != 0) {
+            foreToken.safeTransferFrom(
+                msg.sender,
+                address(0x000000000000000000000000000000000000dEaD),
+                creationFee
+            );
         }
         if (amountSum != 0) {
             token.safeTransferFrom(msg.sender, createdMarket, amountSum);
