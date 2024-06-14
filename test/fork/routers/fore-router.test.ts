@@ -7,7 +7,6 @@ import { ForeToken } from "@/ForeToken";
 import { ForeProtocol } from "@/ForeProtocol";
 import { MarketLib } from "@/MarketLib";
 import { BasicMarket } from "@/BasicMarket";
-import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockERC20 } from "@/MockERC20";
 import { BasicMarket__factory } from "@/index";
 
@@ -25,8 +24,6 @@ import {
   foreProtocolAddress,
   foreTokenAddress,
   permit2Address,
-  protocolConfigAddress,
-  protocolConfigOwnerAddress,
   tokenHolderAddress,
 } from "../../helpers/constants";
 
@@ -53,7 +50,6 @@ describe("Fork / Fore Universal Router / Basic Market", () => {
   let foreToken: ForeToken;
   let foreProtocol: ForeProtocol;
   let contract: Contract;
-  let protocolConfig: ProtocolConfig;
   let usdcToken: MockERC20;
 
   let MarketFactory: BasicMarket__factory;
@@ -107,16 +103,6 @@ describe("Fork / Fore Universal Router / Basic Market", () => {
       tokenHolderAddress
     );
 
-    // Impersonate protocol config owner
-    const impersonatedProtocolConfigOwner = await impersonateContract(
-      protocolConfigOwnerAddress
-    );
-
-    // Attach protocol config
-    protocolConfig = (await ethers.getContractFactory("ProtocolConfig")).attach(
-      protocolConfigAddress
-    );
-
     // deploy library
     const marketlib = await deployLibrary("MarketLib", [
       "BasicMarket",
@@ -128,13 +114,6 @@ describe("Fork / Fore Universal Router / Basic Market", () => {
         MarketLib: marketlib.address,
       },
     });
-
-    // Set router as operator
-    await txExec(
-      protocolConfig
-        .connect(impersonatedProtocolConfigOwner)
-        .setFactoryStatus([contract.address], [true])
-    );
 
     // Attach mainnet markets
     const marketLib = await deployContract<MarketLib>("MarketLib");

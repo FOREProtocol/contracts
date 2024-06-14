@@ -106,6 +106,9 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Is prediction reward withdrawn for address
     mapping(address => bool) public predictionWithdrawn;
 
+    /// @notice Prediction fees sent by every address
+    mapping(address => uint256) public predictionFeesSpent;
+
     /// @notice Verification info for verificatioon id
     MarketLibV2.Verification[] public verifications;
 
@@ -119,6 +122,7 @@ contract BasicMarketV2 is ReentrancyGuard {
         uint256 indexed rewardType,
         uint256 amount
     );
+    event RefundPredictionStake(address indexed receiver, uint256 amount);
 
     constructor() {
         factory = msg.sender;
@@ -188,6 +192,9 @@ contract BasicMarketV2 is ReentrancyGuard {
         }
         uint256 predictionFee = (amount * _calculatePredictionFeeRate()) /
             DIVIDER;
+
+        predictionFeesSpent[msg.sender] += predictionFee;
+
         token.safeTransferFrom(msg.sender, address(this), amount);
         token.safeTransfer(feeReceiver, predictionFee);
 
@@ -463,6 +470,25 @@ contract BasicMarketV2 is ReentrancyGuard {
         token.safeTransfer(msg.sender, toWithdraw);
 
         emit WithdrawReward(msg.sender, 3, toWithdraw);
+    }
+
+    function refundPredictionStake() external {
+        MarketLibV2.Market memory m = _market;
+
+        if (m.result != MarketLibV2.ResultType.INVALID) {
+            revert("OnlyForInvalidMarkets");
+        }
+
+        uint256 toRefund = totalPredictions[msg.sender] +
+            predictionFeesSpent[msg.sender];
+
+        uint256 ownBalance = token.balanceOf(address(this));
+        if (toRefund > ownBalance) {
+            toRefund = ownBalance;
+        }
+        token.safeTransfer(msg.sender, toRefund);
+
+        emit RefundPredictionStake(msg.sender, toRefund);
     }
 
     /// @dev Closes market

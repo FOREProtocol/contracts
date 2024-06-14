@@ -348,6 +348,55 @@ describe("BasicMarketV2 / Predicting", () => {
     });
   });
 
+  it("should revert refund where market is not invalid", async () => {
+    await expect(
+      contract.connect(alice).refundPredictionStake()
+    ).to.revertedWith("OnlyForInvalidMarkets");
+  });
+
+  describe("invalid market", () => {
+    beforeEach(async () => {
+      await txExec(
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("2"), SIDES.TRUE)
+      );
+      predictionFees.foreToken = await calculatePredictionFee(
+        contract,
+        ethers.utils.parseEther("2")
+      );
+      await timetravel(blockTimestamp + 300001);
+      await txExec(contract.closeMarket());
+    });
+
+    describe("refund prediction stake", async () => {
+      let tx: ContractTransaction;
+
+      beforeEach(async () => {
+        [tx] = await txExec(contract.connect(alice).refundPredictionStake());
+      });
+
+      it("Should emit RefundPredictionStake event", async () => {
+        await expect(tx)
+          .to.emit(contract, "RefundPredictionStake")
+          .withArgs(
+            alice.address,
+            ethers.utils.parseEther("2").sub(predictionFees.foreToken)
+          );
+      });
+
+      it("Should emit Transfer (ERC20) event", async () => {
+        await expect(tx)
+          .to.emit(foreToken, "Transfer")
+          .withArgs(
+            contract.address,
+            alice.address,
+            ethers.utils.parseEther("2").sub(predictionFees.foreToken)
+          );
+      });
+    });
+  });
+
   describe("after predicting period ended", () => {
     beforeEach(async () => {
       await timetravel(blockTimestamp + 200001);
