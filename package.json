@@ -17,6 +17,8 @@
         "verify:marketlib": "npx hardhat run scripts/v2/verify/verifyMarketLib.ts",
         "deploy:factory": "npx hardhat run scripts/v2/deploy/deployFactory.ts",
         "verify:factory": "npx hardhat run scripts/v2/verify/verifyFactory.ts",
+        "deploy:router": "npx hardhat run scripts/v2/deploy/deployUniversalRouter.ts",
+        "verify:router": "npx hardhat run scripts/v2/verify/verifyUniversalRouter.ts",
         "coverage": "npx hardhat coverage",
         "docgen": "npx hardhat docgen && npx hardhat export --export-all docs/contracts.json",
         "mainnet": "npx hardhat deploy --network arbitrum",

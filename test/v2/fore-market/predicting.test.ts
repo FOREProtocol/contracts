@@ -348,12 +348,6 @@ describe("BasicMarketV2 / Predicting", () => {
     });
   });
 
-  it("should revert refund where market is not invalid", async () => {
-    await expect(
-      contract.connect(alice).refundPredictionStake()
-    ).to.revertedWith("OnlyForInvalidMarkets");
-  });
-
   describe("invalid market", () => {
     beforeEach(async () => {
       await txExec(
@@ -373,16 +367,15 @@ describe("BasicMarketV2 / Predicting", () => {
       let tx: ContractTransaction;
 
       beforeEach(async () => {
-        [tx] = await txExec(contract.connect(alice).refundPredictionStake());
+        [tx] = await txExec(
+          contract.connect(alice).withdrawPredictionReward(alice.address)
+        );
       });
 
-      it("Should emit RefundPredictionStake event", async () => {
+      it("Should emit WithdrawReward event", async () => {
         await expect(tx)
-          .to.emit(contract, "RefundPredictionStake")
-          .withArgs(
-            alice.address,
-            ethers.utils.parseEther("2").sub(predictionFees.foreToken)
-          );
+          .to.emit(contract, "WithdrawReward")
+          .withArgs(alice.address, 1, ethers.utils.parseEther("2"));
       });
 
       it("Should emit Transfer (ERC20) event", async () => {

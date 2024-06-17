@@ -539,6 +539,8 @@ library MarketLibV2 {
     /// @param feesSum Sum of all fees
     /// @param predictionWithdrawn Storage of withdraw statuses
     /// @param predictions Predictions
+    /// @param totalPredictions Total predictions
+    /// @param predictionFeesSpent Total predictions fees spent
     /// @param predictor Predictor address
     /// @return 0 Amount to withdraw(transfer)
     function withdrawPredictionReward(
@@ -547,6 +549,7 @@ library MarketLibV2 {
         mapping(address => bool) storage predictionWithdrawn,
         mapping(uint8 => uint256) storage predictions,
         uint256 totalPredictions,
+        uint256 predictionFeesSpent,
         address predictor
     ) external returns (uint256) {
         if (m.result == MarketLibV2.ResultType.NULL) {
@@ -555,15 +558,19 @@ library MarketLibV2 {
         if (predictionWithdrawn[predictor]) {
             revert("AlreadyWithdrawn");
         }
-
         predictionWithdrawn[predictor] = true;
 
-        uint256 toWithdraw = calculatePredictionReward(
-            m,
-            predictions,
-            totalPredictions,
-            feesSum
-        );
+        uint256 toWithdraw = 0;
+        if (m.result == MarketLibV2.ResultType.INVALID) {
+            toWithdraw = totalPredictions + predictionFeesSpent;
+        } else {
+            toWithdraw = calculatePredictionReward(
+                m,
+                predictions,
+                totalPredictions,
+                feesSum
+            );
+        }
         if (toWithdraw == 0) {
             revert("NothingToWithdraw");
         }

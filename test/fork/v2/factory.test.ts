@@ -190,4 +190,50 @@ describe("Fork / BasicFactoryV2", () => {
       ]);
     });
   });
+
+  describe("creating USDC denominated market", async () => {
+    beforeEach(async () => {
+      const hash = generateRandomHexString(64);
+      await txExec(
+        contract
+          .connect(alice)
+          .createMarket(
+            hash,
+            alice.address,
+            new Array(5).fill(0),
+            BigNumber.from(blockTimestamp + 200000),
+            BigNumber.from(blockTimestamp + 300000),
+            usdcToken.address
+          )
+      );
+
+      const initCode = await contract.INIT_CODE_PAIR_HASH();
+
+      const salt = hash;
+      const newAddress = ethers.utils.getCreate2Address(
+        contract.address,
+        salt,
+        initCode
+      );
+
+      market = await attachContract<BasicMarketV2>("BasicMarketV2", newAddress);
+    });
+
+    it("Should return proper market state", async () => {
+      expect(await market.marketInfo()).to.be.eql([
+        new Array(5).fill(BigNumber.from(0)), // sides
+        new Array(5).fill(BigNumber.from(0)), // verifications
+        ethers.constants.AddressZero, // dispute creator
+        BigNumber.from(0), // total markets size
+        BigNumber.from(0), // total verifications amount
+        BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+        BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+        0, // result
+        0, // winner side index
+        false, // confirmed
+        false, // solved
+      ]);
+      expect(await market.token()).to.be.eql(usdcToken.address);
+    });
+  });
 });
