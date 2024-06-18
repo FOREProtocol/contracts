@@ -12,19 +12,9 @@
         "strictNullChecks": false,
         "baseUrl": ".",
         "paths": {
-            "@/*": [
-                "artifacts/*",
-                "typechain/*"
-            ]
+            "@/*": ["artifacts/*", "typechain/*"]
         }
     },
-    "include": [
-        "./scripts",
-        "./test",
-        "./typechain",
-        "./deploy"
-    ],
-    "files": [
-        "./hardhat.config.ts"
-    ]
+    "include": ["./scripts", "./test", "./typechain", "./deploy", "index.d.ts"],
+    "files": ["./hardhat.config.ts"]
 }

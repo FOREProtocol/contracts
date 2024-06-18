@@ -8,7 +8,8 @@
         "lint": "solhint 'contracts/*.sol'",
         "lint:fix": "solhint 'contracts/**/*.sol' --fix",
         "format": "prettier --write .",
-        "test": "npx hardhat test",
+        "test": "npx hardhat test $(find './test' -type f -iname '*test.ts' -not -path './test/v2/*')",
+        "test-v2": "npx hardhat test $(find './test' -type f -iname '*test.ts' -path './test/v2/*')",
         "coverage": "npx hardhat coverage",
         "docgen": "npx hardhat docgen && npx hardhat export --export-all docs/contracts.json",
         "mainnet": "npx hardhat deploy --network arbitrum",
@@ -26,6 +27,7 @@
         "@nomiclabs/hardhat-truffle5": "^2.0.6",
         "@nomiclabs/hardhat-waffle": "^2.0.3",
         "@nomiclabs/hardhat-web3": "^2.0.0",
+        "@openzeppelin/hardhat-upgrades": "^1.16.1",
         "@openzeppelin/test-helpers": "^0.5.16",
         "@typechain/ethers-v5": "^7.2.0",
         "@typechain/hardhat": "^2.3.1",
@@ -63,8 +65,9 @@
         "web3": "^1.7.3"
     },
     "dependencies": {
-        "@openzeppelin/contracts": "^4.9.0",
         "@gregoranders/csv": "^0.0.9",
+        "@openzeppelin/contracts": "^4.9.0",
+        "@openzeppelin/contracts-upgradeable": "4.9.0",
         "hardhat-deploy": "^0.11.15"
     },
     "engines": {
