@@ -8,12 +8,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "../token/IERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     using Strings for uint256;
-    using SafeERC20 for IERC20Burnable;
+    using SafeERC20 for IERC20;
 
     error MarketAlreadyExists();
     error FactoryIsNotWhitelisted();
@@ -36,7 +35,7 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     );
 
     /// @notice ForeToken
-    IERC20Burnable public immutable foreToken;
+    IERC20 public immutable foreToken;
 
     /// @notice Protocol Config
     IProtocolConfig public immutable config;
@@ -63,7 +62,7 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         string memory uriBase
     ) ERC721("Fore Markets", "MFORE") {
         config = cfg;
-        foreToken = IERC20Burnable(cfg.foreToken());
+        foreToken = IERC20(cfg.foreToken());
         foreVerifiers = IForeVerifiers(cfg.foreVerifiers());
         bUri = uriBase;
         emit BaseURI(uriBase);

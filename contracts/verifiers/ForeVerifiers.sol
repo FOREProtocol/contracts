@@ -9,11 +9,10 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "../protocol/config/IProtocolConfig.sol";
-import "../token/IERC20Burnable.sol";
 
 contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     using Strings for uint256;
-    using SafeERC20 for IERC20Burnable;
+    using SafeERC20 for IERC20;
 
     error ProtocolAlreadySet();
     error TokenNotExists();
@@ -260,7 +259,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
             _burn(id);
         }
 
-        IERC20Burnable foreToken = IERC20Burnable(protocol.foreToken());
+        IERC20 foreToken = IERC20(protocol.foreToken());
         foreToken.safeTransfer(msg.sender, powerDelta);
 
         emit TokenPowerDecreased(id, powerDelta, _power[id]);
@@ -331,7 +330,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
      * @dev Only allowed for a market to call this function
      */
     function marketTransfer(address to, uint256 amount) public onlyMarket {
-        IERC20Burnable foreToken = IERC20Burnable(protocol.foreToken());
+        IERC20 foreToken = IERC20(protocol.foreToken());
         foreToken.safeTransfer(to, amount);
     }
 
@@ -341,7 +340,10 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
      * @dev Only allowed for a market to call this function
      */
     function marketBurn(uint256 amount) public onlyMarket {
-        IERC20Burnable foreToken = IERC20Burnable(protocol.foreToken());
-        foreToken.burn(amount);
+        IERC20 foreToken = IERC20(protocol.foreToken());
+        foreToken.safeTransfer(
+            address(0x000000000000000000000000000000000000dEaD),
+            amount
+        );
     }
 }
