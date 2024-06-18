@@ -19,7 +19,7 @@ import {
   generateRandomHexString,
   impersonateContract,
   txExec,
-} from "../../helpers/utils";
+} from "../test/helpers/utils";
 import {
   defaultIncentives,
   foreProtocolAddress,
@@ -27,7 +27,7 @@ import {
   protocolConfigAddress,
   protocolConfigOwnerAddress,
   tokenHolderAddress,
-} from "../../helpers/constants";
+} from "../test/helpers/constants";
 import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("Fork / BasicFactoryV2 ", () => {

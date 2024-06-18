@@ -16,6 +16,6 @@
             "@/*": ["artifacts/*", "typechain/*"]
         }
     },
-    "include": ["./scripts", "./test", "./typechain", "./deploy", "index.d.ts"],
+    "include": ["./scripts", "./test", "./typechain", "./deploy", "index.d.ts", "./test-fork"],
     "files": ["./hardhat.config.ts"]
 }

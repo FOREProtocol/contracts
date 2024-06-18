@@ -832,7 +832,7 @@ describe("BasicMarketV2 / Rewards", () => {
               .to.emit(foreToken, "Transfer")
               .withArgs(
                 foreVerifiers.address,
-                ethers.constants.AddressZero,
+                "0x000000000000000000000000000000000000dEaD",
                 ethers.utils.parseEther("750")
               );
           });
