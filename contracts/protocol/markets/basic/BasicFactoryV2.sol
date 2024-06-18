@@ -2,10 +2,10 @@
 // Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
-import "@openzeppelin/contracts-v5/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts-v5/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-v5/utils/Pausable.sol";
-import {AccessManaged} from "@openzeppelin/contracts-v5/access/manager/AccessManaged.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import {AccessManaged} from "@openzeppelin/contracts/access/manager/AccessManaged.sol";
 import "./BasicMarketV2.sol";
 import "./library/ArrayUtils.sol";
 import "../../config/IProtocolConfig.sol";

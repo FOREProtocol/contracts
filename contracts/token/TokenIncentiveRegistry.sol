@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
+// Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol";
 
 error TokenAlreadyRegistered();
 error TokenNotRegistered();
 error InvalidToken();
 error InvalidIncentiveRates();
 
+/// @custom:security-contact security@foreprotocol.io
 contract TokenIncentiveRegistry is
     Initializable,
     UUPSUpgradeable,
-    OwnableUpgradeable
+    AccessManagedUpgradeable
 {
     struct TokenIncentives {
         /// @notice Prediction discount rate
@@ -53,10 +55,11 @@ contract TokenIncentiveRegistry is
      * It ensures that the contract is only initialized once due to the `initializer` modifier.
      */
     function initialize(
+        address initialAuthority,
         address[] memory tokenAddresses,
         TokenIncentives[] memory incentives
     ) public initializer {
-        __Ownable_init();
+        __AccessManaged_init(initialAuthority);
         for (uint i = 0; i < tokenAddresses.length; i++) {
             if (tokenAddresses[i] == address(0)) {
                 revert InvalidToken();
@@ -104,7 +107,7 @@ contract TokenIncentiveRegistry is
     function addToken(
         address tokenAddress,
         TokenIncentives memory incentives
-    ) external onlyOwner {
+    ) external restricted {
         if (tokenAddress == address(0)) {
             revert InvalidToken();
         }
@@ -125,7 +128,7 @@ contract TokenIncentiveRegistry is
      * @dev This function deletes the token's entry from the `tokenIncentives` mapping.
      * It emits a `TokenRemoved` event upon successful removal.
      */
-    function removeToken(address tokenAddress) external onlyOwner {
+    function removeToken(address tokenAddress) external restricted {
         if (_isZeroIncentive(tokenIncentives[tokenAddress])) {
             revert TokenNotRegistered();
         }
@@ -144,7 +147,7 @@ contract TokenIncentiveRegistry is
     function setTokenIncentives(
         address tokenAddress,
         TokenIncentives memory newIncentives
-    ) external onlyOwner {
+    ) external restricted {
         if (_isZeroIncentive(newIncentives)) {
             revert InvalidIncentiveRates();
         }
@@ -172,5 +175,5 @@ contract TokenIncentiveRegistry is
     }
 
     /// @notice Ensure only the owner can upgrade the contract
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override restricted {}
 }

@@ -2,12 +2,12 @@
 pragma solidity 0.8.20;
 
 import "../protocol/IForeProtocol.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "openzeppelin-v4/contracts/access/Ownable.sol";
+import "openzeppelin-v4/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
+import "openzeppelin-v4/contracts/token/ERC721/ERC721.sol";
+import "openzeppelin-v4/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import "openzeppelin-v4/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "../protocol/config/IProtocolConfig.sol";
 
 contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {

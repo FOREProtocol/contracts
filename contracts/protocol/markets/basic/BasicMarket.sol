@@ -5,9 +5,9 @@ import "../../IForeProtocol.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "openzeppelin-v4/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
+import "openzeppelin-v4/contracts/security/ReentrancyGuard.sol";
 import "./library/MarketLib.sol";
 
 contract BasicMarket is ReentrancyGuard {
