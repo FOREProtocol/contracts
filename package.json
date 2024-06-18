@@ -11,6 +11,7 @@
         "test": "npx hardhat test $(find ./test -type f -iname '*test.ts' -not -path './test/v2/*' -not -path './test/fork/*')",
         "test:v2": "npx hardhat test $(find ./test/v2 -type f -iname '*test.ts')",
         "test:fork": "npx hardhat test $(find ./test/fork -type f -iname '*test.ts')",
+        "deploy:accessManager": "npx hardhat run scripts/v2/deploy/deployAccessManager.ts",
         "deploy:registry": "npx hardhat run scripts/v2/deploy/deployTokenRegistry.ts",
         "verify:registry": "npx hardhat run scripts/v2/verify/verifyTokenRegistry.ts",
         "deploy:marketlib": "npx hardhat run scripts/v2/deploy/deployMarketLib.ts",
@@ -79,9 +80,11 @@
         "@gregoranders/csv": "^0.0.9",
         "@openzeppelin/contracts": "^4.9.0",
         "@openzeppelin/contracts-upgradeable": "4.9.0",
-        "hardhat-deploy": "^0.11.15"
+        "hardhat-deploy": "^0.11.15",
+        "@openzeppelin/contracts-v5": "npm:@openzeppelin/contracts"
     },
     "engines": {
         "node": ">=14.0.0"
-    }
+    },
+    "packageManager": "yarn@1.22.21+sha1.1959a18351b811cdeedbd484a8f86c3cc3bbaf72"
 }
