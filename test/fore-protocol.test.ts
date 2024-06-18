@@ -559,7 +559,7 @@ describe("ForeProtocol", () => {
                 .to.emit(foreToken, "Transfer")
                 .withArgs(
                     bob.address,
-                    "0x0000000000000000000000000000000000000000",
+                    "0x000000000000000000000000000000000000dEaD",
                     ethers.utils.parseEther("10")
                 );
         });

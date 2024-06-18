@@ -699,7 +699,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .to.emit(foreToken, "Transfer")
             .withArgs(
               contract.address,
-              "0x0000000000000000000000000000000000000000",
+              "0x000000000000000000000000000000000000dEaD",
               ethers.utils.parseEther("1.45")
             );
         });
