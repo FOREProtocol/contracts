@@ -24,6 +24,7 @@ import {
   txExec,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Dispute", () => {
   let owner: SignerWithAddress;
@@ -35,6 +36,7 @@ describe("BasicMarketV2 / Dispute", () => {
   let carol: SignerWithAddress;
   let dave: SignerWithAddress;
   let marketLib: MarketLibV2;
+  let defaultAdmin: SignerWithAddress;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
@@ -44,6 +46,7 @@ describe("BasicMarketV2 / Dispute", () => {
   let tokenRegistry: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -57,6 +60,7 @@ describe("BasicMarketV2 / Dispute", () => {
       bob,
       carol,
       dave,
+      defaultAdmin,
     ] = await ethers.getSigners();
 
     // deploy library
@@ -101,10 +105,20 @@ describe("BasicMarketV2 / Dispute", () => {
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      foundationWallet.address
     );
 
     // factory assignment

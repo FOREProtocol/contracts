@@ -22,6 +22,7 @@ import {
   txExec,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Initialization", () => {
   let owner: SignerWithAddress;
@@ -29,6 +30,7 @@ describe("BasicMarketV2 / Initialization", () => {
   let highGuardAccount: SignerWithAddress;
   let marketplaceContract: SignerWithAddress;
   let basicFactoryAccount: Signer;
+  let defaultAdmin: SignerWithAddress;
 
   let marketLib: MarketLibV2;
   let protocolConfig: MockContract<ProtocolConfig>;
@@ -39,12 +41,20 @@ describe("BasicMarketV2 / Initialization", () => {
   let tokenRegistry: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
   beforeEach(async () => {
-    [owner, foundationWallet, highGuardAccount, marketplaceContract, , ,] =
-      await ethers.getSigners();
+    [
+      owner,
+      foundationWallet,
+      highGuardAccount,
+      marketplaceContract,
+      ,
+      ,
+      defaultAdmin,
+    ] = await ethers.getSigners();
 
     // deploy library
     marketLib = await deployLibrary("MarketLibV2", [
@@ -88,10 +98,20 @@ describe("BasicMarketV2 / Initialization", () => {
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      foundationWallet.address
     );
     basicFactoryAccount = await impersonateContract(basicFactory.address);
 

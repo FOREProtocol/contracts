@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+// Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts-v5/token/ERC20/IERC20.sol";
@@ -11,6 +12,7 @@ import "../../config/IProtocolConfig.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
 
+/// @custom:security-contact security@foreprotocol.io
 contract BasicFactoryV2 is Pausable, AccessManaged {
     using SafeERC20 for IERC20;
 
@@ -64,10 +66,10 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
 
     /// @param protocolAddress Protocol Contract address
     constructor(
+        address _initialAuthority,
         IForeProtocol protocolAddress,
         address _tokenRegistry,
-        address _initialFeeReceiver,
-        address _initialAuthority
+        address _initialFeeReceiver
     ) AccessManaged(_initialAuthority) {
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
@@ -193,7 +195,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
 
     /**
      * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
-     * @dev Only the owner can call this function.
+     * @dev Only the sentinel can call this function.
      */
     function pause() external restricted {
         _pause();
@@ -201,7 +203,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
 
     /**
      * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
-     * @dev Only the owner can call this function.
+     * @dev Only the sentinel can call this function.
      */
     function unpause() external restricted {
         _unpause();

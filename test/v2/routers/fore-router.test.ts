@@ -12,7 +12,7 @@ import { ForeVerifiers } from "@/ForeVerifiers";
 import { ForeToken } from "@/ForeToken";
 import { ForeProtocol } from "@/ForeProtocol";
 import { MockERC20 } from "@/MockERC20";
-import { BasicMarketV2__factory } from "@/index";
+import { BasicMarketV2__factory, ForeAccessManager } from "@/index";
 
 import {
   attachContract,
@@ -43,6 +43,7 @@ describe("Fore Universal Router", function () {
   let marketCreator: SignerWithAddress;
   let usdcHolder: SignerWithAddress;
   let alice: SignerWithAddress;
+  let defaultAdmin: SignerWithAddress;
 
   let MarketFactory: BasicMarketV2__factory;
 
@@ -55,6 +56,7 @@ describe("Fore Universal Router", function () {
   let tokenRegistry: Contract;
   let permit2: Contract;
   let contract: Contract;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -73,6 +75,7 @@ describe("Fore Universal Router", function () {
       marketCreator,
       alice,
       usdcHolder,
+      defaultAdmin,
     ] = await ethers.getSigners();
 
     // deploy library
@@ -124,11 +127,20 @@ describe("Fore Universal Router", function () {
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      foundationWallet.address
     );
 
     // preparing permit2

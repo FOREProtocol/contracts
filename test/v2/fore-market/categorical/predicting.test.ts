@@ -21,6 +21,7 @@ import {
   txExec,
 } from "../../../helpers/utils";
 import { defaultIncentives } from "../../../helpers/constants";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 const calculatePredictionFee = async (
   contract: BasicMarketV2,
@@ -40,6 +41,7 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
   let usdcHolder: SignerWithAddress;
+  let defaultAdmin: SignerWithAddress;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
@@ -50,6 +52,7 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
   let basicFactory: MockContract<BasicFactoryV2>;
   let marketLib: MarketLibV2;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -67,6 +70,7 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
       alice,
       bob,
       usdcHolder,
+      defaultAdmin,
     ] = await ethers.getSigners();
 
     // deploy library
@@ -116,11 +120,20 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
 
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      foundationWallet.address
     );
 
     // factory assignment

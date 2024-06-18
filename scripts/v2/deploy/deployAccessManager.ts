@@ -1,10 +1,13 @@
 import { ethers } from "hardhat";
+import { contractAddresses } from "../constants";
 
 async function main() {
   const accessManagerArtifact = await ethers.getContractFactory(
-    "AccessManager"
+    "ForeAccessManager"
   );
-  const accessManager = await accessManagerArtifact.deploy();
+  const accessManager = await accessManagerArtifact.deploy(
+    contractAddresses.foreFoundationMultiSign
+  );
   await accessManager.deployed();
 
   console.log("AccessManager deployed to:", accessManager.address);

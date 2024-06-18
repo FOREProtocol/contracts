@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+// Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts-v5/token/ERC20/IERC20.sol";
@@ -12,6 +13,7 @@ import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
 
+/// @custom:security-contact security@foreprotocol.io
 contract BasicMarketV2 is ReentrancyGuard {
     using SafeERC20 for IERC20;
 

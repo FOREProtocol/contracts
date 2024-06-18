@@ -20,6 +20,7 @@ import {
   txExec,
 } from "../../helpers/utils";
 import { defaultIncentives } from "../../helpers/constants";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("ForeMarketV2 / Management", () => {
   let foundationWallet: SignerWithAddress;
@@ -34,6 +35,7 @@ describe("ForeMarketV2 / Management", () => {
   let tokenRegistry: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   beforeEach(async () => {
     [, foundationWallet, highGuardAccount, marketplaceContract] =
@@ -78,11 +80,21 @@ describe("ForeMarketV2 / Management", () => {
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      foundationWallet.address
+    );
+
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      foundationWallet.address
     );
+
     basicFactoryAccount = await impersonateContract(basicFactory.address);
 
     // factory assignment
