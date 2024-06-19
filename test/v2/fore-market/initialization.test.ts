@@ -22,6 +22,7 @@ import {
   txExec,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Initialization", () => {
   let owner: SignerWithAddress;
@@ -29,6 +30,7 @@ describe("BasicMarketV2 / Initialization", () => {
   let highGuardAccount: SignerWithAddress;
   let marketplaceContract: SignerWithAddress;
   let basicFactoryAccount: Signer;
+  let defaultAdmin: SignerWithAddress;
 
   let marketLib: MarketLibV2;
   let protocolConfig: MockContract<ProtocolConfig>;
@@ -39,12 +41,20 @@ describe("BasicMarketV2 / Initialization", () => {
   let tokenRegistry: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
   beforeEach(async () => {
-    [owner, foundationWallet, highGuardAccount, marketplaceContract, , ,] =
-      await ethers.getSigners();
+    [
+      owner,
+      foundationWallet,
+      highGuardAccount,
+      marketplaceContract,
+      ,
+      ,
+      defaultAdmin,
+    ] = await ethers.getSigners();
 
     // deploy library
     marketLib = await deployLibrary("MarketLibV2", [
@@ -77,21 +87,36 @@ describe("BasicMarketV2 / Initialization", () => {
       "https://markets.api.foreprotocol.io/market/"
     );
 
-    usdcToken = await deployMockedContract<ERC20>("ERC20", "USDC", "USD Coin");
+    usdcToken = await deployMockedContract<ERC20>(
+      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "USDC",
+      "USD Coin"
+    );
+
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
 
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      foundationWallet.address
     );
     basicFactoryAccount = await impersonateContract(basicFactory.address);
 

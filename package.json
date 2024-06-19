@@ -8,9 +8,10 @@
         "lint": "solhint 'contracts/*.sol'",
         "lint:fix": "solhint 'contracts/**/*.sol' --fix",
         "format": "prettier --write .",
-        "test": "npx hardhat test $(find ./test -type f -iname '*test.ts' -not -path './test/v2/*' -not -path './test/fork/*')",
+        "test": "npx hardhat test $(find ./test -type f -iname '*test.ts' -not -path './test/v2/*')",
         "test:v2": "npx hardhat test $(find ./test/v2 -type f -iname '*test.ts')",
-        "test:fork": "npx hardhat test $(find ./test/fork -type f -iname '*test.ts')",
+        "test:fork": "npx hardhat test $(find ./test-fork -type f -iname '*test.ts')",
+        "deploy:accessManager": "npx hardhat run scripts/v2/deploy/deployAccessManager.ts",
         "deploy:registry": "npx hardhat run scripts/v2/deploy/deployTokenRegistry.ts",
         "verify:registry": "npx hardhat run scripts/v2/verify/verifyTokenRegistry.ts",
         "deploy:marketlib": "npx hardhat run scripts/v2/deploy/deployMarketLib.ts",
@@ -69,7 +70,7 @@
         "prettier": "^2.6.2",
         "prettier-plugin-solidity": "^1.0.0-beta.13",
         "solhint": "^3.3.7",
-        "solidity-coverage": "^0.8.4",
+        "solidity-coverage": "^0.8.12",
         "ts-node": "^10.7.0",
         "typechain": "^5.2.0",
         "typescript": "^4.6.3",
@@ -77,11 +78,12 @@
     },
     "dependencies": {
         "@gregoranders/csv": "^0.0.9",
-        "@openzeppelin/contracts": "^4.9.0",
-        "@openzeppelin/contracts-upgradeable": "4.9.0",
+        "@openzeppelin/contracts": "^5.0.2",
+        "@openzeppelin/contracts-upgradeable": "^5.0.2",
         "hardhat-deploy": "^0.11.15"
     },
     "engines": {
         "node": ">=14.0.0"
-    }
+    },
+    "packageManager": "yarn@1.22.21+sha1.1959a18351b811cdeedbd484a8f86c3cc3bbaf72"
 }

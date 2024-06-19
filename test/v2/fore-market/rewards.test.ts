@@ -24,6 +24,7 @@ import {
   assertIsAvailableOnlyForOwner,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 const calculateMarketCreatorFeeRate = async (contract: BasicMarketV2) => {
   const flatRate = await contract.marketCreatorFlatFeeRate();
@@ -48,6 +49,7 @@ describe("BasicMarketV2 / Rewards", () => {
   let marketCreator: SignerWithAddress;
   let marketLib: MarketLibV2;
   let disputeCreator: SignerWithAddress;
+  let defaultAdmin: SignerWithAddress;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
@@ -57,6 +59,7 @@ describe("BasicMarketV2 / Rewards", () => {
   let tokenRegistry: Contract;
   let usdcToken: MockContract<MockERC20>;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -76,6 +79,7 @@ describe("BasicMarketV2 / Rewards", () => {
       verifierSideB2,
       marketCreator,
       disputeCreator,
+      defaultAdmin,
     ] = await ethers.getSigners();
 
     // deploy library
@@ -116,21 +120,31 @@ describe("BasicMarketV2 / Rewards", () => {
       ethers.utils.parseEther("1000000")
     );
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      foundationWallet.address
     );
-
     // factory assignment
     await txExec(foreVerifiers.setProtocol(foreProtocol.address));
 
@@ -819,7 +833,7 @@ describe("BasicMarketV2 / Rewards", () => {
               .to.emit(foreToken, "Transfer")
               .withArgs(
                 foreVerifiers.address,
-                ethers.constants.AddressZero,
+                "0x000000000000000000000000000000000000dEaD",
                 ethers.utils.parseEther("750")
               );
           });

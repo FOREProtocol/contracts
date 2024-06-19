@@ -12,7 +12,7 @@ import { ForeVerifiers } from "@/ForeVerifiers";
 import { ForeToken } from "@/ForeToken";
 import { ForeProtocol } from "@/ForeProtocol";
 import { MockERC20 } from "@/MockERC20";
-import { BasicMarketV2__factory } from "@/index";
+import { BasicMarketV2__factory, ForeAccessManager } from "@/index";
 
 import {
   attachContract,
@@ -43,6 +43,7 @@ describe("Fore Universal Router", function () {
   let marketCreator: SignerWithAddress;
   let usdcHolder: SignerWithAddress;
   let alice: SignerWithAddress;
+  let defaultAdmin: SignerWithAddress;
 
   let MarketFactory: BasicMarketV2__factory;
 
@@ -55,6 +56,7 @@ describe("Fore Universal Router", function () {
   let tokenRegistry: Contract;
   let permit2: Contract;
   let contract: Contract;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -73,6 +75,7 @@ describe("Fore Universal Router", function () {
       marketCreator,
       alice,
       usdcHolder,
+      defaultAdmin,
     ] = await ethers.getSigners();
 
     // deploy library
@@ -115,11 +118,19 @@ describe("Fore Universal Router", function () {
       ethers.utils.parseEther("1000000")
     );
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
@@ -127,8 +138,10 @@ describe("Fore Universal Router", function () {
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      foundationWallet.address
     );
 
     // preparing permit2
@@ -144,6 +157,7 @@ describe("Fore Universal Router", function () {
       "ForeUniversalRouter"
     );
     contract = await upgrades.deployProxy(routerFactory, [
+      foreAccessManager.address,
       foreProtocol.address,
       permit2.address,
       [foreToken.address, usdcToken.address],
