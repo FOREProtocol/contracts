@@ -10,6 +10,7 @@ import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockERC20 } from "@/MockERC20";
 import { BasicFactoryV2 } from "@/BasicFactoryV2";
 import { BasicMarketV2 } from "@/BasicMarketV2";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 import {
   attachContract,
@@ -28,7 +29,6 @@ import {
   protocolConfigOwnerAddress,
   tokenHolderAddress,
 } from "../test/helpers/constants";
-import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("Fork / BasicFactoryV2 ", () => {
   let [
@@ -86,21 +86,22 @@ describe("Fork / BasicFactoryV2 ", () => {
       foreTokenAddress
     );
 
-    // preparing token registry
-    const tokenRegistryFactory = await ethers.getContractFactory(
-      "TokenIncentiveRegistry"
-    );
-    tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
-      [usdcToken.address, foreToken.address],
-      [defaultIncentives, defaultIncentives],
-    ]);
-
     // setup the access manager
     // preparing fore protocol
     foreAccessManager = await deployMockedContract<ForeAccessManager>(
       "ForeAccessManager",
       defaultAdmin.address
     );
+
+    // preparing token registry
+    const tokenRegistryFactory = await ethers.getContractFactory(
+      "TokenIncentiveRegistry"
+    );
+    tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
+      [usdcToken.address, foreToken.address],
+      [defaultIncentives, defaultIncentives],
+    ]);
 
     // preparing factory
     contract = await deployMockedContract<BasicFactoryV2>(

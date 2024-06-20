@@ -2,22 +2,26 @@
 import { ethers, expect, upgrades } from "hardhat";
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 
 import { ForeToken } from "@/ForeToken";
 import { ForeProtocol } from "@/ForeProtocol";
 import { MarketLib } from "@/MarketLib";
 import { BasicMarket } from "@/BasicMarket";
 import { MockERC20 } from "@/MockERC20";
+import { ForeAccessManager } from "@/ForeAccessManager";
+
 import { BasicMarket__factory } from "@/index";
 
 import {
   deployContract,
   deployLibrary,
+  deployMockedContract,
   deployMockedContractAs,
   impersonateContract,
   toDeadline,
   txExec,
-} from "../../helpers/utils";
+} from "../../test/helpers/utils";
 import {
   MaxAllowanceTransferAmount,
   PERMIT_TYPES,
@@ -25,7 +29,7 @@ import {
   foreTokenAddress,
   permit2Address,
   tokenHolderAddress,
-} from "../../helpers/constants";
+} from "../../test/helpers/constants";
 
 interface PermitSingle {
   details: {
@@ -45,12 +49,13 @@ const marketsAddresses = [
 ];
 
 describe("Fork / Fore Universal Router / Basic Market", () => {
-  let [, alice, usdcHolder]: SignerWithAddress[] = [];
+  let [, alice, usdcHolder, defaultAdmin]: SignerWithAddress[] = [];
 
   let foreToken: ForeToken;
   let foreProtocol: ForeProtocol;
   let contract: Contract;
   let usdcToken: MockERC20;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let MarketFactory: BasicMarket__factory;
 
@@ -70,7 +75,7 @@ describe("Fork / Fore Universal Router / Basic Market", () => {
   });
 
   beforeEach(async () => {
-    [, alice, usdcHolder] = await ethers.getSigners();
+    [, alice, usdcHolder, defaultAdmin] = await ethers.getSigners();
 
     foreProtocol = (await ethers.getContractFactory("ForeProtocol")).attach(
       foreProtocolAddress
@@ -84,6 +89,13 @@ describe("Fork / Fore Universal Router / Basic Market", () => {
       ethers.utils.parseEther("1000000")
     );
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
     foreToken = (await ethers.getContractFactory("ForeToken")).attach(
       foreTokenAddress
     );
@@ -93,6 +105,7 @@ describe("Fork / Fore Universal Router / Basic Market", () => {
       "ForeUniversalRouter"
     );
     contract = await upgrades.deployProxy(routerFactory, [
+      foreAccessManager.address,
       foreProtocol.address,
       permit2Address,
       [foreToken.address, usdcToken.address],

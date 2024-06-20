@@ -24,5 +24,13 @@ module.exports = {
             { ignores: ["modules"] },
         ],
         indent: "off",
+        overrides: [
+            {
+                files: ["test-fork/**/*.ts"],
+                rules: {
+                    "node/no-unpublished-import": "off",
+                },
+            },
+        ],
     },
 };
