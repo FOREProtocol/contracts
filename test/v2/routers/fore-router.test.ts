@@ -32,8 +32,7 @@ import {
   defaultIncentives,
 } from "../../helpers/constants";
 
-// Make sure to run `permit2:build` first
-import Permit2Artifact from "../../../lib/permit2/out/Permit2.sol/Permit2.json";
+import Permit2Artifact from "../../abis/Permit2.json";
 
 describe("Fore Universal Router", function () {
   let owner: SignerWithAddress;
