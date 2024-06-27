@@ -7,38 +7,22 @@ pragma solidity 0.8.20;
  */
 library ArrayUtils {
     /**
-     * @notice Finds the index of the first zero element in the array.
-     * @dev Returns the index of the first zero element, or -1 if all elements are non-zero.
-     * @param array The array to search through.
-     * @return The index of the first zero element as int8, or -1 if all elements are non-zero.
-     */
-    function findFirstZeroValueElement(
-        uint256[] memory array
-    ) internal pure returns (int8) {
-        for (uint8 i = 0; i < array.length; ) {
-            if (array[i] == 0) {
-                return int8(i);
-            }
-            unchecked {
-                i++;
-            }
-        }
-        return -1;
-    }
-
-    /**
      * @notice Checks if an array contains any zero value elements.
-     * @dev This function iterates through the array and uses the `findFirstZeroValueElement` helper function
-     * to determine if there is any element with a value of zero. It returns true if a zero value element
-     * is found, and false otherwise.
      * @param array The array of unsigned integers to be checked.
      * @return bool indicating whether the array contains a zero value element.
      */
     function isArrayHasZeroValueElement(
         uint256[] memory array
     ) internal pure returns (bool) {
-        int8 firstZeroIndex = findFirstZeroValueElement(array);
-        return firstZeroIndex != -1;
+        for (uint8 i = 0; i < array.length; ) {
+            if (array[i] == 0) {
+                return true;
+            }
+            unchecked {
+                i++;
+            }
+        }
+        return false;
     }
 
     /**

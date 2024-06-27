@@ -496,18 +496,12 @@ contract BasicMarketV2 is ReentrancyGuard {
             MarketLibV2.Market memory m = _market;
             uint256 verificatorsFees = (m.totalMarketSize * verificationFee) /
                 DIVIDER;
-            int8 firstZeroIndex = ArrayUtils.findFirstZeroValueElement(
-                m.verifications
-            );
 
-            if (firstZeroIndex != -1) {
-                uint8 side = uint8(firstZeroIndex);
-                if (
-                    m.winnerSideIndex == side &&
-                    result == MarketLibV2.ResultType.WON
-                ) {
-                    toBurn += verificatorsFees;
-                }
+            if (
+                m.verifications[m.winnerSideIndex] == 0 &&
+                result == MarketLibV2.ResultType.WON
+            ) {
+                toBurn += verificatorsFees;
             }
             if (toBurn != 0 && address(token) == address(foreToken)) {
                 token.safeTransfer(
