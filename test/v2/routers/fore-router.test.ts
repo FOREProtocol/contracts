@@ -5,16 +5,22 @@ import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 
-import { BasicFactoryV2 } from "@/BasicFactoryV2";
+import { BasicFactoryV2, UnpausedEvent } from "@/BasicFactoryV2";
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ForeToken } from "@/ForeToken";
 import { ForeProtocol } from "@/ForeProtocol";
 import { MockERC20 } from "@/MockERC20";
-import { BasicMarketV2__factory, ForeAccessManager } from "@/index";
+import { ManagedTokenEvent } from "@/ForeUniversalRouter";
+import {
+  BasicMarketV2__factory,
+  ForeAccessManager,
+  ForeUniversalRouter__factory,
+} from "@/index";
 
 import {
+  assertEvent,
   attachContract,
   deployLibrary,
   deployMockedContract,
@@ -45,6 +51,7 @@ describe("Fore Universal Router", function () {
   let defaultAdmin: SignerWithAddress;
 
   let MarketFactory: BasicMarketV2__factory;
+  let RouterFactory: ForeUniversalRouter__factory;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
@@ -152,10 +159,8 @@ describe("Fore Universal Router", function () {
     permit2 = await permitFactory.deploy();
 
     // preparing universal router
-    const routerFactory = await ethers.getContractFactory(
-      "ForeUniversalRouter"
-    );
-    contract = await upgrades.deployProxy(routerFactory, [
+    RouterFactory = await ethers.getContractFactory("ForeUniversalRouter");
+    contract = await upgrades.deployProxy(RouterFactory, [
       foreAccessManager.address,
       foreProtocol.address,
       permit2.address,
@@ -230,11 +235,135 @@ describe("Fore Universal Router", function () {
     );
   });
 
+  describe("Access control", () => {
+    let testToken: MockERC20;
+
+    beforeEach(async () => {
+      testToken = await deployMockedContractAs<MockERC20>(
+        owner,
+        "MockERC20",
+        "Test",
+        "Test Coin",
+        ethers.utils.parseEther("1000000")
+      );
+    });
+
+    describe("No permissions granted, default permissions", () => {
+      describe("Default Admin Wallet", () => {
+        it("should add token", async () => {
+          const [, receipt] = await txExec(
+            contract.connect(defaultAdmin).manageTokens(testToken.address, true)
+          );
+          assertEvent<ManagedTokenEvent>(receipt, "ManagedToken");
+        });
+      });
+
+      describe("Deployer Wallet", () => {
+        let deployerUnauthorizedMessage: string;
+
+        beforeEach(async () => {
+          deployerUnauthorizedMessage = `AccessManagedUnauthorized("${owner.address}")`;
+        });
+
+        it("should revert add token", async () => {
+          await expect(
+            contract.manageTokens(testToken.address, true)
+          ).to.be.revertedWith(deployerUnauthorizedMessage);
+        });
+      });
+
+      describe("Foundation Wallet", () => {
+        let foundationUnauthorizedMessage: string;
+
+        beforeEach(async () => {
+          foundationUnauthorizedMessage = `AccessManagedUnauthorized("${foundationWallet.address}")`;
+        });
+
+        it("Should revert on add token", async () => {
+          await expect(
+            contract
+              .connect(foundationWallet)
+              .manageTokens(testToken.address, true)
+          ).to.be.revertedWith(foundationUnauthorizedMessage);
+        });
+      });
+    });
+
+    describe("Custom permissions granted, no default permissions", () => {
+      const FOUNDATION_ROLE = 1n;
+
+      beforeEach(async () => {
+        await foreAccessManager
+          .connect(defaultAdmin)
+          .grantRole(FOUNDATION_ROLE, foundationWallet.address, 0);
+
+        await foreAccessManager
+          .connect(defaultAdmin)
+          .setTargetFunctionRole(
+            contract.address,
+            [contract.interface.getSighash("manageTokens")],
+            FOUNDATION_ROLE
+          );
+      });
+
+      describe("Default Admin Wallet", () => {
+        let defaultAdminUnauthorizedMessage: string;
+
+        beforeEach(async () => {
+          defaultAdminUnauthorizedMessage = `AccessManagedUnauthorized("${defaultAdmin.address}")`;
+        });
+
+        it("Should revert on add token", async () => {
+          await expect(
+            contract.connect(defaultAdmin).manageTokens(testToken.address, true)
+          ).to.be.revertedWith(defaultAdminUnauthorizedMessage);
+        });
+      });
+
+      describe("Deployer Wallet", () => {
+        let deployerUnauthorizedMessage: string;
+
+        beforeEach(async () => {
+          deployerUnauthorizedMessage = `AccessManagedUnauthorized("${owner.address}")`;
+        });
+
+        it("Should revert on add token", async () => {
+          await expect(
+            contract.manageTokens(testToken.address, true)
+          ).to.be.revertedWith(deployerUnauthorizedMessage);
+        });
+      });
+
+      describe("Foundation Wallet", () => {
+        it("Should allow to add token", async () => {
+          const [, receipt] = await txExec(
+            contract
+              .connect(foundationWallet)
+              .manageTokens(testToken.address, true)
+          );
+
+          assertEvent<ManagedTokenEvent>(receipt, "ManagedToken");
+        });
+      });
+    });
+  });
+
   describe("initial state", () => {
     it("should return proper router states", async () => {
       expect(await contract.foreProtocol()).to.be.eq(foreProtocol.address);
       expect(await contract.permit2()).to.be.eq(permit2.address);
     });
+  });
+
+  it("should fail router deployment", async () => {
+    await expect(
+      upgrades.deployProxy(RouterFactory, [
+        foreAccessManager.address,
+        foreProtocol.address,
+        permit2.address,
+        [foreToken.address, "0x0000000000000000000000000000000000000000"],
+      ])
+    ).to.be.reverted;
   });
 
   describe("permit2", () => {
@@ -269,10 +398,48 @@ describe("Fore Universal Router", function () {
     describe("market v2 predict", async () => {
       describe("successfully", () => {
         beforeEach(async () => {
+          const data = MarketFactory.interface.encodeFunctionData("predict", [
+            ethers.utils.parseEther("2"),
+            SIDES.TRUE,
+          ]);
+
+          await txExec(
+            contract
+              .connect(alice)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                markets[0].address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("2")
+              )
+          );
+        });
+
+        it("should update market info", async () => {
+          expect(await markets[0].marketInfo()).to.be.eql([
+            [ethers.utils.parseEther("1.82"), BigNumber.from(0)], // sides
+            [BigNumber.from(0), BigNumber.from(0)], // verifications
+            ethers.constants.AddressZero, // dispute creator
+            ethers.utils.parseEther("1.82"), // total markets size
+            BigNumber.from(0), // total verifications amount
+            BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+            BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+            0, // result
+            0, // winner side index
+            false, // confirmed
+            false, // solved
+          ]);
+        });
+      });
+
+      describe("permit then call", () => {
+        beforeEach(async () => {
           await txExec(contract.connect(alice).permit(permitSingle, signature));
         });
 
-        it("should predict a market", async () => {
+        it("should call function", async () => {
           const data = MarketFactory.interface.encodeFunctionData("predict", [
             ethers.utils.parseEther("2"),
             SIDES.TRUE,
@@ -303,8 +470,10 @@ describe("Fore Universal Router", function () {
             false, // solved
           ]);
         });
+      });
 
-        it("should predict multiple markets", async () => {
+      describe("should predict multiple markets", () => {
+        beforeEach(async () => {
           const data = MarketFactory.interface.encodeFunctionData("predict", [
             ethers.utils.parseEther("2"),
             SIDES.TRUE,
@@ -313,7 +482,9 @@ describe("Fore Universal Router", function () {
           await txExec(
             contract
               .connect(alice)
-              .callFunction(
+              .permitCallFunction(
+                permitSingle,
+                signature,
                 markets[0].address,
                 data,
                 foreToken.address,
@@ -341,20 +512,157 @@ describe("Fore Universal Router", function () {
               )
           );
         });
+
+        it("should update all markets", async () => {
+          const expectedMarketInfo = [
+            [ethers.utils.parseEther("1.82"), BigNumber.from(0)], // sides
+            [BigNumber.from(0), BigNumber.from(0)], // verifications
+            ethers.constants.AddressZero, // dispute creator
+            ethers.utils.parseEther("1.82"), // total markets size
+            BigNumber.from(0), // total verifications amount
+            BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
+            BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
+            0, // result
+            0, // winner side index
+            false, // confirmed
+            false, // solved
+          ];
+
+          expect(await markets[0].marketInfo()).to.be.eql(expectedMarketInfo);
+          expect(await markets[1].marketInfo()).to.be.eql(expectedMarketInfo);
+          expect(await markets[2].marketInfo()).to.be.eql(expectedMarketInfo);
+        });
       });
 
-      describe("market is not a fore operator ", async () => {
-        it("should revert", async () => {
-          const data = MarketFactory.interface.encodeFunctionData("predict", [
+      it("should revert when target contract is not an operator", async () => {
+        const data = MarketFactory.interface.encodeFunctionData("predict", [
+          ethers.utils.parseEther("2"),
+          SIDES.TRUE,
+        ]);
+
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              .callFunction(
+                "0x1f2EF540b840358f56Fe46984777917CEDC43eD7",
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("2")
+              )
+          )
+        ).to.be.reverted;
+      });
+
+      it("should revert when target address is 0", async () => {
+        const data = MarketFactory.interface.encodeFunctionData("predict", [
+          ethers.utils.parseEther("2"),
+          SIDES.TRUE,
+        ]);
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              .callFunction(
+                "0x0000000000000000000000000000000000000000",
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("2")
+              )
+          )
+        ).to.be.reverted;
+      });
+
+      it("should revert permit call", async () => {
+        const data = MarketFactory.interface.encodeFunctionData("predict", [
+          ethers.utils.parseEther("2"),
+          SIDES.TRUE,
+        ]);
+
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                markets[0].address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("0")
+              )
+          )
+        ).to.be.reverted;
+      });
+
+      it("should revert call", async () => {
+        const data = MarketFactory.interface.encodeFunctionData("predict", [
+          ethers.utils.parseEther("2"),
+          SIDES.TRUE,
+        ]);
+
+        await txExec(contract.connect(alice).permit(permitSingle, signature));
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              .callFunction(
+                markets[0].address,
+                data,
+                foreToken.address,
+                BigNumber.from(0)
+              )
+          )
+        ).to.be.reverted;
+      });
+
+      describe("permit single is invalid", () => {
+        let data: string = "";
+        let mockPermitSingle: typeof permitSingle | null = null;
+
+        beforeEach(() => {
+          data = MarketFactory.interface.encodeFunctionData("predict", [
             ethers.utils.parseEther("2"),
             SIDES.TRUE,
           ]);
+          mockPermitSingle = {
+            details: {
+              ...permitSingle.details,
+            },
+            ...permitSingle,
+          };
+        });
+
+        it("should revert invalid token", async () => {
+          mockPermitSingle.details.token =
+            "0x0000000000000000000000000000000000000000";
           await expect(
             txExec(
               contract
                 .connect(alice)
-                .callFunction(
-                  usdcToken.address,
+                .permitCallFunction(
+                  mockPermitSingle,
+                  signature,
+                  markets[0].address,
+                  data,
+                  foreToken.address,
+                  ethers.utils.parseEther("2")
+                )
+            )
+          ).to.be.reverted;
+        });
+
+        it("should revert invalid spender", async () => {
+          mockPermitSingle.spender =
+            "0x0000000000000000000000000000000000000000";
+          await expect(
+            txExec(
+              contract
+                .connect(alice)
+                .permitCallFunction(
+                  mockPermitSingle,
+                  signature,
+                  markets[0].address,
                   data,
                   foreToken.address,
                   ethers.utils.parseEther("2")
@@ -363,6 +671,99 @@ describe("Fore Universal Router", function () {
           ).to.be.reverted;
         });
       });
+    });
+
+    describe("emergency stops", async () => {
+      let data: string = "";
+
+      describe("paused contract", () => {
+        beforeEach(async () => {
+          data = MarketFactory.interface.encodeFunctionData("predict", [
+            ethers.utils.parseEther("2"),
+            SIDES.TRUE,
+          ]);
+          await contract.connect(defaultAdmin).pause();
+        });
+
+        it("should revert with pause error", async () => {
+          await expect(
+            txExec(
+              contract
+                .connect(alice)
+                .permitCallFunction(
+                  permitSingle,
+                  signature,
+                  markets[0].address,
+                  data,
+                  foreToken.address,
+                  ethers.utils.parseEther("0")
+                )
+            )
+          ).to.revertedWith("EnforcedPause()");
+        });
+      });
+
+      describe("unpaused contract", () => {
+        beforeEach(async () => {
+          data = MarketFactory.interface.encodeFunctionData("predict", [
+            ethers.utils.parseEther("2"),
+            SIDES.TRUE,
+          ]);
+        });
+
+        it("should allow to use unpause", async () => {
+          await contract.connect(defaultAdmin).pause();
+          const [, receipt] = await txExec(
+            contract.connect(defaultAdmin).unpause()
+          );
+          assertEvent<UnpausedEvent>(receipt, "Unpaused");
+
+          await txExec(
+            contract
+              .connect(alice)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                markets[0].address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("2")
+              )
+          );
+        });
+      });
+    });
+  });
+
+  describe("token management", () => {
+    let testToken: MockERC20;
+
+    describe("successfully", () => {
+      beforeEach(async () => {
+        testToken = await deployMockedContractAs<MockERC20>(
+          owner,
+          "MockERC20",
+          "Test",
+          "Test Coin",
+          ethers.utils.parseEther("1000000")
+        );
+
+        await contract
+          .connect(defaultAdmin)
+          .manageTokens(testToken.address, true);
+      });
+
+      it("should add token", async () => {
+        expect(await contract.tokens(testToken.address)).to.true;
+      });
+    });
+
+    it("should revert invalid token", async () => {
+      await expect(
+        contract
+          .connect(defaultAdmin)
+          .manageTokens("0x0000000000000000000000000000000000000000", true)
+      ).to.be.reverted;
     });
   });
 });

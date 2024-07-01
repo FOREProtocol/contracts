@@ -679,12 +679,11 @@ describe("BasicMarketV2 / Rewards", () => {
 
         describe("Withdraw reward with exhausted token balance", () => {
           let tx: ContractTransaction;
-
-          const num = ethers.utils.parseEther("41.76");
+          const num = ethers.utils.parseEther("30");
 
           beforeEach(async () => {
             await foreToken.setVariable("_balances", {
-              [contract.address]: ethers.utils.parseEther("80"),
+              [contract.address]: num,
             });
 
             [tx] = await txExec(
@@ -700,17 +699,17 @@ describe("BasicMarketV2 / Rewards", () => {
                 { ...marketLib, address: contract.address },
                 "WithdrawReward"
               )
-              .withArgs(verifierSideB2.address, 2, num);
+              .withArgs(
+                verifierSideB2.address,
+                2,
+                ethers.utils.parseEther("41.76")
+              );
           });
 
           it("Should emit Fore token Transfer event", async () => {
             await expect(tx)
               .to.emit(foreToken, "Transfer")
-              .withArgs(
-                contract.address,
-                verifierSideB2.address,
-                ethers.utils.parseEther("41.76")
-              );
+              .withArgs(contract.address, verifierSideB2.address, num);
           });
 
           it("Should emit vNFT Transfer event", async () => {

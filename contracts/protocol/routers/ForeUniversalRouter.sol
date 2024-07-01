@@ -35,7 +35,7 @@ contract ForeUniversalRouter is
     IForeProtocol public foreProtocol;
 
     /// @notice tokens
-    mapping(address => bool) tokens;
+    mapping(address => bool) public tokens;
 
     /// EVENTS
     event PermitUsed(

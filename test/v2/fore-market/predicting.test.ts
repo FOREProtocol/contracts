@@ -405,6 +405,20 @@ describe("BasicMarketV2 / Predicting", () => {
     });
   });
 
+  describe("token not enabled", async () => {
+    beforeEach(async () => {
+      await tokenRegistry.connect(defaultAdmin).removeToken(foreToken.address);
+    });
+
+    it("should revert token not enabled", async () => {
+      await expect(
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("2"), SIDES.TRUE)
+      ).to.revertedWith("Basic Market: Token is not enabled");
+    });
+  });
+
   describe("after predicting period ended", () => {
     beforeEach(async () => {
       await timetravel(blockTimestamp + 200001);

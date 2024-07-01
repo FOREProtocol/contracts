@@ -10,7 +10,6 @@ import { BigNumber, Contract, ContractTransaction } from "ethers";
 import { ethers, upgrades } from "hardhat";
 import {
   assertEvent,
-  assertIsAvailableOnlyForOwner,
   attachContract,
   deployContract,
   deployLibrary,
@@ -30,6 +29,7 @@ import { ForeAccessManager } from "@/ForeAccessManager";
 import { defaultIncentives } from "../../helpers/constants";
 import { PausedEvent, UnpausedEvent } from "@/Pausable";
 import { BasicMarketV2 } from "@/BasicMarketV2";
+
 describe("BasicFactoryV2", () => {
   let owner: SignerWithAddress;
   let foundationWallet: SignerWithAddress;
@@ -161,31 +161,31 @@ describe("BasicFactoryV2", () => {
     describe("No permissions granted, default permissions", () => {
       describe("Default Admin Wallet", () => {
         it("Should allow to use pause", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(defaultAdmin).pause()
           );
 
-          assertEvent<PausedEvent>(recipt, "Paused");
+          assertEvent<PausedEvent>(receipt, "Paused");
         });
 
         it("Should allow to use unpause", async () => {
           // Enable the pause function to test unpause
           await contract.connect(defaultAdmin).pause();
 
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(defaultAdmin).unpause()
           );
 
-          assertEvent<UnpausedEvent>(recipt, "Unpaused");
+          assertEvent<UnpausedEvent>(receipt, "Unpaused");
         });
 
         it("Should allow to set prediction fee", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(defaultAdmin).setPredictionFlatFeeRate(150)
           );
 
           assertEvent<SetPredictionFlatFeeRateEvent>(
-            recipt,
+            receipt,
             "SetPredictionFlatFeeRate",
             {
               feeRate: 150,
@@ -194,12 +194,12 @@ describe("BasicFactoryV2", () => {
         });
 
         it("Should allow to set market creator fee", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(defaultAdmin).setMarketCreatorFlatFeeRate(150)
           );
 
           assertEvent<SetMarketCreatorFlatFeeRateEvent>(
-            recipt,
+            receipt,
             "SetMarketCreatorFlatFeeRate",
             {
               feeRate: 150,
@@ -208,12 +208,12 @@ describe("BasicFactoryV2", () => {
         });
 
         it("Should allow to set verification fee", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(defaultAdmin).setVerificationFlatFeeRate(150)
           );
 
           assertEvent<SetVerificationFlatFeeRateEvent>(
-            recipt,
+            receipt,
             "SetVerificationFlatFeeRate",
             {
               feeRate: 150,
@@ -222,12 +222,12 @@ describe("BasicFactoryV2", () => {
         });
 
         it("Should allow to set foundation fee", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(defaultAdmin).setFoundationFlatFeeRate(150)
           );
 
           assertEvent<SetFoundationFlatFeeRateEvent>(
-            recipt,
+            receipt,
             "SetFoundationFlatFeeRate",
             {
               feeRate: 150,
@@ -237,7 +237,7 @@ describe("BasicFactoryV2", () => {
       });
 
       describe("Deployer Wallet", () => {
-        let deployerUnauthorizedMessage;
+        let deployerUnauthorizedMessage: string;
 
         beforeEach(async () => {
           deployerUnauthorizedMessage = `AccessManagedUnauthorized("${owner.address}")`;
@@ -284,7 +284,7 @@ describe("BasicFactoryV2", () => {
       });
 
       describe("Sentinel Wallet", () => {
-        let sentinelUnauthorizedMessage;
+        let sentinelUnauthorizedMessage: string;
 
         beforeEach(async () => {
           sentinelUnauthorizedMessage = `AccessManagedUnauthorized("${sentinelWallet.address}")`;
@@ -331,7 +331,7 @@ describe("BasicFactoryV2", () => {
       });
 
       describe("Foundation Wallet", () => {
-        let foundationUnauthorizedMessage;
+        let foundationUnauthorizedMessage: string;
 
         beforeEach(async () => {
           foundationUnauthorizedMessage = `AccessManagedUnauthorized("${foundationWallet.address}")`;
@@ -420,7 +420,7 @@ describe("BasicFactoryV2", () => {
       });
 
       describe("Default Admin Wallet", () => {
-        let defaultAdminUnauthorizedMessage;
+        let defaultAdminUnauthorizedMessage: string;
 
         beforeEach(async () => {
           defaultAdminUnauthorizedMessage = `AccessManagedUnauthorized("${defaultAdmin.address}")`;
@@ -467,7 +467,7 @@ describe("BasicFactoryV2", () => {
       });
 
       describe("Deployer Wallet", () => {
-        let deployerUnauthorizedMessage;
+        let deployerUnauthorizedMessage: string;
 
         beforeEach(async () => {
           deployerUnauthorizedMessage = `AccessManagedUnauthorized("${owner.address}")`;
@@ -514,29 +514,29 @@ describe("BasicFactoryV2", () => {
       });
 
       describe("Sentinel Wallet", () => {
-        let sentinelUnauthorizedMessage;
+        let sentinelUnauthorizedMessage: string;
 
         beforeEach(async () => {
           sentinelUnauthorizedMessage = `AccessManagedUnauthorized("${sentinelWallet.address}")`;
         });
 
         it("Should allow to use pause", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(sentinelWallet).pause()
           );
 
-          assertEvent<PausedEvent>(recipt, "Paused");
+          assertEvent<PausedEvent>(receipt, "Paused");
         });
 
         it("Should allow to use unpause", async () => {
           // Enable the pause function to test unpause
           await txExec(contract.connect(sentinelWallet).pause());
 
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(sentinelWallet).unpause()
           );
 
-          assertEvent<UnpausedEvent>(recipt, "Unpaused");
+          assertEvent<UnpausedEvent>(receipt, "Unpaused");
         });
 
         it("Should revert on set prediction fee", async () => {
@@ -565,7 +565,7 @@ describe("BasicFactoryV2", () => {
       });
 
       describe("Foundation Wallet", () => {
-        let foundationUnauthorizedMessage;
+        let foundationUnauthorizedMessage: string;
 
         beforeEach(async () => {
           foundationUnauthorizedMessage = `AccessManagedUnauthorized("${foundationWallet.address}")`;
@@ -587,12 +587,12 @@ describe("BasicFactoryV2", () => {
         });
 
         it("Should allow to set prediction fee", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(foundationWallet).setPredictionFlatFeeRate(150)
           );
 
           assertEvent<SetPredictionFlatFeeRateEvent>(
-            recipt,
+            receipt,
             "SetPredictionFlatFeeRate",
             {
               feeRate: 150,
@@ -601,12 +601,12 @@ describe("BasicFactoryV2", () => {
         });
 
         it("Should allow to set market creator fee", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(foundationWallet).setMarketCreatorFlatFeeRate(150)
           );
 
           assertEvent<SetMarketCreatorFlatFeeRateEvent>(
-            recipt,
+            receipt,
             "SetMarketCreatorFlatFeeRate",
             {
               feeRate: 150,
@@ -615,12 +615,12 @@ describe("BasicFactoryV2", () => {
         });
 
         it("Should allow to set verification fee", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(foundationWallet).setVerificationFlatFeeRate(150)
           );
 
           assertEvent<SetVerificationFlatFeeRateEvent>(
-            recipt,
+            receipt,
             "SetVerificationFlatFeeRate",
             {
               feeRate: 150,
@@ -629,12 +629,12 @@ describe("BasicFactoryV2", () => {
         });
 
         it("Should allow to set foundation fee", async () => {
-          const [, recipt] = await txExec(
+          const [, receipt] = await txExec(
             contract.connect(foundationWallet).setFoundationFlatFeeRate(150)
           );
 
           assertEvent<SetFoundationFlatFeeRateEvent>(
-            recipt,
+            receipt,
             "SetFoundationFlatFeeRate",
             {
               feeRate: 150,
@@ -728,18 +728,52 @@ describe("BasicFactoryV2", () => {
         );
       });
     });
+
+    describe("Invalid market", async () => {
+      it("should revert token not enabled", async () => {
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              .createMarket(
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                alice.address,
+                [0, 0],
+                1653327334588,
+                1653357334588,
+                "0x0000000000000000000000000000000000000000"
+              )
+          )
+        ).to.revertedWith("Basic Factory: Token is not enabled");
+      });
+
+      it("should revert maximum sides reached", async () => {
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              .createMarket(
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                alice.address,
+                new Array(11).fill(0),
+                1653327334588,
+                1653357334588,
+                foreToken.address
+              )
+          )
+        ).to.revertedWith("Basic Factory: Maximum sides reached");
+      });
+    });
   });
 
   describe("With market created", () => {
     let tx: ContractTransaction;
-    let recipt: ContractReceipt;
-
     let marketContract: BasicMarketV2;
 
     beforeEach(async () => {
       const marketHash =
         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
-      [tx, recipt] = await txExec(
+      [tx] = await txExec(
         contract
           .connect(bob)
           .createMarket(
