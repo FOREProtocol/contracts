@@ -84,24 +84,6 @@ library MarketLibV2 {
         return market.totalMarketSize > 0 && hasSufficientPower;
     }
 
-    /// @notice Checks if one side of the market is fully verified
-    /// @param market Market info
-    /// @return 0 true if verified
-    function isVerified(Market memory market) external pure returns (bool) {
-        return _isVerified(market);
-    }
-
-    /// @notice Returns the maximum value(power) available for verification for side
-    /// @param market Market info
-    /// @param side Side of market (true/false)
-    /// @return 0 Maximum amount to verify for side
-    function maxAmountToVerifyForSide(
-        Market memory market,
-        uint8 side
-    ) external pure returns (uint256) {
-        return (_maxAmountToVerifyForSide(market, side));
-    }
-
     /// @dev Returns the maximum value(power) available for verification for side
     /// @param market Market info
     /// @param side Side of market (true/false)
@@ -358,10 +340,6 @@ library MarketLibV2 {
         if (!isDisputeStarted) {
             revert("DisputePeriodIsNotStartedYet");
         }
-        if (m.result == ResultType.INVALID) {
-            revert("MarketClosedWithInvalidStatus");
-        }
-
         if (
             block.timestamp >=
             m.startVerificationTimestamp + verificationPeriod + disputePeriod

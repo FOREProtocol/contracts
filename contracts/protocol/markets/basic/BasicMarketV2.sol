@@ -255,11 +255,10 @@ contract BasicMarketV2 is ReentrancyGuard {
         ) = marketConfig.config();
 
         MarketLibV2.ResultType result = MarketLibV2.calculateMarketResult(m);
-        if (
-            result == MarketLibV2.ResultType.INVALID &&
-            (m.startVerificationTimestamp + verificationPeriod <
-                block.timestamp)
-        ) {
+        bool isDisputeStarted = block.timestamp >=
+            m.startVerificationTimestamp + verificationPeriod;
+
+        if (result == MarketLibV2.ResultType.INVALID && isDisputeStarted) {
             _closeMarket(MarketLibV2.ResultType.INVALID);
             return;
         }

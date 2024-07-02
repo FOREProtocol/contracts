@@ -392,6 +392,14 @@ describe("BasicMarketV2 / Rewards", () => {
     });
 
     describe("Prediction reward", () => {
+      it("should have 0 prediction reward", async () => {
+        expect(
+          await contract
+            .connect(predictorSideA1)
+            .calculatePredictionReward(predictorSideA1.address)
+        ).to.be.eql(BigNumber.from(0));
+      });
+
       it("Should revert when market not closed", async () => {
         await expect(
           contract

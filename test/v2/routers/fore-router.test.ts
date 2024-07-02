@@ -1,11 +1,11 @@
 /* eslint-disable camelcase */
 import { expect } from "chai";
 import { ethers, upgrades, network } from "hardhat";
-import { BigNumber, Contract } from "ethers";
+import { BigNumber, Contract, ContractReceipt } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 
-import { BasicFactoryV2, UnpausedEvent } from "@/BasicFactoryV2";
+import { BasicFactoryV2, PausedEvent, UnpausedEvent } from "@/BasicFactoryV2";
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { ForeVerifiers } from "@/ForeVerifiers";
@@ -49,6 +49,7 @@ describe("Fore Universal Router", function () {
   let usdcHolder: SignerWithAddress;
   let alice: SignerWithAddress;
   let defaultAdmin: SignerWithAddress;
+  let sentinelWallet: SignerWithAddress;
 
   let MarketFactory: BasicMarketV2__factory;
   let RouterFactory: ForeUniversalRouter__factory;
@@ -82,6 +83,7 @@ describe("Fore Universal Router", function () {
       alice,
       usdcHolder,
       defaultAdmin,
+      sentinelWallet,
     ] = await ethers.getSigners();
 
     // deploy library
@@ -250,6 +252,21 @@ describe("Fore Universal Router", function () {
 
     describe("No permissions granted, default permissions", () => {
       describe("Default Admin Wallet", () => {
+        it("Should allow to use pause", async () => {
+          const [, receipt] = await txExec(
+            contract.connect(defaultAdmin).pause()
+          );
+          assertEvent<PausedEvent>(receipt, "Paused");
+        });
+
+        it("Should allow to use unpause", async () => {
+          await contract.connect(defaultAdmin).pause();
+          const [, receipt] = await txExec(
+            contract.connect(defaultAdmin).unpause()
+          );
+          assertEvent<UnpausedEvent>(receipt, "Unpaused");
+        });
+
         it("should add token", async () => {
           const [, receipt] = await txExec(
             contract.connect(defaultAdmin).manageTokens(testToken.address, true)
@@ -263,6 +280,19 @@ describe("Fore Universal Router", function () {
 
         beforeEach(async () => {
           deployerUnauthorizedMessage = `AccessManagedUnauthorized("${owner.address}")`;
+        });
+
+        it("Should revert on pause", async () => {
+          await expect(contract.pause()).to.be.revertedWith(
+            deployerUnauthorizedMessage
+          );
+        });
+
+        it("Should revert on unpause", async () => {
+          await contract.connect(defaultAdmin).pause();
+          await expect(contract.unpause()).to.be.revertedWith(
+            deployerUnauthorizedMessage
+          );
         });
 
         it("should revert add token", async () => {
@@ -279,6 +309,21 @@ describe("Fore Universal Router", function () {
           foundationUnauthorizedMessage = `AccessManagedUnauthorized("${foundationWallet.address}")`;
         });
 
+        it("Should revert on pause", async () => {
+          await expect(
+            contract.connect(foundationWallet).pause()
+          ).to.be.revertedWith(foundationUnauthorizedMessage);
+        });
+
+        it("Should revert on unpause", async () => {
+          // Enable the pause function to test unpause
+          await contract.connect(defaultAdmin).pause();
+
+          await expect(
+            contract.connect(foundationWallet).unpause()
+          ).to.be.revertedWith(foundationUnauthorizedMessage);
+        });
+
         it("Should revert on add token", async () => {
           await expect(
             contract
@@ -291,11 +336,28 @@ describe("Fore Universal Router", function () {
 
     describe("Custom permissions granted, no default permissions", () => {
       const FOUNDATION_ROLE = 1n;
+      const SENTINEL_ROLE = 2n;
 
       beforeEach(async () => {
         await foreAccessManager
           .connect(defaultAdmin)
           .grantRole(FOUNDATION_ROLE, foundationWallet.address, 0);
+
+        await foreAccessManager
+          .connect(defaultAdmin)
+          .grantRole(SENTINEL_ROLE, sentinelWallet.address, 0);
+
+        // Functions that can only be called by the sentinel
+        await foreAccessManager
+          .connect(defaultAdmin)
+          .setTargetFunctionRole(
+            contract.address,
+            [
+              contract.interface.getSighash("pause"),
+              contract.interface.getSighash("unpause"),
+            ],
+            SENTINEL_ROLE
+          );
 
         await foreAccessManager
           .connect(defaultAdmin)
@@ -313,6 +375,20 @@ describe("Fore Universal Router", function () {
           defaultAdminUnauthorizedMessage = `AccessManagedUnauthorized("${defaultAdmin.address}")`;
         });
 
+        it("Should revert on pause", async () => {
+          await expect(
+            contract.connect(defaultAdmin).pause()
+          ).to.be.revertedWith(defaultAdminUnauthorizedMessage);
+        });
+
+        it("Should revert on unpause", async () => {
+          await contract.connect(sentinelWallet).pause();
+
+          await expect(
+            contract.connect(defaultAdmin).unpause()
+          ).to.be.revertedWith(defaultAdminUnauthorizedMessage);
+        });
+
         it("Should revert on add token", async () => {
           await expect(
             contract.connect(defaultAdmin).manageTokens(testToken.address, true)
@@ -327,6 +403,20 @@ describe("Fore Universal Router", function () {
           deployerUnauthorizedMessage = `AccessManagedUnauthorized("${owner.address}")`;
         });
 
+        it("Should revert on pause", async () => {
+          await expect(contract.pause()).to.be.revertedWith(
+            deployerUnauthorizedMessage
+          );
+        });
+
+        it("Should revert on unpause", async () => {
+          await contract.connect(sentinelWallet).pause();
+
+          await expect(contract.unpause()).to.be.revertedWith(
+            deployerUnauthorizedMessage
+          );
+        });
+
         it("Should revert on add token", async () => {
           await expect(
             contract.manageTokens(testToken.address, true)
@@ -334,7 +424,60 @@ describe("Fore Universal Router", function () {
         });
       });
 
+      describe("Sentinel Wallet", () => {
+        let sentinelUnauthorizedMessage: string;
+
+        beforeEach(async () => {
+          sentinelUnauthorizedMessage = `AccessManagedUnauthorized("${sentinelWallet.address}")`;
+        });
+
+        it("Should allow to use pause", async () => {
+          const [, receipt] = await txExec(
+            contract.connect(sentinelWallet).pause()
+          );
+          assertEvent<PausedEvent>(receipt, "Paused");
+        });
+
+        it("Should allow to use unpause", async () => {
+          await txExec(contract.connect(sentinelWallet).pause());
+
+          const [, receipt] = await txExec(
+            contract.connect(sentinelWallet).unpause()
+          );
+
+          assertEvent<UnpausedEvent>(receipt, "Unpaused");
+        });
+
+        it("Should revert add token", async () => {
+          await expect(
+            contract
+              .connect(sentinelWallet)
+              .manageTokens(testToken.address, true)
+          ).to.be.revertedWith(sentinelUnauthorizedMessage);
+        });
+      });
+
       describe("Foundation Wallet", () => {
+        let foundationUnauthorizedMessage: string;
+
+        beforeEach(async () => {
+          foundationUnauthorizedMessage = `AccessManagedUnauthorized("${foundationWallet.address}")`;
+        });
+
+        it("Should revert on pause", async () => {
+          await expect(
+            contract.connect(foundationWallet).pause()
+          ).to.be.revertedWith(foundationUnauthorizedMessage);
+        });
+
+        it("Should revert on unpause", async () => {
+          await contract.connect(sentinelWallet).pause();
+
+          await expect(
+            contract.connect(foundationWallet).unpause()
+          ).to.be.revertedWith(foundationUnauthorizedMessage);
+        });
+
         it("Should allow to add token", async () => {
           const [, receipt] = await txExec(
             contract
@@ -675,6 +818,7 @@ describe("Fore Universal Router", function () {
 
     describe("emergency stops", async () => {
       let data: string = "";
+      let receipt: ContractReceipt;
 
       describe("paused contract", () => {
         beforeEach(async () => {
@@ -682,10 +826,14 @@ describe("Fore Universal Router", function () {
             ethers.utils.parseEther("2"),
             SIDES.TRUE,
           ]);
-          await contract.connect(defaultAdmin).pause();
+          [, receipt] = await txExec(contract.connect(defaultAdmin).pause());
         });
 
-        it("should revert with pause error", async () => {
+        it("should emit pause event", async () => {
+          assertEvent<PausedEvent>(receipt, "Paused");
+        });
+
+        it("should revert with pause error (permitCallFunction)", async () => {
           await expect(
             txExec(
               contract
@@ -701,23 +849,46 @@ describe("Fore Universal Router", function () {
             )
           ).to.revertedWith("EnforcedPause()");
         });
+
+        it("should revert with pause error (permit)", async () => {
+          await expect(
+            txExec(contract.connect(alice).permit(permitSingle, signature))
+          ).to.revertedWith("EnforcedPause()");
+        });
+
+        it("should revert with pause error (callFunction)", async () => {
+          await expect(
+            txExec(
+              contract
+                .connect(alice)
+                .callFunction(
+                  markets[0].address,
+                  data,
+                  foreToken.address,
+                  ethers.utils.parseEther("0")
+                )
+            )
+          ).to.revertedWith("EnforcedPause()");
+        });
       });
 
       describe("unpaused contract", () => {
-        beforeEach(async () => {
+        let receipt: ContractReceipt;
+
+        before(async () => {
+          [, receipt] = await txExec(contract.connect(defaultAdmin).unpause());
+
           data = MarketFactory.interface.encodeFunctionData("predict", [
             ethers.utils.parseEther("2"),
             SIDES.TRUE,
           ]);
         });
 
-        it("should allow to use unpause", async () => {
-          await contract.connect(defaultAdmin).pause();
-          const [, receipt] = await txExec(
-            contract.connect(defaultAdmin).unpause()
-          );
+        it("should emit unpaused event", async () => {
           assertEvent<UnpausedEvent>(receipt, "Unpaused");
+        });
 
+        it("should allow to use function (permitCallFunction)", async () => {
           await txExec(
             contract
               .connect(alice)
@@ -731,30 +902,77 @@ describe("Fore Universal Router", function () {
               )
           );
         });
+
+        it("should allow to use function (permit)", async () => {
+          await txExec(contract.connect(alice).permit(permitSingle, signature));
+        });
+
+        it("should allow to use function (callFunction)", async () => {
+          await txExec(contract.connect(alice).permit(permitSingle, signature));
+          await txExec(
+            contract
+              .connect(alice)
+              .callFunction(
+                markets[0].address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("2")
+              )
+          );
+        });
       });
     });
   });
 
   describe("token management", () => {
     let testToken: MockERC20;
+    let receipt: ContractReceipt;
 
-    describe("successfully", () => {
+    before(async () => {
+      testToken = await deployMockedContractAs<MockERC20>(
+        owner,
+        "MockERC20",
+        "Test",
+        "Test Coin",
+        ethers.utils.parseEther("1000000")
+      );
+    });
+
+    describe("successfully add token", () => {
       beforeEach(async () => {
-        testToken = await deployMockedContractAs<MockERC20>(
-          owner,
-          "MockERC20",
-          "Test",
-          "Test Coin",
-          ethers.utils.parseEther("1000000")
+        [, receipt] = await txExec(
+          contract.connect(defaultAdmin).manageTokens(testToken.address, true)
         );
+      });
 
-        await contract
-          .connect(defaultAdmin)
-          .manageTokens(testToken.address, true);
+      it("should emit event", () => {
+        assertEvent<ManagedTokenEvent>(receipt, "ManagedToken", {
+          token: testToken.address,
+          shouldAdd: true,
+        });
       });
 
       it("should add token", async () => {
         expect(await contract.tokens(testToken.address)).to.true;
+      });
+    });
+
+    describe("successfully removed token", async () => {
+      beforeEach(async () => {
+        [, receipt] = await txExec(
+          contract.connect(defaultAdmin).manageTokens(testToken.address, false)
+        );
+      });
+
+      it("should emit event", () => {
+        assertEvent<ManagedTokenEvent>(receipt, "ManagedToken", {
+          token: testToken.address,
+          shouldAdd: false,
+        });
+      });
+
+      it("should remove token", async () => {
+        expect(await contract.tokens(testToken.address)).to.false;
       });
     });
 
