@@ -14,8 +14,8 @@ error InvalidIncentiveRates();
 /// @custom:security-contact security@foreprotocol.io
 contract TokenIncentiveRegistry is
     Initializable,
-    UUPSUpgradeable,
-    AccessManagedUpgradeable
+    AccessManagedUpgradeable,
+    UUPSUpgradeable
 {
     struct TokenIncentives {
         /// @notice Prediction discount rate
@@ -60,6 +60,8 @@ contract TokenIncentiveRegistry is
         TokenIncentives[] memory incentives
     ) public initializer {
         __AccessManaged_init(initialAuthority);
+        __UUPSUpgradeable_init();
+
         for (uint i = 0; i < tokenAddresses.length; i++) {
             if (tokenAddresses[i] == address(0)) {
                 revert InvalidToken();

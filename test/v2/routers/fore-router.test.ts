@@ -162,12 +162,20 @@ describe("Fore Universal Router", function () {
 
     // preparing universal router
     RouterFactory = await ethers.getContractFactory("ForeUniversalRouter");
-    contract = await upgrades.deployProxy(RouterFactory, [
-      foreAccessManager.address,
-      foreProtocol.address,
-      permit2.address,
-      [foreToken.address, usdcToken.address],
-    ]);
+    contract = await upgrades.deployProxy(
+      RouterFactory,
+      [
+        foreAccessManager.address,
+        foreProtocol.address,
+        permit2.address,
+        [foreToken.address, usdcToken.address],
+      ],
+      {
+        kind: "uups",
+        initializer: "initialize",
+      }
+    );
+    await contract.deployed();
 
     await txExec(
       protocolConfig
@@ -235,6 +243,17 @@ describe("Fore Universal Router", function () {
         .connect(alice)
         .approve(permit2.address, ethers.utils.parseEther("1000"))
     );
+  });
+
+  it("should not allow re-initialization", async function () {
+    await expect(
+      contract.initialize(
+        foreAccessManager.address,
+        foreProtocol.address,
+        permit2.address,
+        [foreToken.address, usdcToken.address]
+      )
+    ).to.be.reverted;
   });
 
   describe("Access control", () => {
@@ -677,86 +696,111 @@ describe("Fore Universal Router", function () {
         });
       });
 
-      it("should revert when target contract is not an operator", async () => {
-        const data = MarketFactory.interface.encodeFunctionData("predict", [
-          ethers.utils.parseEther("2"),
-          SIDES.TRUE,
-        ]);
+      describe("target contract is not a FORE operator", async () => {
+        let data: string;
 
-        await expect(
-          txExec(
-            contract
-              .connect(alice)
-              .callFunction(
-                "0x1f2EF540b840358f56Fe46984777917CEDC43eD7",
-                data,
-                foreToken.address,
-                ethers.utils.parseEther("2")
-              )
-          )
-        ).to.be.reverted;
+        before(() => {
+          data = MarketFactory.interface.encodeFunctionData("predict", [
+            ethers.utils.parseEther("2"),
+            SIDES.TRUE,
+          ]);
+        });
+
+        it("should revert call function", async () => {
+          await expect(
+            txExec(
+              contract
+                .connect(alice)
+                .callFunction(
+                  "0x1f2EF540b840358f56Fe46984777917CEDC43eD7",
+                  data,
+                  foreToken.address,
+                  ethers.utils.parseEther("2")
+                )
+            )
+          ).to.be.reverted;
+        });
+
+        it("should revert permit call function", async () => {
+          const data = MarketFactory.interface.encodeFunctionData("predict", [
+            ethers.utils.parseEther("2"),
+            SIDES.TRUE,
+          ]);
+
+          await expect(
+            txExec(
+              contract
+                .connect(alice)
+                .permitCallFunction(
+                  permitSingle,
+                  signature,
+                  "0x1f2EF540b840358f56Fe46984777917CEDC43eD7",
+                  data,
+                  foreToken.address,
+                  ethers.utils.parseEther("2")
+                )
+            )
+          ).to.be.reverted;
+        });
+
+        it("should revert when target address is 0", async () => {
+          await expect(
+            txExec(
+              contract
+                .connect(alice)
+                .callFunction(
+                  "0x0000000000000000000000000000000000000000",
+                  data,
+                  foreToken.address,
+                  ethers.utils.parseEther("2")
+                )
+            )
+          ).to.be.reverted;
+        });
       });
 
-      it("should revert when target address is 0", async () => {
-        const data = MarketFactory.interface.encodeFunctionData("predict", [
-          ethers.utils.parseEther("2"),
-          SIDES.TRUE,
-        ]);
-        await expect(
-          txExec(
-            contract
-              .connect(alice)
-              .callFunction(
-                "0x0000000000000000000000000000000000000000",
-                data,
-                foreToken.address,
-                ethers.utils.parseEther("2")
-              )
-          )
-        ).to.be.reverted;
-      });
+      describe("external call failed", () => {
+        let data: string;
 
-      it("should revert permit call", async () => {
-        const data = MarketFactory.interface.encodeFunctionData("predict", [
-          ethers.utils.parseEther("2"),
-          SIDES.TRUE,
-        ]);
+        before(() => {
+          data = MarketFactory.interface.encodeFunctionData("predict", [
+            ethers.utils.parseEther("2"),
+            SIDES.TRUE,
+          ]);
+        });
 
-        await expect(
-          txExec(
-            contract
-              .connect(alice)
-              .permitCallFunction(
-                permitSingle,
-                signature,
-                markets[0].address,
-                data,
-                foreToken.address,
-                ethers.utils.parseEther("0")
-              )
-          )
-        ).to.be.reverted;
-      });
+        it("should revert permit call", async () => {
+          await expect(
+            txExec(
+              contract
+                .connect(alice)
+                .permitCallFunction(
+                  permitSingle,
+                  signature,
+                  markets[0].address,
+                  data,
+                  foreToken.address,
+                  ethers.utils.parseEther("0")
+                )
+            )
+          ).to.be.reverted;
+        });
 
-      it("should revert call", async () => {
-        const data = MarketFactory.interface.encodeFunctionData("predict", [
-          ethers.utils.parseEther("2"),
-          SIDES.TRUE,
-        ]);
-
-        await txExec(contract.connect(alice).permit(permitSingle, signature));
-        await expect(
-          txExec(
-            contract
-              .connect(alice)
-              .callFunction(
-                markets[0].address,
-                data,
-                foreToken.address,
-                BigNumber.from(0)
-              )
-          )
-        ).to.be.reverted;
+        it("should revert call", async () => {
+          await txExec(contract.connect(alice).permit(permitSingle, signature));
+          await expect(
+            txExec(
+              contract
+                .connect(alice)
+                .callFunction(
+                  markets[0].address,
+                  data,
+                  foreToken.address,
+                  BigNumber.from(0)
+                )
+            )
+          ).to.be.reverted;
+        });
       });
 
       describe("permit single is invalid", () => {
@@ -982,6 +1026,38 @@ describe("Fore Universal Router", function () {
           .connect(defaultAdmin)
           .manageTokens("0x0000000000000000000000000000000000000000", true)
       ).to.be.reverted;
+    });
+  });
+
+  describe("authorize upgrade", () => {
+    it("should revert unauthorized upgrade", async () => {
+      const deployerUnauthorizedMessage = `AccessManagedUnauthorized("${owner.address}")`;
+      const RouterImplV2 = await ethers.getContractFactory(
+        "ForeUniversalRouter"
+      );
+      await expect(
+        upgrades.upgradeProxy(contract.address, RouterImplV2, {
+          kind: "uups",
+          call: {
+            fn: "pause",
+            args: [],
+          },
+        })
+      ).to.revertedWith(deployerUnauthorizedMessage);
+    });
+
+    it("should authorize upgrade", async () => {
+      const RouterImplV2 = await ethers.getContractFactory(
+        "ForeUniversalRouter",
+        defaultAdmin
+      );
+      await upgrades.upgradeProxy(contract.address, RouterImplV2, {
+        kind: "uups",
+        call: {
+          fn: "pause",
+          args: [],
+        },
+      });
     });
   });
 });

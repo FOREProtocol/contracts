@@ -21,10 +21,10 @@ error CallFunctionFailed();
 /// @custom:security-contact security@foreprotocol.io
 contract ForeUniversalRouter is
     Initializable,
-    UUPSUpgradeable,
     PausableUpgradeable,
     AccessManagedUpgradeable,
-    ReentrancyGuardUpgradeable
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
 {
     using SafeERC20 for IERC20;
 
@@ -72,6 +72,7 @@ contract ForeUniversalRouter is
         __Pausable_init();
         __AccessManaged_init(initialAuthority);
         __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
 
         foreProtocol = protocolAddress;
         permit2 = permit2Address;

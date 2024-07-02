@@ -79,14 +79,25 @@ describe("Token Incentive Registry", function () {
     const contractFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
-    contract = await upgrades.deployProxy(contractFactory, [
-      foreAccessManager.address,
-      [usdcToken.address],
-      [defaultIncentives],
-    ]);
+    contract = await upgrades.deployProxy(
+      contractFactory,
+      [foreAccessManager.address, [usdcToken.address], [defaultIncentives]],
+      {
+        kind: "uups",
+        initializer: "initialize",
+      }
+    );
   });
 
-  // @todo Add authorized and unauthorized user test cases
+  it("should not allow re-initialization", async function () {
+    await expect(
+      contract.initialize(
+        foreAccessManager.address,
+        [usdcToken.address],
+        [defaultIncentives]
+      )
+    ).to.be.reverted;
+  });
 
   describe("Access control", () => {
     describe("No permissions granted, default permissions", () => {
@@ -637,6 +648,38 @@ describe("Token Incentive Registry", function () {
             contract.setTokenIncentives(testToken.address, defaultIncentives)
           ).to.be.reverted;
         });
+      });
+    });
+  });
+
+  describe("authorize upgrade", () => {
+    it("should revert unauthorized upgrade", async () => {
+      const deployerUnauthorizedMessage = `AccessManagedUnauthorized("${deployerWallet.address}")`;
+      const RouterImplV2 = await ethers.getContractFactory(
+        "TokenIncentiveRegistry"
+      );
+      await expect(
+        upgrades.upgradeProxy(contract.address, RouterImplV2, {
+          kind: "uups",
+          call: {
+            fn: "isTokenEnabled",
+            args: [usdcToken.address],
+          },
+        })
+      ).to.revertedWith(deployerUnauthorizedMessage);
+    });
+
+    it("should authorize upgrade", async () => {
+      const RegistryImplV2 = await ethers.getContractFactory(
+        "TokenIncentiveRegistry",
+        defaultAdmin
+      );
+      await upgrades.upgradeProxy(contract.address, RegistryImplV2, {
+        kind: "uups",
+        call: {
+          fn: "isTokenEnabled",
+          args: [usdcToken.address],
+        },
       });
     });
   });
