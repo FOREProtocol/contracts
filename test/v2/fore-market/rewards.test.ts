@@ -1104,6 +1104,17 @@ describe("BasicMarketV2 / Rewards", () => {
         });
       });
     });
+
+    describe("Verification reward", () => {
+      it("should return 0 rewards", async () => {
+        expect(await contract.calculateVerificationReward(0)).to.be.eql([
+          ethers.utils.parseEther("0"),
+          ethers.utils.parseEther("0"),
+          ethers.utils.parseEther("0"),
+          false,
+        ]);
+      });
+    });
   });
 
   describe("Invalid market", () => {

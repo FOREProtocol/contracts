@@ -12,18 +12,20 @@ import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MarketLibV2 } from "@/MarketLibV2";
 import { ERC20 } from "@/ERC20";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 import {
   attachContract,
   deployLibrary,
   deployMockedContract,
+  deployMockedContractAs,
   executeInSingleBlock,
+  generateRandomHexString,
   sendERC20Tokens,
   timetravel,
   txExec,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
-import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Closing", () => {
   let owner: SignerWithAddress;
@@ -44,7 +46,7 @@ describe("BasicMarketV2 / Closing", () => {
   let foreProtocol: MockContract<ForeProtocol>;
   let basicFactory: MockContract<BasicFactoryV2>;
   let tokenRegistry: Contract;
-  let usdcToken: MockContract<ERC20>;
+  let usdcToken: ERC20;
   let contract: BasicMarketV2;
   let foreAccessManager: MockContract<ForeAccessManager>;
 
@@ -94,10 +96,12 @@ describe("BasicMarketV2 / Closing", () => {
       "https://markets.api.foreprotocol.io/market/"
     );
 
-    usdcToken = await deployMockedContract<ERC20>(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+    usdcToken = await deployMockedContractAs<ERC20>(
+      owner,
+      "MockERC20",
       "USDC",
-      "USD Coin"
+      "USD Coin",
+      ethers.utils.parseEther("1000000")
     );
 
     // setup the access manager
@@ -409,6 +413,151 @@ describe("BasicMarketV2 / Closing", () => {
       await expect(contract.connect(carol).closeMarket()).to.be.revertedWith(
         "MarketIsClosed"
       );
+    });
+  });
+
+  describe("only one side has prediction", () => {
+    let contract: BasicMarketV2;
+
+    beforeEach(async () => {
+      // sending funds
+      await sendERC20Tokens(usdcToken, {
+        [alice.address]: ethers.utils.parseEther("2000"),
+        [bob.address]: ethers.utils.parseEther("2000"),
+      });
+
+      const marketHash = generateRandomHexString(64);
+      await txExec(
+        basicFactory
+          .connect(alice)
+          .createMarket(
+            marketHash,
+            alice.address,
+            [ethers.utils.parseEther("70"), 0],
+            blockTimestamp + 200000,
+            blockTimestamp + 300000,
+            foreToken.address
+          )
+      );
+
+      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
+
+      const salt = marketHash;
+      const newAddress = ethers.utils.getCreate2Address(
+        basicFactory.address,
+        salt,
+        initCode
+      );
+
+      contract = await attachContract<BasicMarketV2>(
+        "BasicMarketV2",
+        newAddress
+      );
+    });
+
+    describe("should close invalid market", () => {
+      let tx: ContractTransaction;
+
+      beforeEach(async () => {
+        await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
+        [tx] = await txExec(contract.closeMarket());
+      });
+
+      it("Should emit CloseMarket event", async () => {
+        await expect(tx)
+          .to.emit({ ...marketLib, address: contract.address }, "CloseMarket")
+          .withArgs(4);
+      });
+    });
+  });
+
+  describe("after closing when currency token is usdt", () => {
+    let contract: BasicMarketV2;
+
+    beforeEach(async () => {
+      await sendERC20Tokens(usdcToken, {
+        [alice.address]: ethers.utils.parseEther("2000"),
+        [bob.address]: ethers.utils.parseEther("2000"),
+      });
+
+      await usdcToken
+        .connect(alice)
+        .approve(
+          basicFactory.address,
+          ethers.utils.parseUnits("1000", "ether")
+        );
+
+      const marketHash = generateRandomHexString(64);
+      await txExec(
+        basicFactory
+          .connect(alice)
+          .createMarket(
+            marketHash,
+            alice.address,
+            [ethers.utils.parseEther("70"), 0],
+            blockTimestamp + 200000,
+            blockTimestamp + 300000,
+            usdcToken.address
+          )
+      );
+      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
+      const salt = marketHash;
+      const newAddress = ethers.utils.getCreate2Address(
+        basicFactory.address,
+        salt,
+        initCode
+      );
+
+      contract = await attachContract<BasicMarketV2>(
+        "BasicMarketV2",
+        newAddress
+      );
+
+      await executeInSingleBlock(() => [
+        usdcToken
+          .connect(alice)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        usdcToken
+          .connect(bob)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+      ]);
+
+      await executeInSingleBlock(() => [
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("50"), SIDES.TRUE),
+        contract
+          .connect(bob)
+          .predict(ethers.utils.parseEther("40"), SIDES.FALSE),
+      ]);
+
+      await executeInSingleBlock(() => [
+        foreToken
+          .connect(owner)
+          .approve(
+            foreProtocol.address,
+            ethers.utils.parseUnits("1000", "ether")
+          ),
+        foreProtocol.connect(owner).mintVerifier(alice.address),
+      ]);
+
+      await timetravel(blockTimestamp + 300001);
+      await contract.connect(alice).verify(0, SIDES.TRUE);
+    });
+
+    describe("should transfer usdt not burn", () => {
+      let tx: ContractTransaction;
+
+      beforeEach(async () => {
+        await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
+        [tx] = await txExec(contract.connect(bob).closeMarket());
+      });
+
+      it("Should emit CloseMarket event", async () => {
+        await expect(tx)
+          .to.emit({ ...marketLib, address: contract.address }, "CloseMarket")
+          .withArgs(2);
+      });
     });
   });
 });

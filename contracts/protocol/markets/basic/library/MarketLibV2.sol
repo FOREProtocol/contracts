@@ -585,8 +585,7 @@ library MarketLibV2 {
         if (
             m.result == MarketLibV2.ResultType.DRAW ||
             m.result == MarketLibV2.ResultType.INVALID ||
-            m.result == MarketLibV2.ResultType.NULL ||
-            v.withdrawn
+            m.result == MarketLibV2.ResultType.NULL
         ) {
             // draw - withdraw verifier token
             return (0, 0, 0, false);
