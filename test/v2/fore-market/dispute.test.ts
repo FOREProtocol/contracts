@@ -19,6 +19,7 @@ import {
   deployLibrary,
   deployMockedContract,
   executeInSingleBlock,
+  generateRandomHexString,
   sendERC20Tokens,
   timetravel,
   txExec,
@@ -819,6 +820,69 @@ describe("BasicMarketV2 / Dispute", () => {
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       ).to.be.revertedWith("MarketIsClosed");
+    });
+  });
+
+  describe("only one side has prediction", () => {
+    let contract: BasicMarketV2;
+
+    beforeEach(async () => {
+      await sendERC20Tokens(foreToken, {
+        [alice.address]: ethers.utils.parseEther("10000"),
+        [bob.address]: ethers.utils.parseEther("10000"),
+        [dave.address]: ethers.utils.parseEther("10000"),
+      });
+
+      const marketHash = generateRandomHexString(64);
+      await txExec(
+        basicFactory
+          .connect(alice)
+          .createMarket(
+            marketHash,
+            alice.address,
+            [ethers.utils.parseEther("70"), 0],
+            blockTimestamp + 200000,
+            blockTimestamp + 300000,
+            foreToken.address
+          )
+      );
+
+      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
+
+      const salt = marketHash;
+      const newAddress = ethers.utils.getCreate2Address(
+        basicFactory.address,
+        salt,
+        initCode
+      );
+
+      contract = await attachContract<BasicMarketV2>(
+        "BasicMarketV2",
+        newAddress
+      );
+
+      await executeInSingleBlock(() => [
+        foreToken
+          .connect(alice)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        foreToken
+          .connect(bob)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        foreToken
+          .connect(dave)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+      ]);
+
+      await timetravel(blockTimestamp + 300001);
+      await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
+    });
+
+    it("should open dispute", async () => {
+      await contract
+        .connect(dave)
+        .openDispute(
+          "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+        );
     });
   });
 });

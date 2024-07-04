@@ -601,6 +601,15 @@ describe("BasicMarketV2 / Rewards", () => {
               .withArgs(contract.address, verifierSideB2.address, 3);
           });
 
+          it("Should calculate 0 rewards", async () => {
+            expect(await contract.calculateVerificationReward(0)).to.be.eql([
+              ethers.utils.parseEther("0"),
+              ethers.utils.parseEther("0"),
+              ethers.utils.parseEther("0"),
+              false,
+            ]);
+          });
+
           it("Should revert when rewards already withdrawn", async () => {
             await expect(
               contract
@@ -1106,13 +1115,30 @@ describe("BasicMarketV2 / Rewards", () => {
     });
 
     describe("Verification reward", () => {
-      it("should return 0 rewards", async () => {
-        expect(await contract.calculateVerificationReward(0)).to.be.eql([
-          ethers.utils.parseEther("0"),
-          ethers.utils.parseEther("0"),
-          ethers.utils.parseEther("0"),
-          false,
-        ]);
+      it("Should revert when market not closed", async () => {
+        await expect(
+          contract.connect(verifierSideA1).withdrawVerificationReward(0, false)
+        ).to.be.revertedWith("MarketIsNotClosedYet");
+      });
+
+      describe("after closing", () => {
+        beforeEach(async () => {
+          await timetravel(blockTimestamp + 4000000);
+          await contract.connect(marketCreator).closeMarket();
+        });
+
+        it("Should calculate reward", async () => {
+          expect(
+            await contract
+              .connect(verifierSideA1)
+              .calculateVerificationReward(0)
+          ).to.be.eql([
+            ethers.utils.parseEther("0"),
+            ethers.utils.parseEther("0"),
+            ethers.utils.parseEther("0"),
+            false,
+          ]);
+        });
       });
     });
   });
@@ -1122,9 +1148,7 @@ describe("BasicMarketV2 / Rewards", () => {
       await contract
         .connect(predictorSideA1)
         .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
-
       await timetravel(blockTimestamp + 300005);
-
       await contract.connect(verifierSideA1).verify(0, SIDES.TRUE);
     });
 
@@ -1137,12 +1161,12 @@ describe("BasicMarketV2 / Rewards", () => {
     });
 
     describe("Prediction reward", () => {
-      it("Should return 0 reward", async () => {
+      it("Should return correct prediction reward", async () => {
         expect(
           await contract
-            .connect(verifierSideA1)
-            .calculatePredictionReward(verifierSideA1.address)
-        ).to.be.equal(ethers.utils.parseEther("0"));
+            .connect(predictorSideA1)
+            .calculatePredictionReward(predictorSideA1.address)
+        ).to.be.equal(ethers.utils.parseEther("455"));
       });
     });
   });
