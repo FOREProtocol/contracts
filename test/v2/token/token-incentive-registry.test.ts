@@ -18,13 +18,15 @@ import {
   TokenRemovedEvent,
 } from "@/TokenIncentiveRegistry";
 import { MockERC20, TokenIncentiveRegistry__factory } from "@/index";
+import { defaultIncentives } from "../../helpers/constants";
 
-const defaultIncentives = {
-  predictionDiscountRate: 1000,
-  marketCreatorDiscountRate: 1000,
-  verificationDiscountRate: 1000,
-  foundationDiscountRate: 1000,
-} as const;
+const mockIncentives = {
+  predictionDiscountRate: 100,
+  marketCreatorDiscountRate: 100,
+  verificationDiscountRate: 100,
+  foundationDiscountRate: 100,
+  marketCreationFee: ethers.utils.parseEther("1"),
+};
 
 describe("Token Incentive Registry", function () {
   let contract: Contract;
@@ -130,17 +132,10 @@ describe("Token Incentive Registry", function () {
             .connect(defaultAdmin)
             .addToken(token1.address, defaultIncentives);
 
-          const incentives = {
-            predictionDiscountRate: 100,
-            marketCreatorDiscountRate: 100,
-            verificationDiscountRate: 100,
-            foundationDiscountRate: 100,
-          };
-
           const [, receipt] = await txExec(
             contract
               .connect(defaultAdmin)
-              .setTokenIncentives(token1.address, incentives)
+              .setTokenIncentives(token1.address, mockIncentives)
           );
 
           assertEvent<SetIncentiveRatesEvent>(receipt, "SetIncentiveRates");
@@ -177,15 +172,8 @@ describe("Token Incentive Registry", function () {
             .connect(defaultAdmin)
             .addToken(token1.address, defaultIncentives);
 
-          const incentives = {
-            predictionDiscountRate: 100,
-            marketCreatorDiscountRate: 100,
-            verificationDiscountRate: 100,
-            foundationDiscountRate: 100,
-          };
-
           await expect(
-            contract.setTokenIncentives(token1.address, incentives)
+            contract.setTokenIncentives(token1.address, mockIncentives)
           ).to.be.revertedWith(deployerUnauthorizedMessage);
         });
       });
@@ -222,17 +210,10 @@ describe("Token Incentive Registry", function () {
             .connect(defaultAdmin)
             .addToken(token1.address, defaultIncentives);
 
-          const incentives = {
-            predictionDiscountRate: 100,
-            marketCreatorDiscountRate: 100,
-            verificationDiscountRate: 100,
-            foundationDiscountRate: 100,
-          };
-
           await expect(
             contract
               .connect(foundationWallet)
-              .setTokenIncentives(token1.address, incentives)
+              .setTokenIncentives(token1.address, mockIncentives)
           ).to.be.revertedWith(foundationUnauthorizedMessage);
         });
       });
@@ -293,17 +274,10 @@ describe("Token Incentive Registry", function () {
             .connect(foundationWallet)
             .addToken(token1.address, defaultIncentives);
 
-          const incentives = {
-            predictionDiscountRate: 100,
-            marketCreatorDiscountRate: 100,
-            verificationDiscountRate: 100,
-            foundationDiscountRate: 100,
-          };
-
           await expect(
             contract
               .connect(defaultAdmin)
-              .setTokenIncentives(token1.address, incentives)
+              .setTokenIncentives(token1.address, mockIncentives)
           ).to.be.revertedWith(defaultAdminUnauthorizedMessage);
         });
       });
@@ -338,15 +312,8 @@ describe("Token Incentive Registry", function () {
             .connect(foundationWallet)
             .addToken(token1.address, defaultIncentives);
 
-          const incentives = {
-            predictionDiscountRate: 100,
-            marketCreatorDiscountRate: 100,
-            verificationDiscountRate: 100,
-            foundationDiscountRate: 100,
-          };
-
           await expect(
-            contract.setTokenIncentives(token1.address, incentives)
+            contract.setTokenIncentives(token1.address, mockIncentives)
           ).to.be.revertedWith(deployerUnauthorizedMessage);
         });
       });
@@ -380,17 +347,10 @@ describe("Token Incentive Registry", function () {
             .connect(foundationWallet)
             .addToken(token1.address, defaultIncentives);
 
-          const incentives = {
-            predictionDiscountRate: 100,
-            marketCreatorDiscountRate: 100,
-            verificationDiscountRate: 100,
-            foundationDiscountRate: 100,
-          };
-
           const [, receipt] = await txExec(
             contract
               .connect(foundationWallet)
-              .setTokenIncentives(token1.address, incentives)
+              .setTokenIncentives(token1.address, mockIncentives)
           );
 
           assertEvent<SetIncentiveRatesEvent>(receipt, "SetIncentiveRates");
@@ -407,6 +367,7 @@ describe("Token Incentive Registry", function () {
         BigNumber.from(1000),
         BigNumber.from(1000),
         BigNumber.from(1000),
+        ethers.utils.parseEther("10"),
       ]);
     });
   });
@@ -439,6 +400,7 @@ describe("Token Incentive Registry", function () {
               marketCreatorDiscountRate: 0,
               verificationDiscountRate: 0,
               foundationDiscountRate: 0,
+              marketCreationFee: 0,
             },
           ],
         ])
@@ -488,18 +450,21 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(1000),
           BigNumber.from(1000),
           BigNumber.from(1000),
+          ethers.utils.parseEther("10"),
         ]);
         expect(await contract.getTokenIncentives(token2.address)).to.eql([
           BigNumber.from(1000),
           BigNumber.from(1000),
           BigNumber.from(1000),
           BigNumber.from(1000),
+          ethers.utils.parseEther("10"),
         ]);
         expect(await contract.getTokenIncentives(token3.address)).to.eql([
           BigNumber.from(1000),
           BigNumber.from(1000),
           BigNumber.from(1000),
           BigNumber.from(1000),
+          ethers.utils.parseEther("10"),
         ]);
       });
 
@@ -516,6 +481,7 @@ describe("Token Incentive Registry", function () {
           marketCreatorDiscountRate: 0,
           verificationDiscountRate: 0,
           foundationDiscountRate: 0,
+          marketCreationFee: 0,
         };
         await expect(contract.addToken(token4.address, incentives)).to.be
           .reverted;
@@ -554,14 +520,17 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
+          BigNumber.from(0),
         ]);
         expect(await contract.getTokenIncentives(token2.address)).to.eql([
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
+          BigNumber.from(0),
         ]);
         expect(await contract.getTokenIncentives(token3.address)).to.eql([
+          BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
@@ -580,21 +549,14 @@ describe("Token Incentive Registry", function () {
     });
 
     describe("set incentives", () => {
-      const updatedIncentives = {
-        predictionDiscountRate: 100,
-        marketCreatorDiscountRate: 100,
-        verificationDiscountRate: 100,
-        foundationDiscountRate: 100,
-      };
-
       describe("successfully", () => {
         beforeEach(async () => {
           await contract.addToken(token1.address, defaultIncentives);
           await contract.addToken(token2.address, defaultIncentives);
           await contract.addToken(token3.address, defaultIncentives);
-          await contract.setTokenIncentives(token1.address, updatedIncentives);
-          await contract.setTokenIncentives(token2.address, updatedIncentives);
-          await contract.setTokenIncentives(token3.address, updatedIncentives);
+          await contract.setTokenIncentives(token1.address, mockIncentives);
+          await contract.setTokenIncentives(token2.address, mockIncentives);
+          await contract.setTokenIncentives(token3.address, mockIncentives);
         });
 
         it("should set discount rate", async () => {
@@ -603,18 +565,21 @@ describe("Token Incentive Registry", function () {
             BigNumber.from(100),
             BigNumber.from(100),
             BigNumber.from(100),
+            ethers.utils.parseEther("1"),
           ]);
           expect(await contract.getTokenIncentives(token2.address)).to.be.eql([
             BigNumber.from(100),
             BigNumber.from(100),
             BigNumber.from(100),
             BigNumber.from(100),
+            ethers.utils.parseEther("1"),
           ]);
           expect(await contract.getTokenIncentives(token3.address)).to.be.eql([
             BigNumber.from(100),
             BigNumber.from(100),
             BigNumber.from(100),
             BigNumber.from(100),
+            ethers.utils.parseEther("1"),
           ]);
         });
       });
@@ -631,6 +596,7 @@ describe("Token Incentive Registry", function () {
               marketCreatorDiscountRate: 0,
               verificationDiscountRate: 0,
               foundationDiscountRate: 0,
+              marketCreationFee: 0,
             })
           ).to.be.reverted;
         });

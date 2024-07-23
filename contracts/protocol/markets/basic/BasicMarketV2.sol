@@ -526,7 +526,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the prediction fee rate
     /// @return The calculated fee rate
     function _calculatePredictionFeeRate() private view returns (uint256) {
-        (uint256 discountRate, , , ) = tokenRegistry.getTokenIncentives(
+        (uint256 discountRate, , , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (predictionFlatFeeRate * discountRate) / DIVIDER;
@@ -536,7 +536,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the verification fee rate
     /// @return The calculated fee rate
     function _calculateVerificationFeeRate() private view returns (uint256) {
-        (, , uint256 discountRate, ) = tokenRegistry.getTokenIncentives(
+        (, , uint256 discountRate, , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (verificationFlatFeeRate * discountRate) / DIVIDER;
@@ -546,7 +546,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the foundation fee rate
     /// @return The calculated fee rate
     function _calculateFoundationFeeRate() private view returns (uint256) {
-        (, , , uint256 discountRate) = tokenRegistry.getTokenIncentives(
+        (, , , uint256 discountRate, ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (foundationFlatFeeRate * discountRate) / DIVIDER;
@@ -556,7 +556,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the market creator fee rate
     /// @return The calculated fee rate
     function _calculateMarketCreatorFeeRate() private view returns (uint256) {
-        (, uint256 discountRate, , ) = tokenRegistry.getTokenIncentives(
+        (, uint256 discountRate, , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (marketCreatorFlatFeeRate * discountRate) / DIVIDER;

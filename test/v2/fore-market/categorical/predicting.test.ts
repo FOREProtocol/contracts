@@ -48,6 +48,7 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
   let usdcToken: MockERC20;
   let basicFactory: MockContract<BasicFactoryV2>;
   let marketLib: MarketLibV2;
@@ -129,12 +130,22 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
       foreAccessManager.address,
       foreProtocol.address,
       tokenRegistry.address,
+      accountWhitelist.address,
       foundationWallet.address
     );
 

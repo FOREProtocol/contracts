@@ -20,12 +20,14 @@ contract TokenIncentiveRegistry is
     struct TokenIncentives {
         /// @notice Prediction discount rate
         uint256 predictionDiscountRate;
-        /// @notice Market creation discount rate
+        /// @notice Market creator discount rate
         uint256 marketCreatorDiscountRate;
         /// @notice Prediction discount rate
         uint256 verificationDiscountRate;
         /// @notice Foundation discount rate
         uint256 foundationDiscountRate;
+        /// @notice Market creation fee
+        uint256 marketCreationFee;
     }
 
     /**
@@ -80,13 +82,14 @@ contract TokenIncentiveRegistry is
      */
     function getTokenIncentives(
         address tokenAddress
-    ) external view returns (uint256, uint256, uint256, uint256) {
+    ) external view returns (uint256, uint256, uint256, uint256, uint256) {
         TokenIncentives memory incentives = tokenIncentives[tokenAddress];
         return (
             incentives.predictionDiscountRate,
             incentives.marketCreatorDiscountRate,
             incentives.verificationDiscountRate,
-            incentives.foundationDiscountRate
+            incentives.foundationDiscountRate,
+            incentives.marketCreationFee
         );
     }
 
@@ -173,7 +176,8 @@ contract TokenIncentiveRegistry is
             incentives.predictionDiscountRate == 0 &&
             incentives.marketCreatorDiscountRate == 0 &&
             incentives.verificationDiscountRate == 0 &&
-            incentives.foundationDiscountRate == 0;
+            incentives.foundationDiscountRate == 0 &&
+            incentives.marketCreationFee == 0;
     }
 
     /// @notice Ensure only the owner can upgrade the contract

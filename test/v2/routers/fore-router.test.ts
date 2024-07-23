@@ -61,6 +61,7 @@ describe("Fore Universal Router", function () {
   let basicFactory: MockContract<BasicFactoryV2>;
   let usdcToken: MockERC20;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
   let permit2: Contract;
   let contract: Contract;
   let foreAccessManager: MockContract<ForeAccessManager>;
@@ -143,12 +144,22 @@ describe("Fore Universal Router", function () {
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
       foreAccessManager.address,
       foreProtocol.address,
       tokenRegistry.address,
+      accountWhitelist.address,
       foundationWallet.address
     );
 
