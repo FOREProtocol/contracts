@@ -11,6 +11,7 @@ import "./library/ArrayUtils.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
+import "../../IAccountWhitelist.sol";
 
 /// @custom:security-contact security@foreprotocol.io
 contract BasicFactoryV2 is Pausable, AccessManaged {
@@ -47,6 +48,9 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     /// @notice Protocol Contract
     IForeProtocol public immutable foreProtocol;
 
+    /// @notice Account whitelist
+    IAccountWhitelist public immutable accountWhitelist;
+
     /// @notice ForeToken
     IERC20 public immutable foreToken;
 
@@ -68,14 +72,16 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     constructor(
         address _initialAuthority,
         IForeProtocol protocolAddress,
-        address _tokenRegistry,
+        ITokenIncentiveRegistry _tokenRegistry,
+        IAccountWhitelist _accountWhitelist,
         address _initialFeeReceiver
     ) AccessManaged(_initialAuthority) {
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
         foreToken = IERC20(protocolAddress.foreToken());
         foreVerifiers = IForeVerifiers(protocolAddress.foreVerifiers());
-        tokenRegistry = ITokenIncentiveRegistry(_tokenRegistry);
+        tokenRegistry = _tokenRegistry;
+        accountWhitelist = _accountWhitelist;
         feeReceiver = _initialFeeReceiver;
     }
 
@@ -112,11 +118,16 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         }();
         createdMarket = address(createdMarketContract);
 
-        uint256 creationFee = config.marketCreationPrice();
+        uint256 creationFee = 0;
         uint256 amountSum = ArrayUtils.sum(amounts);
 
+        if (!accountWhitelist.isAccountWhitelisted(msg.sender)) {
+            (, , , , creationFee) = tokenRegistry.getTokenIncentives(
+                address(token)
+            );
+        }
         if (creationFee > 0 && address(token) == address(foreToken)) {
-            foreToken.safeTransferFrom(
+            token.safeTransferFrom(
                 msg.sender,
                 address(0x000000000000000000000000000000000000dEaD),
                 creationFee

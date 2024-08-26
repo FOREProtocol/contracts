@@ -1,15 +1,19 @@
+import { ethers } from "ethers";
+
 export const incentives = {
   foreToken: {
     predictionDiscountRate: 1000,
     marketCreatorDiscountRate: 1000,
     verificationDiscountRate: 1000,
     foundationDiscountRate: 1000,
+    marketCreationFee: ethers.utils.parseEther("10"),
   },
   usdt: {
     predictionDiscountRate: 1000,
     marketCreatorDiscountRate: 1000,
     verificationDiscountRate: 1000,
     foundationDiscountRate: 1000,
+    marketCreationFee: ethers.utils.parseEther("10"),
   },
 };
 

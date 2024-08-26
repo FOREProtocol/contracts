@@ -3,7 +3,6 @@ import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
-import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber, Contract, ContractTransaction } from "ethers";
@@ -23,7 +22,6 @@ import {
   SetPredictionFlatFeeRateEvent,
   SetVerificationFlatFeeRateEvent,
 } from "@/BasicFactoryV2";
-import { MarketLibV2 } from "@/MarketLibV2";
 import { ERC20 } from "@/ERC20";
 import { ForeAccessManager } from "@/ForeAccessManager";
 import { defaultIncentives } from "../../helpers/constants";
@@ -45,8 +43,8 @@ describe("BasicFactoryV2", () => {
   let foreVerifiers: MockContract<ForeVerifiers>;
   let protocol: ForeProtocol;
   let contract: BasicFactoryV2;
-  let marketLib: MarketLibV2;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
   let usdcToken: MockContract<ERC20>;
   let foreAccessManager: MockContract<ForeAccessManager>;
 
@@ -79,10 +77,7 @@ describe("BasicFactoryV2", () => {
       ethers.utils.parseEther("20")
     );
 
-    marketLib = await deployLibrary("MarketLibV2", [
-      "BasicMarketV2",
-      "BasicFactoryV2",
-    ]);
+    await deployLibrary("MarketLibV2", ["BasicMarketV2", "BasicFactoryV2"]);
 
     protocol = await deployContract<ForeProtocol>(
       "ForeProtocol",
@@ -113,11 +108,21 @@ describe("BasicFactoryV2", () => {
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
     contract = await deployContract<BasicFactoryV2>(
       "BasicFactoryV2",
       foreAccessManager.address,
       protocol.address,
       tokenRegistry.address,
+      accountWhitelist.address,
       foundationWallet.address
     );
 
@@ -710,23 +715,6 @@ describe("BasicFactoryV2", () => {
             )
         ).to.revertedWith("Basic Factory: Date error");
       });
-
-      it("Should allow in case of zero fee", async () => {
-        await txExec(protocolConfig.connect(owner).setMarketCreationPrice(0));
-
-        await txExec(
-          contract
-            .connect(alice)
-            .createMarket(
-              "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
-              alice.address,
-              [0, 0],
-              1653327334588,
-              1653357334588,
-              foreToken.address
-            )
-        );
-      });
     });
 
     describe("Invalid market", async () => {
@@ -867,6 +855,51 @@ describe("BasicFactoryV2", () => {
           alice.address,
           BigNumber.from(0)
         );
+    });
+  });
+
+  describe("With whitelisted market creator", () => {
+    let tx: ContractTransaction;
+    let marketContract: BasicMarketV2;
+
+    beforeEach(async () => {
+      await accountWhitelist
+        .connect(defaultAdmin)
+        .manageWhitelist(bob.address, true);
+      const marketHash =
+        "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
+      [tx] = await txExec(
+        contract
+          .connect(bob)
+          .createMarket(
+            marketHash,
+            alice.address,
+            [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
+            1653327334588,
+            1653357334588,
+            foreToken.address
+          )
+      );
+
+      const initCode = await contract.INIT_CODE_PAIR_HASH();
+
+      const salt = marketHash;
+      const newAddress = ethers.utils.getCreate2Address(
+        contract.address,
+        salt,
+        initCode
+      );
+
+      marketContract = await attachContract<BasicMarketV2>(
+        "BasicMarketV2",
+        newAddress
+      );
+    });
+
+    it("should not incur fees", async () => {
+      expect(
+        await foreToken.balanceOf("0x000000000000000000000000000000000000dEaD")
+      ).to.be.eq(0);
     });
   });
 });

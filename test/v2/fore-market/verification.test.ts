@@ -43,6 +43,7 @@ describe("BasicMarketV2 / Verification", () => {
   let foreProtocol: MockContract<ForeProtocol>;
   let basicFactory: MockContract<BasicFactoryV2>;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
   let usdcToken: MockContract<MockERC20>;
   let contract: BasicMarketV2;
   let foreAccessManager: MockContract<ForeAccessManager>;
@@ -117,12 +118,22 @@ describe("BasicMarketV2 / Verification", () => {
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
       foreAccessManager.address,
       foreProtocol.address,
       tokenRegistry.address,
+      accountWhitelist.address,
       foundationWallet.address
     );
 

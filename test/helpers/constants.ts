@@ -1,4 +1,4 @@
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 
 export const MaxAllowanceTransferAmount = BigNumber.from(
   "0xffffffffffffffffffffffffffffffffffffffff"
@@ -41,6 +41,7 @@ export const defaultIncentives = {
   marketCreatorDiscountRate: 1000,
   verificationDiscountRate: 1000,
   foundationDiscountRate: 1000,
+  marketCreationFee: ethers.utils.parseEther("10"),
 } as const;
 
 /**
