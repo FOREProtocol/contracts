@@ -1,29 +1,33 @@
 // SPDX-License-Identifier: MIT
+// Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol";
 
 error TokenAlreadyRegistered();
 error TokenNotRegistered();
 error InvalidToken();
 error InvalidIncentiveRates();
 
+/// @custom:security-contact security@foreprotocol.io
 contract TokenIncentiveRegistry is
     Initializable,
-    UUPSUpgradeable,
-    OwnableUpgradeable
+    AccessManagedUpgradeable,
+    UUPSUpgradeable
 {
     struct TokenIncentives {
         /// @notice Prediction discount rate
         uint256 predictionDiscountRate;
-        /// @notice Market creation discount rate
+        /// @notice Market creator discount rate
         uint256 marketCreatorDiscountRate;
         /// @notice Prediction discount rate
         uint256 verificationDiscountRate;
         /// @notice Foundation discount rate
         uint256 foundationDiscountRate;
+        /// @notice Market creation fee
+        uint256 marketCreationFee;
     }
 
     /**
@@ -53,10 +57,13 @@ contract TokenIncentiveRegistry is
      * It ensures that the contract is only initialized once due to the `initializer` modifier.
      */
     function initialize(
+        address initialAuthority,
         address[] memory tokenAddresses,
         TokenIncentives[] memory incentives
     ) public initializer {
-        __Ownable_init();
+        __AccessManaged_init(initialAuthority);
+        __UUPSUpgradeable_init();
+
         for (uint i = 0; i < tokenAddresses.length; i++) {
             if (tokenAddresses[i] == address(0)) {
                 revert InvalidToken();
@@ -75,13 +82,14 @@ contract TokenIncentiveRegistry is
      */
     function getTokenIncentives(
         address tokenAddress
-    ) external view returns (uint256, uint256, uint256, uint256) {
+    ) external view returns (uint256, uint256, uint256, uint256, uint256) {
         TokenIncentives memory incentives = tokenIncentives[tokenAddress];
         return (
             incentives.predictionDiscountRate,
             incentives.marketCreatorDiscountRate,
             incentives.verificationDiscountRate,
-            incentives.foundationDiscountRate
+            incentives.foundationDiscountRate,
+            incentives.marketCreationFee
         );
     }
 
@@ -104,7 +112,7 @@ contract TokenIncentiveRegistry is
     function addToken(
         address tokenAddress,
         TokenIncentives memory incentives
-    ) external onlyOwner {
+    ) external restricted {
         if (tokenAddress == address(0)) {
             revert InvalidToken();
         }
@@ -125,7 +133,7 @@ contract TokenIncentiveRegistry is
      * @dev This function deletes the token's entry from the `tokenIncentives` mapping.
      * It emits a `TokenRemoved` event upon successful removal.
      */
-    function removeToken(address tokenAddress) external onlyOwner {
+    function removeToken(address tokenAddress) external restricted {
         if (_isZeroIncentive(tokenIncentives[tokenAddress])) {
             revert TokenNotRegistered();
         }
@@ -144,7 +152,7 @@ contract TokenIncentiveRegistry is
     function setTokenIncentives(
         address tokenAddress,
         TokenIncentives memory newIncentives
-    ) external onlyOwner {
+    ) external restricted {
         if (_isZeroIncentive(newIncentives)) {
             revert InvalidIncentiveRates();
         }
@@ -168,9 +176,10 @@ contract TokenIncentiveRegistry is
             incentives.predictionDiscountRate == 0 &&
             incentives.marketCreatorDiscountRate == 0 &&
             incentives.verificationDiscountRate == 0 &&
-            incentives.foundationDiscountRate == 0;
+            incentives.foundationDiscountRate == 0 &&
+            incentives.marketCreationFee == 0;
     }
 
     /// @notice Ensure only the owner can upgrade the contract
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override restricted {}
 }

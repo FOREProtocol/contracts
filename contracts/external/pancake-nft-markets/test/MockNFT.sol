@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "openzeppelin-v4/contracts/access/Ownable.sol";
+import "openzeppelin-v4/contracts/utils/Counters.sol";
+import "openzeppelin-v4/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
 /** @title MockNFT.
  * @notice It is a mock NFT contract
@@ -19,7 +19,10 @@ contract MockNFT is ERC721URIStorage, Ownable {
      * @param _name: name of NFT (e.g. "Mock NFT")
      * @param _symbol: symbol of NFT (e.g. "MN")
      */
-    constructor(string memory _name, string memory _symbol) ERC721(_name, _symbol) {
+    constructor(
+        string memory _name,
+        string memory _symbol
+    ) ERC721(_name, _symbol) {
         //
     }
 

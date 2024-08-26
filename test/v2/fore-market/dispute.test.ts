@@ -19,11 +19,13 @@ import {
   deployLibrary,
   deployMockedContract,
   executeInSingleBlock,
+  generateRandomHexString,
   sendERC20Tokens,
   timetravel,
   txExec,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Dispute", () => {
   let owner: SignerWithAddress;
@@ -35,6 +37,7 @@ describe("BasicMarketV2 / Dispute", () => {
   let carol: SignerWithAddress;
   let dave: SignerWithAddress;
   let marketLib: MarketLibV2;
+  let defaultAdmin: SignerWithAddress;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
@@ -42,8 +45,10 @@ describe("BasicMarketV2 / Dispute", () => {
   let foreProtocol: MockContract<ForeProtocol>;
   let basicFactory: MockContract<BasicFactoryV2>;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -57,6 +62,7 @@ describe("BasicMarketV2 / Dispute", () => {
       bob,
       carol,
       dave,
+      defaultAdmin,
     ] = await ethers.getSigners();
 
     // deploy library
@@ -90,21 +96,46 @@ describe("BasicMarketV2 / Dispute", () => {
       "https://markets.api.foreprotocol.io/market/"
     );
 
-    usdcToken = await deployMockedContract<ERC20>("ERC20", "USDC", "USD Coin");
+    usdcToken = await deployMockedContract<ERC20>(
+      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "USDC",
+      "USD Coin"
+    );
+
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
 
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      accountWhitelist.address,
+      foundationWallet.address
     );
 
     // factory assignment
@@ -404,7 +435,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .to.emit(foreToken, "Transfer")
             .withArgs(
               contract.address,
-              "0x0000000000000000000000000000000000000000",
+              "0x000000000000000000000000000000000000dEaD",
               ethers.utils.parseEther("1")
             );
         });
@@ -500,7 +531,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .to.emit(foreToken, "Transfer")
             .withArgs(
               contract.address,
-              "0x0000000000000000000000000000000000000000",
+              "0x000000000000000000000000000000000000dEaD",
               ethers.utils.parseEther("1.9")
             );
         });
@@ -578,7 +609,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .to.emit(foreToken, "Transfer")
             .withArgs(
               contract.address,
-              "0x0000000000000000000000000000000000000000",
+              "0x000000000000000000000000000000000000dEaD",
               ethers.utils.parseEther("1")
             );
         });
@@ -699,7 +730,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .to.emit(foreToken, "Transfer")
             .withArgs(
               contract.address,
-              "0x0000000000000000000000000000000000000000",
+              "0x000000000000000000000000000000000000dEaD",
               ethers.utils.parseEther("1.45")
             );
         });
@@ -800,6 +831,69 @@ describe("BasicMarketV2 / Dispute", () => {
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       ).to.be.revertedWith("MarketIsClosed");
+    });
+  });
+
+  describe("only one side has prediction", () => {
+    let contract: BasicMarketV2;
+
+    beforeEach(async () => {
+      await sendERC20Tokens(foreToken, {
+        [alice.address]: ethers.utils.parseEther("10000"),
+        [bob.address]: ethers.utils.parseEther("10000"),
+        [dave.address]: ethers.utils.parseEther("10000"),
+      });
+
+      const marketHash = generateRandomHexString(64);
+      await txExec(
+        basicFactory
+          .connect(alice)
+          .createMarket(
+            marketHash,
+            alice.address,
+            [ethers.utils.parseEther("70"), 0],
+            blockTimestamp + 200000,
+            blockTimestamp + 300000,
+            foreToken.address
+          )
+      );
+
+      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
+
+      const salt = marketHash;
+      const newAddress = ethers.utils.getCreate2Address(
+        basicFactory.address,
+        salt,
+        initCode
+      );
+
+      contract = await attachContract<BasicMarketV2>(
+        "BasicMarketV2",
+        newAddress
+      );
+
+      await executeInSingleBlock(() => [
+        foreToken
+          .connect(alice)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        foreToken
+          .connect(bob)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        foreToken
+          .connect(dave)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+      ]);
+
+      await timetravel(blockTimestamp + 300001);
+      await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
+    });
+
+    it("should open dispute", async () => {
+      await contract
+        .connect(dave)
+        .openDispute(
+          "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+        );
     });
   });
 });

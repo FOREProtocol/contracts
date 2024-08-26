@@ -22,6 +22,7 @@ import {
   txExec,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 const calculatePredictionFee = async (
   contract: BasicMarketV2,
@@ -41,16 +42,19 @@ describe("BasicMarketV2 / Predicting", () => {
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
   let usdcHolder: SignerWithAddress;
+  let defaultAdmin: SignerWithAddress;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
   let usdcToken: MockERC20;
   let basicFactory: MockContract<BasicFactoryV2>;
   let marketLib: MarketLibV2;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -68,6 +72,7 @@ describe("BasicMarketV2 / Predicting", () => {
       alice,
       bob,
       usdcHolder,
+      defaultAdmin,
     ] = await ethers.getSigners();
 
     // deploy library
@@ -109,19 +114,40 @@ describe("BasicMarketV2 / Predicting", () => {
       ethers.utils.parseEther("1000000")
     );
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      accountWhitelist.address,
+      foundationWallet.address
     );
 
     // factory assignment
@@ -387,6 +413,20 @@ describe("BasicMarketV2 / Predicting", () => {
             ethers.utils.parseEther("2").sub(predictionFees.foreToken)
           );
       });
+    });
+  });
+
+  describe("token not enabled", async () => {
+    beforeEach(async () => {
+      await tokenRegistry.connect(defaultAdmin).removeToken(foreToken.address);
+    });
+
+    it("should revert token not enabled", async () => {
+      await expect(
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("2"), SIDES.TRUE)
+      ).to.revertedWith("Basic Market: Token is not enabled");
     });
   });
 

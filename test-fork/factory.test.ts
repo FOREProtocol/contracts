@@ -10,6 +10,7 @@ import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockERC20 } from "@/MockERC20";
 import { BasicFactoryV2 } from "@/BasicFactoryV2";
 import { BasicMarketV2 } from "@/BasicMarketV2";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 import {
   attachContract,
@@ -19,7 +20,7 @@ import {
   generateRandomHexString,
   impersonateContract,
   txExec,
-} from "../../helpers/utils";
+} from "../test/helpers/utils";
 import {
   defaultIncentives,
   foreProtocolAddress,
@@ -27,10 +28,16 @@ import {
   protocolConfigAddress,
   protocolConfigOwnerAddress,
   tokenHolderAddress,
-} from "../../helpers/constants";
+} from "../test/helpers/constants";
 
-describe("Fork / BasicFactoryV2", () => {
-  let [, alice, usdcHolder]: SignerWithAddress[] = [];
+describe("Fork / BasicFactoryV2 ", () => {
+  let [
+    ,
+    alice,
+    usdcHolder,
+    foundationWallet,
+    defaultAdmin,
+  ]: SignerWithAddress[] = [];
 
   let foreToken: ForeToken;
   let foreProtocol: ForeProtocol;
@@ -39,6 +46,7 @@ describe("Fork / BasicFactoryV2", () => {
   let protocolConfig: ProtocolConfig;
   let usdcToken: MockERC20;
   let tokenRegistry: Contract;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -56,7 +64,8 @@ describe("Fork / BasicFactoryV2", () => {
   });
 
   beforeEach(async () => {
-    [, alice, usdcHolder] = await ethers.getSigners();
+    [, alice, usdcHolder, foundationWallet, defaultAdmin] =
+      await ethers.getSigners();
 
     // deploy library
     await deployLibrary("MarketLibV2", ["BasicMarketV2", "BasicFactoryV2"]);
@@ -77,20 +86,30 @@ describe("Fork / BasicFactoryV2", () => {
       foreTokenAddress
     );
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
 
-    // preparing factory contract
+    // preparing factory
     contract = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      foundationWallet.address
     );
 
     // Impersonate token holder

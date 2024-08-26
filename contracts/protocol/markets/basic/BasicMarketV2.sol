@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
+// Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./library/MarketLibV2.sol";
 import "./library/ArrayUtils.sol";
 import "../../IForeProtocol.sol";
@@ -11,11 +12,9 @@ import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
-import "../../../token/IERC20Burnable.sol";
 
+/// @custom:security-contact security@foreprotocol.io
 contract BasicMarketV2 is ReentrancyGuard {
-    using SafeERC20 for IERC20Burnable;
-
     using SafeERC20 for IERC20;
 
     struct MarketCreationInitialData {
@@ -86,10 +85,10 @@ contract BasicMarketV2 is ReentrancyGuard {
     IForeVerifiers public foreVerifiers;
 
     /// @notice Fore Token
-    IERC20Burnable public foreToken;
+    IERC20 public foreToken;
 
     /// @notice Currency Token
-    IERC20Burnable public token;
+    IERC20 public token;
 
     /// @notice Token Registry
     ITokenIncentiveRegistry public tokenRegistry;
@@ -155,8 +154,8 @@ contract BasicMarketV2 is ReentrancyGuard {
         protocol = IForeProtocol(payload.protocolAddress);
         protocolConfig = IProtocolConfig(protocol.config());
         marketConfig = IMarketConfig(protocolConfig.marketConfig());
-        foreToken = IERC20Burnable(protocol.foreToken());
-        token = IERC20Burnable(payload.token);
+        foreToken = IERC20(protocol.foreToken());
+        token = IERC20(payload.token);
         foreVerifiers = IForeVerifiers(protocol.foreVerifiers());
         tokenRegistry = ITokenIncentiveRegistry(payload.tokenRegistry);
 
@@ -256,11 +255,10 @@ contract BasicMarketV2 is ReentrancyGuard {
         ) = marketConfig.config();
 
         MarketLibV2.ResultType result = MarketLibV2.calculateMarketResult(m);
-        if (
-            result == MarketLibV2.ResultType.INVALID &&
-            (m.startVerificationTimestamp + verificationPeriod <
-                block.timestamp)
-        ) {
+        bool isDisputeStarted = block.timestamp >=
+            m.startVerificationTimestamp + verificationPeriod;
+
+        if (result == MarketLibV2.ResultType.INVALID && isDisputeStarted) {
             _closeMarket(MarketLibV2.ResultType.INVALID);
             return;
         }
@@ -497,21 +495,18 @@ contract BasicMarketV2 is ReentrancyGuard {
             MarketLibV2.Market memory m = _market;
             uint256 verificatorsFees = (m.totalMarketSize * verificationFee) /
                 DIVIDER;
-            int8 firstZeroIndex = ArrayUtils.findFirstZeroValueElement(
-                m.verifications
-            );
 
-            if (firstZeroIndex != -1) {
-                uint8 side = uint8(firstZeroIndex);
-                if (
-                    m.winnerSideIndex == side &&
-                    result == MarketLibV2.ResultType.WON
-                ) {
-                    toBurn += verificatorsFees;
-                }
+            if (
+                m.verifications[m.winnerSideIndex] == 0 &&
+                result == MarketLibV2.ResultType.WON
+            ) {
+                toBurn += verificatorsFees;
             }
             if (toBurn != 0 && address(token) == address(foreToken)) {
-                token.burn(toBurn);
+                token.safeTransfer(
+                    address(0x000000000000000000000000000000000000dEaD),
+                    toBurn
+                );
             }
             if (toFoundation != 0) {
                 token.safeTransfer(
@@ -531,7 +526,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the prediction fee rate
     /// @return The calculated fee rate
     function _calculatePredictionFeeRate() private view returns (uint256) {
-        (uint256 discountRate, , , ) = tokenRegistry.getTokenIncentives(
+        (uint256 discountRate, , , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (predictionFlatFeeRate * discountRate) / DIVIDER;
@@ -541,7 +536,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the verification fee rate
     /// @return The calculated fee rate
     function _calculateVerificationFeeRate() private view returns (uint256) {
-        (, , uint256 discountRate, ) = tokenRegistry.getTokenIncentives(
+        (, , uint256 discountRate, , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (verificationFlatFeeRate * discountRate) / DIVIDER;
@@ -551,7 +546,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the foundation fee rate
     /// @return The calculated fee rate
     function _calculateFoundationFeeRate() private view returns (uint256) {
-        (, , , uint256 discountRate) = tokenRegistry.getTokenIncentives(
+        (, , , uint256 discountRate, ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (foundationFlatFeeRate * discountRate) / DIVIDER;
@@ -561,7 +556,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the market creator fee rate
     /// @return The calculated fee rate
     function _calculateMarketCreatorFeeRate() private view returns (uint256) {
-        (, uint256 discountRate, , ) = tokenRegistry.getTokenIncentives(
+        (, uint256 discountRate, , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (marketCreatorFlatFeeRate * discountRate) / DIVIDER;

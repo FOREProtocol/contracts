@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: MIT
+// Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import {AccessManaged} from "@openzeppelin/contracts/access/manager/AccessManaged.sol";
 import "./BasicMarketV2.sol";
 import "./library/ArrayUtils.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
+import "../../IAccountWhitelist.sol";
 
-contract BasicFactoryV2 is Pausable, Ownable {
-    using SafeERC20 for IERC20Burnable;
+/// @custom:security-contact security@foreprotocol.io
+contract BasicFactoryV2 is Pausable, AccessManaged {
+    using SafeERC20 for IERC20;
 
     using SafeERC20 for IERC20;
 
@@ -45,8 +48,11 @@ contract BasicFactoryV2 is Pausable, Ownable {
     /// @notice Protocol Contract
     IForeProtocol public immutable foreProtocol;
 
+    /// @notice Account whitelist
+    IAccountWhitelist public immutable accountWhitelist;
+
     /// @notice ForeToken
-    IERC20Burnable public immutable foreToken;
+    IERC20 public immutable foreToken;
 
     /// @notice Protocol Config
     IProtocolConfig public immutable config;
@@ -63,13 +69,20 @@ contract BasicFactoryV2 is Pausable, Ownable {
     event SetFoundationFlatFeeRate(uint32 indexed feeRate);
 
     /// @param protocolAddress Protocol Contract address
-    constructor(IForeProtocol protocolAddress, address _tokenRegistry) {
+    constructor(
+        address _initialAuthority,
+        IForeProtocol protocolAddress,
+        ITokenIncentiveRegistry _tokenRegistry,
+        IAccountWhitelist _accountWhitelist,
+        address _initialFeeReceiver
+    ) AccessManaged(_initialAuthority) {
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
-        foreToken = IERC20Burnable(protocolAddress.foreToken());
+        foreToken = IERC20(protocolAddress.foreToken());
         foreVerifiers = IForeVerifiers(protocolAddress.foreVerifiers());
-        tokenRegistry = ITokenIncentiveRegistry(_tokenRegistry);
-        feeReceiver = owner();
+        tokenRegistry = _tokenRegistry;
+        accountWhitelist = _accountWhitelist;
+        feeReceiver = _initialFeeReceiver;
     }
 
     /**
@@ -105,11 +118,16 @@ contract BasicFactoryV2 is Pausable, Ownable {
         }();
         createdMarket = address(createdMarketContract);
 
-        uint256 creationFee = config.marketCreationPrice();
+        uint256 creationFee = 0;
         uint256 amountSum = ArrayUtils.sum(amounts);
 
-        if (address(token) == address(foreToken) && creationFee != 0) {
-            foreToken.safeTransferFrom(
+        if (!accountWhitelist.isAccountWhitelisted(msg.sender)) {
+            (, , , , creationFee) = tokenRegistry.getTokenIncentives(
+                address(token)
+            );
+        }
+        if (creationFee > 0 && address(token) == address(foreToken)) {
+            token.safeTransferFrom(
                 msg.sender,
                 address(0x000000000000000000000000000000000000dEaD),
                 creationFee
@@ -151,7 +169,7 @@ contract BasicFactoryV2 is Pausable, Ownable {
      * @dev Can only be called by the contract owner. Emits a SetPredictionFlatFeeRate event
      * @param feeRate The new flat fee rate for predictions
      */
-    function setPredictionFlatFeeRate(uint32 feeRate) external onlyOwner {
+    function setPredictionFlatFeeRate(uint32 feeRate) external restricted {
         predictionFlatFeeRate = feeRate;
         emit SetPredictionFlatFeeRate(feeRate);
     }
@@ -161,7 +179,7 @@ contract BasicFactoryV2 is Pausable, Ownable {
      * @dev Can only be called by the contract owner. Emits a SetMarketCreatorFlatFeeRate event
      * @param feeRate The new flat fee rate for market creator
      */
-    function setMarketCreatorFlatFeeRate(uint32 feeRate) external onlyOwner {
+    function setMarketCreatorFlatFeeRate(uint32 feeRate) external restricted {
         marketCreatorFlatFeeRate = feeRate;
         emit SetMarketCreatorFlatFeeRate(feeRate);
     }
@@ -171,7 +189,7 @@ contract BasicFactoryV2 is Pausable, Ownable {
      * @dev Can only be called by the contract owner. Emits a SetVerificationFlatFeeRate event
      * @param feeRate The new flat fee rate for verifications
      */
-    function setVerificationFlatFeeRate(uint32 feeRate) external onlyOwner {
+    function setVerificationFlatFeeRate(uint32 feeRate) external restricted {
         verificationFlatFeeRate = feeRate;
         emit SetVerificationFlatFeeRate(feeRate);
     }
@@ -181,24 +199,24 @@ contract BasicFactoryV2 is Pausable, Ownable {
      * @dev Can only be called by the contract owner. Emits a SetFoundationFlatFeeRate event
      * @param feeRate The new flat fee rate for foundation operations
      */
-    function setFoundationFlatFeeRate(uint32 feeRate) external onlyOwner {
+    function setFoundationFlatFeeRate(uint32 feeRate) external restricted {
         foundationFlatFeeRate = feeRate;
         emit SetFoundationFlatFeeRate(feeRate);
     }
 
     /**
      * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
-     * @dev Only the owner can call this function.
+     * @dev Only the sentinel can call this function.
      */
-    function pause() external onlyOwner {
+    function pause() external restricted {
         _pause();
     }
 
     /**
      * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
-     * @dev Only the owner can call this function.
+     * @dev Only the sentinel can call this function.
      */
-    function unpause() external onlyOwner {
+    function unpause() external restricted {
         _unpause();
     }
 }

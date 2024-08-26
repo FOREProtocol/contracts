@@ -19,9 +19,11 @@ import {
   deployLibrary,
   deployMockedContract,
   impersonateContract,
+  timetravel,
   txExec,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Initialization", () => {
   let owner: SignerWithAddress;
@@ -29,6 +31,7 @@ describe("BasicMarketV2 / Initialization", () => {
   let highGuardAccount: SignerWithAddress;
   let marketplaceContract: SignerWithAddress;
   let basicFactoryAccount: Signer;
+  let defaultAdmin: SignerWithAddress;
 
   let marketLib: MarketLibV2;
   let protocolConfig: MockContract<ProtocolConfig>;
@@ -37,14 +40,23 @@ describe("BasicMarketV2 / Initialization", () => {
   let foreProtocol: MockContract<ForeProtocol>;
   let basicFactory: MockContract<BasicFactoryV2>;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
   beforeEach(async () => {
-    [owner, foundationWallet, highGuardAccount, marketplaceContract, , ,] =
-      await ethers.getSigners();
+    [
+      owner,
+      foundationWallet,
+      highGuardAccount,
+      marketplaceContract,
+      ,
+      ,
+      defaultAdmin,
+    ] = await ethers.getSigners();
 
     // deploy library
     marketLib = await deployLibrary("MarketLibV2", [
@@ -77,21 +89,46 @@ describe("BasicMarketV2 / Initialization", () => {
       "https://markets.api.foreprotocol.io/market/"
     );
 
-    usdcToken = await deployMockedContract<ERC20>("ERC20", "USDC", "USD Coin");
+    usdcToken = await deployMockedContract<ERC20>(
+      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "USDC",
+      "USD Coin"
+    );
+
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
 
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      accountWhitelist.address,
+      foundationWallet.address
     );
     basicFactoryAccount = await impersonateContract(basicFactory.address);
 
@@ -314,5 +351,31 @@ describe("BasicMarketV2 / Initialization", () => {
         await contract.getPredictionAmountBySide(owner.address, SIDES.FALSE)
       ).to.be.equal(0);
     });
+  });
+
+  it("should revert prediction period is already closed", async () => {
+    await timetravel(blockTimestamp + 100001);
+
+    await expect(
+      txExec(
+        contract.connect(basicFactoryAccount).initialize({
+          mHash:
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+          receiver: owner.address,
+          amounts: [ethers.utils.parseEther("1"), ethers.utils.parseEther("2")],
+          protocolAddress: foreProtocol.address,
+          tokenRegistry: tokenRegistry.address,
+          feeReceiver: owner.address,
+          token: foreToken.address,
+          endPredictionTimestamp: blockTimestamp + 100000,
+          startVerificationTimestamp: blockTimestamp + 200000,
+          tokenId: 0,
+          predictionFlatFeeRate: 1000,
+          marketCreatorFlatFeeRate: 100,
+          verificationFlatFeeRate: 100,
+          foundationFlatFeeRate: 1800,
+        })
+      )
+    ).to.revertedWith("PredictionPeriodIsAlreadyClosed");
   });
 });

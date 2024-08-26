@@ -9,6 +9,7 @@ async function main() {
   const foreUniversalRouter = await upgrades.deployProxy(
     ForeUniversalRouterFactory,
     [
+      contractAddresses.accessManager,
       contractAddresses.protocol,
       contractAddresses.permit2,
       [contractAddresses.foreToken, contractAddresses.usdt],

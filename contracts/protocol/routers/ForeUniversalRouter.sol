@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
+// Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
@@ -17,12 +18,13 @@ error InvalidOperator();
 error InvalidTarget();
 error CallFunctionFailed();
 
+/// @custom:security-contact security@foreprotocol.io
 contract ForeUniversalRouter is
     Initializable,
-    UUPSUpgradeable,
     PausableUpgradeable,
-    OwnableUpgradeable,
-    ReentrancyGuardUpgradeable
+    AccessManagedUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
 {
     using SafeERC20 for IERC20;
 
@@ -33,7 +35,7 @@ contract ForeUniversalRouter is
     IForeProtocol public foreProtocol;
 
     /// @notice tokens
-    mapping(address => bool) tokens;
+    mapping(address => bool) public tokens;
 
     /// EVENTS
     event PermitUsed(
@@ -62,13 +64,15 @@ contract ForeUniversalRouter is
      * @param tokenAddresses An array of token addresses to be marked as valid tokens within the contract
      */
     function initialize(
+        address initialAuthority,
         IForeProtocol protocolAddress,
         IAllowanceTransfer permit2Address,
         address[] memory tokenAddresses
     ) public initializer {
         __Pausable_init();
-        __Ownable_init();
+        __AccessManaged_init(initialAuthority);
         __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
 
         foreProtocol = protocolAddress;
         permit2 = permit2Address;
@@ -184,7 +188,7 @@ contract ForeUniversalRouter is
      * @param token The address of the token contract.
      * @param shouldAdd Boolean flag indicating whether to add (true) or remove (false) the token.
      */
-    function manageTokens(address token, bool shouldAdd) external onlyOwner {
+    function manageTokens(address token, bool shouldAdd) external restricted {
         if (token == address(0)) {
             revert InvalidToken();
         }
@@ -197,7 +201,7 @@ contract ForeUniversalRouter is
      * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
      * @dev Only the owner can call this function.
      */
-    function pause() external onlyOwner {
+    function pause() external restricted {
         _pause();
     }
 
@@ -205,7 +209,7 @@ contract ForeUniversalRouter is
      * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
      * @dev Only the owner can call this function.
      */
-    function unpause() external onlyOwner {
+    function unpause() external restricted {
         _unpause();
     }
 
@@ -247,9 +251,9 @@ contract ForeUniversalRouter is
         address token
     ) internal {
         permit2.transferFrom(msg.sender, address(this), amount, address(token));
-        IERC20(token).safeApprove(spender, amount);
+        IERC20(token).forceApprove(spender, amount);
     }
 
     /// @notice Ensure only the owner can upgrade the contract
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override restricted {}
 }

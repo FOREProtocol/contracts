@@ -5,14 +5,13 @@ import "../../IForeProtocol.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "openzeppelin-v4/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
+import "openzeppelin-v4/contracts/security/ReentrancyGuard.sol";
 import "./library/MarketLib.sol";
-import "../../../token/IERC20Burnable.sol";
 
 contract BasicMarket is ReentrancyGuard {
-    using SafeERC20 for IERC20Burnable;
+    using SafeERC20 for IERC20;
 
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
@@ -36,7 +35,7 @@ contract BasicMarket is ReentrancyGuard {
     IForeVerifiers public foreVerifiers;
 
     /// @notice Fore Token
-    IERC20Burnable public foreToken;
+    IERC20 public foreToken;
 
     /// @notice Market info
     MarketLib.Market internal _market;
@@ -113,7 +112,7 @@ contract BasicMarket is ReentrancyGuard {
         protocol = IForeProtocol(protocolAddress);
         protocolConfig = IProtocolConfig(protocol.config());
         marketConfig = IMarketConfig(protocolConfig.marketConfig());
-        foreToken = IERC20Burnable(protocol.foreToken());
+        foreToken = IERC20(protocol.foreToken());
         foreVerifiers = IForeVerifiers(protocol.foreVerifiers());
 
         marketHash = mHash;
@@ -262,7 +261,10 @@ contract BasicMarket is ReentrancyGuard {
                 toBurn += verificatorsFees;
             }
             if (toBurn != 0) {
-                foreToken.burn(toBurn);
+                foreToken.safeTransfer(
+                    address(0x000000000000000000000000000000000000dEaD),
+                    toBurn
+                );
             }
             if (toFoundation != 0) {
                 foreToken.safeTransfer(

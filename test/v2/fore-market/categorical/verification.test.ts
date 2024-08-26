@@ -21,11 +21,11 @@ import {
   txExec,
   deployLibrary,
   executeInSingleBlock,
-} from "../../helpers/utils";
-import { SIDES, defaultIncentives } from "../../helpers/constants";
+} from "../../../helpers/utils";
+import { SIDES, defaultIncentives } from "../../../helpers/constants";
 import { ForeAccessManager } from "@/ForeAccessManager";
 
-describe("BasicMarketV2 / Verification", () => {
+describe("BasicMarketV2 / Categorical / Verification", () => {
   let owner: SignerWithAddress;
   let foundationWallet: SignerWithAddress;
   let highGuardAccount: SignerWithAddress;
@@ -34,6 +34,9 @@ describe("BasicMarketV2 / Verification", () => {
   let bob: SignerWithAddress;
   let carol: SignerWithAddress;
   let dave: SignerWithAddress;
+  let james: SignerWithAddress;
+  let smith: SignerWithAddress;
+  let joe: SignerWithAddress;
   let marketLib: MarketLibV2;
   let defaultAdmin: SignerWithAddress;
 
@@ -60,6 +63,9 @@ describe("BasicMarketV2 / Verification", () => {
       bob,
       carol,
       dave,
+      james,
+      smith,
+      joe,
       defaultAdmin,
     ] = await ethers.getSigners();
 
@@ -152,6 +158,9 @@ describe("BasicMarketV2 / Verification", () => {
       [bob.address]: ethers.utils.parseEther("1000"),
       [carol.address]: ethers.utils.parseEther("1000"),
       [dave.address]: ethers.utils.parseEther("1000"),
+      [james.address]: ethers.utils.parseEther("1000"),
+      [smith.address]: ethers.utils.parseEther("1000"),
+      [joe.address]: ethers.utils.parseEther("1000"),
     });
 
     const previousBlock = await ethers.provider.getBlock("latest");
@@ -187,7 +196,7 @@ describe("BasicMarketV2 / Verification", () => {
         .createMarket(
           marketHash,
           alice.address,
-          [0, 0],
+          [0, 0, 0, 0, 0],
           blockTimestamp + 200000,
           blockTimestamp + 300000,
           foreToken.address
@@ -218,6 +227,15 @@ describe("BasicMarketV2 / Verification", () => {
       foreToken
         .connect(dave)
         .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+      foreToken
+        .connect(james)
+        .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+      foreToken
+        .connect(smith)
+        .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+      foreToken
+        .connect(joe)
+        .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
     ]);
 
     // create verifiers tokens
@@ -232,18 +250,20 @@ describe("BasicMarketV2 / Verification", () => {
       foreProtocol.connect(owner).mintVerifier(bob.address),
       foreProtocol.connect(owner).mintVerifier(carol.address),
       foreProtocol.connect(owner).mintVerifier(dave.address),
+      foreProtocol.connect(owner).mintVerifier(james.address),
+      foreProtocol.connect(owner).mintVerifier(smith.address),
+      foreProtocol.connect(owner).mintVerifier(joe.address),
     ]);
   });
 
-  describe("Both markets sides have prediction", () => {
+  describe("All markets sides have prediction", () => {
     beforeEach(async () => {
       await executeInSingleBlock(() => [
-        contract
-          .connect(alice)
-          .predict(ethers.utils.parseEther("50"), SIDES.TRUE),
-        contract
-          .connect(bob)
-          .predict(ethers.utils.parseEther("40"), SIDES.FALSE),
+        contract.connect(alice).predict(ethers.utils.parseEther("50"), 0),
+        contract.connect(alice).predict(ethers.utils.parseEther("40"), 1),
+        contract.connect(alice).predict(ethers.utils.parseEther("50"), 2),
+        contract.connect(bob).predict(ethers.utils.parseEther("40"), 3),
+        contract.connect(bob).predict(ethers.utils.parseEther("50"), 4),
       ]);
     });
 
@@ -255,9 +275,9 @@ describe("BasicMarketV2 / Verification", () => {
       it("Should revert if executed before prediction end", async () => {
         await timetravel(blockTimestamp + 250000);
 
-        await expect(
-          contract.connect(bob).verify(1, SIDES.TRUE)
-        ).to.revertedWith("VerificationHasNotStartedYet");
+        await expect(contract.connect(bob).verify(1, 0)).to.revertedWith(
+          "VerificationHasNotStartedYet"
+        );
       });
     });
 
@@ -267,18 +287,18 @@ describe("BasicMarketV2 / Verification", () => {
       });
 
       it("Should revert if executed with non owned token", async () => {
-        await expect(
-          contract.connect(bob).verify(0, SIDES.TRUE)
-        ).to.revertedWith("BasicMarket: Incorrect owner");
+        await expect(contract.connect(bob).verify(0, 0)).to.revertedWith(
+          "BasicMarket: Incorrect owner"
+        );
       });
 
-      for (const [sideName, sideValue] of Object.entries(SIDES)) {
-        describe(`verifying ${sideName} side`, () => {
+      for (const side of [0, 1, 2, 3, 4]) {
+        describe(`verifying index ${side} side`, () => {
           describe(`successfully`, () => {
             let tx: ContractTransaction;
 
             beforeEach(async () => {
-              [tx] = await txExec(contract.connect(bob).verify(1, sideValue));
+              [tx] = await txExec(contract.connect(bob).verify(1, side));
             });
 
             it("Should emit Transfer (ERC721) event", async () => {
@@ -295,7 +315,7 @@ describe("BasicMarketV2 / Verification", () => {
                   ethers.utils.parseEther("35"),
                   BigNumber.from(0),
                   BigNumber.from(1),
-                  sideValue
+                  side
                 );
             });
 
@@ -308,36 +328,27 @@ describe("BasicMarketV2 / Verification", () => {
                 bob.address,
                 ethers.utils.parseEther("35"),
                 BigNumber.from(1),
-                sideValue,
+                side,
                 false,
               ]);
             });
 
             it("Should update market verification powers", async () => {
+              const verifications = new Array(5).fill(BigNumber.from(0));
+              verifications[side] = ethers.utils.parseEther("35");
+
               expect(await contract.marketInfo()).to.be.eql([
                 [
                   ethers.utils.parseEther("45.5"),
                   ethers.utils.parseEther("36.4"),
+                  ethers.utils.parseEther("45.5"),
+                  ethers.utils.parseEther("36.4"),
+                  ethers.utils.parseEther("45.5"),
                 ], // sides
-                [
-                  ethers.utils.parseEther(
-                    sideValue === SIDES.TRUE ? "35" : "0"
-                  ),
-                  ethers.utils.parseEther(
-                    sideValue === SIDES.TRUE ? "0" : "35"
-                  ),
-                ], // verifications
+                verifications, // verifications
                 ethers.constants.AddressZero, // dispute creator
-                ethers.utils
-                  .parseEther("45.5")
-                  .add(ethers.utils.parseEther("36.4")), // total market size
-                ethers.utils
-                  .parseEther(sideValue === SIDES.TRUE ? "35" : "0")
-                  .add(
-                    ethers.utils.parseEther(
-                      sideValue === SIDES.TRUE ? "0" : "35"
-                    )
-                  ), // total verifications amount
+                ethers.utils.parseEther("209.3"), // total market size
+                ethers.utils.parseEther("35"), // total verifications amount
                 BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                 BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
                 0, // result
@@ -353,29 +364,35 @@ describe("BasicMarketV2 / Verification", () => {
       describe("multiple verifications", () => {
         beforeEach(async () => {
           await executeInSingleBlock(() => [
-            contract.connect(alice).verify(0, SIDES.FALSE),
-            contract.connect(bob).verify(1, SIDES.FALSE),
+            contract.connect(alice).verify(0, 1),
+            contract.connect(bob).verify(1, 1),
+            contract.connect(carol).verify(2, 1),
+            contract.connect(dave).verify(3, 1),
+            contract.connect(james).verify(4, 1),
           ]);
         });
 
         describe("adding verification to almost fully verified market", () => {
           beforeEach(async () => {
-            await txExec(contract.connect(carol).verify(2, SIDES.FALSE));
+            await txExec(contract.connect(smith).verify(5, 1));
           });
 
           it("Should increase verification side with partial token power", async () => {
+            const verifications = new Array(5).fill(BigNumber.from(0));
+            verifications[1] = ethers.utils.parseEther("209.3");
+
             expect(await contract.marketInfo()).to.be.eql([
               [
                 ethers.utils.parseEther("45.5"),
                 ethers.utils.parseEther("36.4"),
-              ],
-              // sides
-              [ethers.utils.parseEther("0"), ethers.utils.parseEther("81.9")], // verifications
+                ethers.utils.parseEther("45.5"),
+                ethers.utils.parseEther("36.4"),
+                ethers.utils.parseEther("45.5"),
+              ], // sides
+              verifications, // verifications
               ethers.constants.AddressZero, // dispute creator
-              ethers.utils
-                .parseEther("45.5")
-                .add(ethers.utils.parseEther("36.4")), // total market size
-              ethers.utils.parseEther("81.9"), // total verifications amount
+              ethers.utils.parseEther("209.3"), // total market size
+              ethers.utils.parseEther("209.3"), // total verifications amount
               BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
               BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
               0, // result
@@ -388,17 +405,17 @@ describe("BasicMarketV2 / Verification", () => {
           it("Should return proper power in verification entry", async () => {
             expect(await contract.verifications(2)).to.be.eql([
               carol.address,
-              ethers.utils.parseEther("11.9"),
+              ethers.utils.parseEther("35"),
               BigNumber.from(2),
-              SIDES.FALSE,
+              1,
               false,
             ]);
           });
 
           it("Should not allow to verify fully verified market", async () => {
-            await expect(
-              contract.connect(dave).verify(3, SIDES.FALSE)
-            ).to.be.revertedWith("MarketIsFullyVerified");
+            await expect(contract.connect(joe).verify(6, 1)).to.be.revertedWith(
+              "MarketIsFullyVerified"
+            );
           });
         });
       });
@@ -410,22 +427,18 @@ describe("BasicMarketV2 / Verification", () => {
       });
 
       it("Should revert trying to verify", async () => {
-        await expect(
-          contract.connect(bob).verify(1, SIDES.TRUE)
-        ).to.revertedWith("VerificationAlreadyClosed");
+        await expect(contract.connect(bob).verify(1, 0)).to.revertedWith(
+          "VerificationAlreadyClosed"
+        );
       });
     });
   });
 
-  describe("Only sideA has prediction (invalid market)", () => {
+  describe("Only one side has prediction (invalid market)", () => {
     beforeEach(async () => {
       await executeInSingleBlock(() => [
-        contract
-          .connect(alice)
-          .predict(ethers.utils.parseEther("50"), SIDES.TRUE),
-        contract
-          .connect(bob)
-          .predict(ethers.utils.parseEther("40"), SIDES.TRUE),
+        contract.connect(alice).predict(ethers.utils.parseEther("50"), 0),
+        contract.connect(bob).predict(ethers.utils.parseEther("40"), 0),
       ]);
     });
 
@@ -449,18 +462,18 @@ describe("BasicMarketV2 / Verification", () => {
       });
 
       it("Should revert if executed with non owned token", async () => {
-        await expect(
-          contract.connect(bob).verify(0, SIDES.TRUE)
-        ).to.revertedWith("BasicMarket: Incorrect owner");
+        await expect(contract.connect(bob).verify(0, 0)).to.revertedWith(
+          "BasicMarket: Incorrect owner"
+        );
       });
 
-      for (const [sideName, sideValue] of Object.entries(SIDES)) {
-        describe(`verifying ${sideName} side`, () => {
+      for (const side of [0, 1, 2, 3, 4]) {
+        describe(`verifying index ${side} side`, () => {
           describe(`successfully`, () => {
             let tx: ContractTransaction;
 
             beforeEach(async () => {
-              [tx] = await txExec(contract.connect(bob).verify(1, sideValue));
+              [tx] = await txExec(contract.connect(bob).verify(1, side));
             });
 
             it("Should emit CloseMarket event with invalid status", async () => {
@@ -478,94 +491,20 @@ describe("BasicMarketV2 / Verification", () => {
 
             it("Should have zero market verification powers", async () => {
               expect(await contract.marketInfo()).to.be.eql([
-                [ethers.utils.parseEther("81.9"), ethers.utils.parseEther("0")], // sides
-                [ethers.utils.parseEther("0"), ethers.utils.parseEther("0")], // verifications
-                ethers.constants.AddressZero, // dispute creator
-                ethers.utils.parseEther("81.9"), // total market size,
-                BigNumber.from(0), // total verifications amount
-                BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
-                BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                4, // result, invalid = 4
-                0, // winner side index,
-                false, // confirmed
-                false, // solved
-              ]);
-            });
-          });
-        });
-      }
-    });
-  });
-
-  describe("Only sideB has prediction (invalid market)", () => {
-    beforeEach(async () => {
-      await executeInSingleBlock(() => [
-        contract
-          .connect(alice)
-          .predict(ethers.utils.parseEther("50"), SIDES.FALSE),
-        contract
-          .connect(bob)
-          .predict(ethers.utils.parseEther("40"), SIDES.FALSE),
-      ]);
-    });
-
-    describe("initial state", () => {
-      it("Should return proper verifications number", async () => {
-        expect(await contract.verificationHeight()).to.be.equal(0);
-      });
-
-      it("Should revert if executed before prediction end", async () => {
-        await timetravel(blockTimestamp + 25000);
-
-        await expect(
-          contract.connect(bob).verify(1, SIDES.TRUE)
-        ).to.revertedWith("VerificationHasNotStartedYet");
-      });
-    });
-
-    describe("after verification period start", () => {
-      beforeEach(async () => {
-        await timetravel(blockTimestamp + 300001);
-      });
-
-      it("Should revert if executed with non owned token", async () => {
-        await expect(
-          contract.connect(bob).verify(0, SIDES.TRUE)
-        ).to.revertedWith("BasicMarket: Incorrect owner");
-      });
-
-      for (const [sideName, sideValue] of Object.entries(SIDES)) {
-        describe(`verifying ${sideName} side`, () => {
-          describe(`successfully`, () => {
-            let tx: ContractTransaction;
-
-            beforeEach(async () => {
-              [tx] = await txExec(contract.connect(bob).verify(1, sideValue));
-            });
-
-            it("Should emit CloseMarket event with invalid status", async () => {
-              await expect(tx)
-                .to.emit(
-                  { ...marketLib, address: contract.address },
-                  "CloseMarket"
-                )
-                .withArgs(4);
-            });
-
-            it("Should have zero state size of verifications", async () => {
-              expect(await contract.verificationHeight()).to.be.equal(0);
-            });
-
-            it("Should have zero market verification powers", async () => {
-              expect(await contract.marketInfo()).to.be.eql([
-                [ethers.utils.parseEther("0"), ethers.utils.parseEther("81.9")], // sides
-                [ethers.utils.parseEther("0"), ethers.utils.parseEther("0")], // verifications
+                [
+                  ethers.utils.parseEther("81.9"),
+                  BigNumber.from(0),
+                  BigNumber.from(0),
+                  BigNumber.from(0),
+                  BigNumber.from(0),
+                ], // sides
+                new Array(5).fill(BigNumber.from(0)), // verifications
                 ethers.constants.AddressZero, // dispute creator
                 ethers.utils.parseEther("81.9"), // total market size
                 BigNumber.from(0), // total verifications amount
                 BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                 BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
-                4, // result, invalid = 4
+                4, // result
                 0, // winner side index
                 false, // confirmed
                 false, // solved
