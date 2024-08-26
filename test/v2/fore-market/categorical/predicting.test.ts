@@ -12,16 +12,17 @@ import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { MockERC20 } from "@/MockERC20";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 import {
   attachContract,
   deployLibrary,
   deployMockedContract,
   deployMockedContractAs,
+  deployUniversalRouter,
   txExec,
 } from "../../../helpers/utils";
 import { defaultIncentives } from "../../../helpers/constants";
-import { ForeAccessManager } from "@/ForeAccessManager";
 
 const calculatePredictionFee = async (
   contract: BasicMarketV2,
@@ -139,6 +140,12 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
       [defaultAdmin.address],
     ]);
 
+    const router = await deployUniversalRouter(
+      foreAccessManager.address,
+      foreProtocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
@@ -146,7 +153,8 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
-      foundationWallet.address
+      foundationWallet.address,
+      router.address
     );
 
     // factory assignment

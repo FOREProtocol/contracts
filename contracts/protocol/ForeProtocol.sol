@@ -180,6 +180,7 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
 
     /// @notice Creates Market
     /// @param marketHash market hash
+    /// @param creator Market creator
     /// @param receiver Receiver of market token
     /// @param marketAddress Created market address
     /// @return marketId Created market id

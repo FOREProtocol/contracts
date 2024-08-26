@@ -16,6 +16,8 @@ error InvalidToken();
 error InvalidSpender();
 error InvalidOperator();
 error InvalidTarget();
+error InvalidSelector();
+error InvalidMsgSender();
 error CallFunctionFailed();
 
 /// @custom:security-contact security@foreprotocol.io
@@ -36,6 +38,9 @@ contract ForeUniversalRouter is
 
     /// @notice tokens
     mapping(address => bool) public tokens;
+
+    /// @notice Allowed functions
+    mapping(bytes4 => bool) private allowedFunctions;
 
     /// EVENTS
     event PermitUsed(
@@ -83,26 +88,72 @@ contract ForeUniversalRouter is
             }
             tokens[tokenAddresses[i]] = true;
         }
+
+        allowedFunctions[
+            bytes4(keccak256("predictFor(address,uint256,uint8)"))
+        ] = true;
+        allowedFunctions[
+            bytes4(keccak256("openDisputeFor(address,bytes32)"))
+        ] = true;
+        allowedFunctions[
+            bytes4(
+                keccak256(
+                    "createMarket(bytes32,address,uint256[],uint64,uint64,address)"
+                )
+            )
+        ] = true;
     }
 
     /**
-     * @dev Modifier to restrict function access to authorized Fore Protocol operators.
-     * @param operator The address to check for Fore operator authorization.
-     * @notice Reverts with `InvalidOperator` if the operator is unauthorized or the zero address.
+     * @notice Verify the validity of a function call based on the target address, operator status, and function selector.
+     * @param target The address that is being targeted for the function call
+     * @param data The calldata containing the function selector and parameters
      */
-    modifier onlyForeOperator(address operator) {
-        if (operator == address(0)) {
+    modifier verifyFunction(address target, bytes calldata data) {
+        if (target == address(0)) {
             revert InvalidOperator();
         }
-        bool isValid = foreProtocol.isForeOperator(operator);
+        bool isValid = foreProtocol.isForeOperator(target);
         if (!isValid) {
             revert InvalidOperator();
+        }
+
+        bytes4 selector;
+        assembly {
+            selector := calldataload(data.offset)
+        }
+
+        if (!allowedFunctions[selector]) {
+            revert InvalidSelector();
+        }
+
+        /// @notice We need to check if the address is the actual `msg.sender` so that no one
+        ///         can create unauthorized predictions for any user
+        if (
+            selector == bytes4(keccak256("predictFor(address,uint256,uint8)"))
+        ) {
+            (address extractedAddress, , ) = abi.decode(
+                data[4:], // Skips the selector
+                (address, uint256, uint8)
+            );
+            if (extractedAddress != msg.sender) {
+                revert InvalidMsgSender();
+            }
+        }
+        if (selector == bytes4(keccak256("openDisputeFor(address,bytes32)"))) {
+            (address extractedAddress, ) = abi.decode(
+                data[4:], // Skips the selector
+                (address, bytes32)
+            );
+            if (extractedAddress != msg.sender) {
+                revert InvalidMsgSender();
+            }
         }
         _;
     }
 
     /**
-     * @notice Call any function on a target FORE operated contract.
+     * @notice Call one of the allowed functions on a target FORE operated contract.
      * @param target The address of the contract to call.
      * @param data The calldata of the function to call, including the function signature and parameters.
      * @param token The token to be used
@@ -118,7 +169,7 @@ contract ForeUniversalRouter is
     )
         external
         payable
-        onlyForeOperator(target)
+        verifyFunction(target, data)
         whenNotPaused
         nonReentrant
         returns (bool success, bytes memory result)
@@ -154,7 +205,7 @@ contract ForeUniversalRouter is
     )
         external
         payable
-        onlyForeOperator(target)
+        verifyFunction(target, data)
         whenNotPaused
         nonReentrant
         returns (bool success, bytes memory result)
@@ -171,7 +222,7 @@ contract ForeUniversalRouter is
     }
 
     /**
-     * @notice Permit external function
+     * @notice Permit (external function)
      * @param permitSingle Data signed over by the owner specifying the terms of approval
      * @param signature The owner's signature over the permit data
      */
@@ -195,6 +246,19 @@ contract ForeUniversalRouter is
         tokens[token] = shouldAdd;
 
         emit ManagedToken(token, shouldAdd);
+    }
+
+    /**
+     * @notice Adds or removes a new function selector to the allowed list.
+     * @dev Can be restricted to only the contract owner or a specific role.
+     * @param selector The function selector to allow.
+     * @param shouldAdd Boolean flag indicating whether to add (true) or remove (false) the selector.
+     */
+    function manageAllowedFunctions(
+        bytes4 selector,
+        bool shouldAdd
+    ) external restricted {
+        allowedFunctions[selector] = shouldAdd;
     }
 
     /**

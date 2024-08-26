@@ -16,6 +16,7 @@ import {
   deployContractAs,
   deployLibrary,
   deployMockedContract,
+  deployUniversalRouter,
   impersonateContract,
   txExec,
 } from "../../helpers/utils";
@@ -102,13 +103,20 @@ describe("ForeMarketV2 / Management", () => {
       [],
     ]);
 
+    const router = await deployUniversalRouter(
+      foreAccessManager.address,
+      foreProtocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
       foreAccessManager.address,
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
-      foundationWallet.address
+      foundationWallet.address,
+      router.address
     );
 
     basicFactoryAccount = await impersonateContract(basicFactory.address);

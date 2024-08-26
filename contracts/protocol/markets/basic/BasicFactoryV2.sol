@@ -42,6 +42,9 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     /// @notice Fee receiver
     address public feeReceiver;
 
+    /// @notice Universal router
+    address public router;
+
     /// @notice Token registry
     ITokenIncentiveRegistry public immutable tokenRegistry;
 
@@ -68,13 +71,18 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     event SetVerificationFlatFeeRate(uint32 indexed feeRate);
     event SetFoundationFlatFeeRate(uint32 indexed feeRate);
 
+    /// @param _initialAuthority Initial authority
     /// @param protocolAddress Protocol Contract address
+    /// @param _accountWhitelist Account whitelist contract address
+    /// @param _feeReceiver Fee receiver address
+    /// @param _router Router address
     constructor(
         address _initialAuthority,
         IForeProtocol protocolAddress,
         ITokenIncentiveRegistry _tokenRegistry,
         IAccountWhitelist _accountWhitelist,
-        address _initialFeeReceiver
+        address _feeReceiver,
+        address _router
     ) AccessManaged(_initialAuthority) {
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
@@ -82,7 +90,8 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         foreVerifiers = IForeVerifiers(protocolAddress.foreVerifiers());
         tokenRegistry = _tokenRegistry;
         accountWhitelist = _accountWhitelist;
-        feeReceiver = _initialFeeReceiver;
+        feeReceiver = _feeReceiver;
+        router = _router;
     }
 
     /**
@@ -152,6 +161,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
                 address(tokenRegistry),
                 feeReceiver,
                 address(token),
+                router,
                 endPredictionTimestamp,
                 startVerificationTimestamp,
                 uint64(marketIdx),
