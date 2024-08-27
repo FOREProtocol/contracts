@@ -197,32 +197,26 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @param amount Amount of ForeToken
     /// @param side Prediction side (index of the sides array)
     function predict(uint256 amount, uint8 side) external {
-        _predict(msg.sender, msg.sender, amount, side);
+        _predict(msg.sender, amount, side);
     }
 
     /// @notice Add new prediction for account
-    /// @param account Account address
-    /// @param amount Amount of token
-    /// @param side Prediction side (index of the sides array)
-    function predictFor(
-        address account,
-        uint256 amount,
-        uint8 side
-    ) external onlyRouter {
-        _predict(msg.sender, account, amount, side);
-    }
-
-    /// @notice Add new prediction
-    /// @param spender Spender
     /// @param predictor Predictor
     /// @param amount Amount of token
     /// @param side Prediction side (index of the sides array)
-    function _predict(
-        address spender,
+    function predictFor(
         address predictor,
         uint256 amount,
         uint8 side
-    ) internal {
+    ) external onlyRouter {
+        _predict(predictor, amount, side);
+    }
+
+    /// @notice Add new prediction
+    /// @param predictor Predictor
+    /// @param amount Amount of token
+    /// @param side Prediction side (index of the sides array)
+    function _predict(address predictor, uint256 amount, uint8 side) internal {
         if (!tokenRegistry.isTokenEnabled(address(token))) {
             revert("Basic Market: Token is not enabled");
         }
@@ -231,7 +225,7 @@ contract BasicMarketV2 is ReentrancyGuard {
 
         predictionFeesSpent[predictor] += predictionFee;
 
-        token.safeTransferFrom(spender, address(this), amount);
+        token.safeTransferFrom(msg.sender, address(this), amount);
         token.safeTransfer(feeReceiver, predictionFee);
 
         MarketLibV2.predict(
@@ -282,28 +276,23 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Opens dispute
     /// @param messageHash Message Hash
     function openDispute(bytes32 messageHash) external {
-        _openDispute(msg.sender, msg.sender, messageHash);
+        _openDispute(msg.sender, messageHash);
     }
 
     /// @notice Opens dispute for account
-    /// @param account Account address
+    /// @param creator Dispute creator
     /// @param messageHash Message Hash
     function openDisputeFor(
-        address account,
+        address creator,
         bytes32 messageHash
     ) external onlyRouter {
-        _openDispute(msg.sender, account, messageHash);
+        _openDispute(creator, messageHash);
     }
 
     /// @notice Opens dispute
-    /// @param spender Spender address
     /// @param creator Creator address
     /// @param messageHash Message Hash
-    function _openDispute(
-        address spender,
-        address creator,
-        bytes32 messageHash
-    ) internal {
+    function _openDispute(address creator, bytes32 messageHash) internal {
         MarketLibV2.Market memory m = _market;
         (
             uint256 disputePrice,
@@ -323,7 +312,7 @@ contract BasicMarketV2 is ReentrancyGuard {
             _closeMarket(MarketLibV2.ResultType.INVALID);
             return;
         }
-        token.safeTransferFrom(spender, address(this), disputePrice);
+        token.safeTransferFrom(msg.sender, address(this), disputePrice);
         disputeMessage = messageHash;
         MarketLibV2.openDispute(
             _market,

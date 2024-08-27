@@ -911,9 +911,10 @@ describe("Fore Universal Router", function () {
           blockTimestamp = (await getPreviousBlock()).timestamp;
 
           const data = BasicFactoryFactory.interface.encodeFunctionData(
-            "createMarket",
+            "createMarketWithCreator",
             [
               hash,
+              alice.address,
               alice.address,
               [0, 0],
               BigNumber.from(blockTimestamp + 200000),

@@ -30,6 +30,19 @@ contract ForeUniversalRouter is
 {
     using SafeERC20 for IERC20;
 
+    bytes4 constant PREDICT_SELECTOR_HASH =
+        bytes4(keccak256("predictFor(address,uint256,uint8)"));
+
+    bytes4 constant OPEN_DISPUTE_SELECTOR_HASH =
+        bytes4(keccak256("openDisputeFor(address,bytes32)"));
+
+    bytes4 constant CREATE_MARKET_SELECTOR_HASH =
+        bytes4(
+            keccak256(
+                "createMarketWithCreator(bytes32,address,address,uint256[],uint64,uint64,address)"
+            )
+        );
+
     /// @notice Permit2 Contract
     IAllowanceTransfer public permit2;
 
@@ -89,19 +102,9 @@ contract ForeUniversalRouter is
             tokens[tokenAddresses[i]] = true;
         }
 
-        allowedFunctions[
-            bytes4(keccak256("predictFor(address,uint256,uint8)"))
-        ] = true;
-        allowedFunctions[
-            bytes4(keccak256("openDisputeFor(address,bytes32)"))
-        ] = true;
-        allowedFunctions[
-            bytes4(
-                keccak256(
-                    "createMarket(bytes32,address,uint256[],uint64,uint64,address)"
-                )
-            )
-        ] = true;
+        allowedFunctions[PREDICT_SELECTOR_HASH] = true;
+        allowedFunctions[OPEN_DISPUTE_SELECTOR_HASH] = true;
+        allowedFunctions[CREATE_MARKET_SELECTOR_HASH] = true;
     }
 
     /**
@@ -129,9 +132,7 @@ contract ForeUniversalRouter is
 
         /// @notice We need to check if the address is the actual `msg.sender` so that no one
         ///         can create unauthorized predictions for any user
-        if (
-            selector == bytes4(keccak256("predictFor(address,uint256,uint8)"))
-        ) {
+        if (selector == PREDICT_SELECTOR_HASH) {
             (address extractedAddress, , ) = abi.decode(
                 data[4:], // Skips the selector
                 (address, uint256, uint8)
@@ -140,10 +141,19 @@ contract ForeUniversalRouter is
                 revert InvalidMsgSender();
             }
         }
-        if (selector == bytes4(keccak256("openDisputeFor(address,bytes32)"))) {
+        if (selector == OPEN_DISPUTE_SELECTOR_HASH) {
             (address extractedAddress, ) = abi.decode(
-                data[4:], // Skips the selector
+                data[4:],
                 (address, bytes32)
+            );
+            if (extractedAddress != msg.sender) {
+                revert InvalidMsgSender();
+            }
+        }
+        if (selector == CREATE_MARKET_SELECTOR_HASH) {
+            (, address extractedAddress, , , , , ) = abi.decode(
+                data[4:],
+                (bytes32, address, address, uint256[], uint64, uint64, address)
             );
             if (extractedAddress != msg.sender) {
                 revert InvalidMsgSender();
