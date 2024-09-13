@@ -17,8 +17,6 @@ import "../../IAccountWhitelist.sol";
 contract BasicFactoryV2 is Pausable, AccessManaged {
     using SafeERC20 for IERC20;
 
-    using SafeERC20 for IERC20;
-
     /// @notice Init creatin code
     /// @dev Needed to calculate market address
     bytes32 public constant INIT_CODE_PAIR_HASH =

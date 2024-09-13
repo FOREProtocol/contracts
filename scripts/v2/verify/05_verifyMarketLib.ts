@@ -3,8 +3,12 @@ import hre from "hardhat";
 import { contractAddresses } from "../constants";
 
 async function main() {
+  const network = hre.hardhatArguments.network;
+
+  console.log(`Verifying marketlib on ${network}...`);
+
   await hre.run("verify:verify", {
-    address: contractAddresses.marketLib,
+    address: contractAddresses[network].marketLib,
     constructorArguments: [],
   });
   console.log("Contract verified on Etherscan");

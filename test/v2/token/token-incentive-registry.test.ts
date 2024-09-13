@@ -621,11 +621,11 @@ describe("Token Incentive Registry", function () {
   describe("authorize upgrade", () => {
     it("should revert unauthorized upgrade", async () => {
       const deployerUnauthorizedMessage = `AccessManagedUnauthorized("${deployerWallet.address}")`;
-      const RouterImplV2 = await ethers.getContractFactory(
+      const RegistryImplV2 = await ethers.getContractFactory(
         "TokenIncentiveRegistry"
       );
       await expect(
-        upgrades.upgradeProxy(contract.address, RouterImplV2, {
+        upgrades.upgradeProxy(contract.address, RegistryImplV2, {
           kind: "uups",
           call: {
             fn: "isTokenEnabled",

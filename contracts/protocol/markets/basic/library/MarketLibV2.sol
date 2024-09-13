@@ -149,7 +149,7 @@ library MarketLibV2 {
         ) {
             return ResultType.INVALID;
         }
-        if (ArrayUtils.hasDuplicates(m.verifications)) {
+        if (ArrayUtils.hasNonZeroDuplicates(m.verifications)) {
             return ResultType.DRAW;
         }
 

@@ -1,13 +1,17 @@
-import { ethers, upgrades } from "hardhat";
+import hre, { ethers, upgrades } from "hardhat";
 
 import { contractAddresses } from "../constants";
 
 async function main() {
+  const network = hre.hardhatArguments.network;
+
+  console.log(`Deploying account whitelist on ${network}...`);
+
   const AccountWhitelistFactory = await ethers.getContractFactory(
     "AccountWhitelist"
   );
   const accountWhitelist = await upgrades.deployProxy(AccountWhitelistFactory, [
-    contractAddresses.accessManager,
+    contractAddresses[network].accessManager,
     [],
   ]);
   await accountWhitelist.deployed();

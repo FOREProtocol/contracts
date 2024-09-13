@@ -1,18 +1,25 @@
-import { ethers, upgrades } from "hardhat";
+import hre, { ethers, upgrades } from "hardhat";
 
 import { contractAddresses } from "../constants";
 
 async function main() {
+  const network = hre.hardhatArguments.network;
+
+  console.log(`Deploying router on ${network}...`);
+
   const ForeUniversalRouterFactory = await ethers.getContractFactory(
     "ForeUniversalRouter"
   );
   const foreUniversalRouter = await upgrades.deployProxy(
     ForeUniversalRouterFactory,
     [
-      contractAddresses.accessManager,
-      contractAddresses.protocol,
-      contractAddresses.permit2,
-      [contractAddresses.foreToken, contractAddresses.usdt],
+      contractAddresses[network].accessManager,
+      contractAddresses[network].protocol,
+      contractAddresses[network].permit2,
+      [
+        contractAddresses[network].foreToken,
+        contractAddresses[network].mockUsdt,
+      ],
     ]
   );
   await foreUniversalRouter.deployed();
