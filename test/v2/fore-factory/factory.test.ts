@@ -7,14 +7,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber, Contract, ContractTransaction } from "ethers";
 import { ethers, upgrades } from "hardhat";
-import {
-  assertEvent,
-  attachContract,
-  deployContract,
-  deployLibrary,
-  deployMockedContract,
-  txExec,
-} from "../../helpers/utils";
+
 import {
   BasicFactoryV2,
   SetFoundationFlatFeeRateEvent,
@@ -24,9 +17,19 @@ import {
 } from "@/BasicFactoryV2";
 import { ERC20 } from "@/ERC20";
 import { ForeAccessManager } from "@/ForeAccessManager";
-import { defaultIncentives } from "../../helpers/constants";
 import { PausedEvent, UnpausedEvent } from "@/Pausable";
 import { BasicMarketV2 } from "@/BasicMarketV2";
+
+import {
+  assertEvent,
+  attachContract,
+  deployContract,
+  deployLibrary,
+  deployMockedContract,
+  deployUniversalRouter,
+  txExec,
+} from "../../helpers/utils";
+import { defaultIncentives } from "../../helpers/constants";
 
 describe("BasicFactoryV2", () => {
   let owner: SignerWithAddress;
@@ -117,13 +120,20 @@ describe("BasicFactoryV2", () => {
       [defaultAdmin.address],
     ]);
 
+    const router = await deployUniversalRouter(
+      foreAccessManager.address,
+      protocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
     contract = await deployContract<BasicFactoryV2>(
       "BasicFactoryV2",
       foreAccessManager.address,
       protocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
-      foundationWallet.address
+      foundationWallet.address,
+      router.address
     );
 
     await txExec(foreVerifiers.setProtocol(protocol.address));

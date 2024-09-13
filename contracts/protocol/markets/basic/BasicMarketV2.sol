@@ -32,6 +32,8 @@ contract BasicMarketV2 is ReentrancyGuard {
         address feeReceiver;
         /// @notice Currency token address
         address token;
+        /// @notice Universal router
+        address router;
         /// @notice End prediction Timestamp
         uint64 endPredictionTimestamp;
         /// @notice Start verification Timestamp
@@ -40,7 +42,7 @@ contract BasicMarketV2 is ReentrancyGuard {
         uint64 tokenId;
         /// @notice Prediction flat fee rate
         uint32 predictionFlatFeeRate;
-        /// @notice Market creation flat fee rate
+        /// @notice Market creator flat fee rate
         uint32 marketCreatorFlatFeeRate;
         /// @notice Verification flat fee rate
         uint32 verificationFlatFeeRate;
@@ -71,6 +73,9 @@ contract BasicMarketV2 is ReentrancyGuard {
 
     /// @notice Fee receiver
     address public feeReceiver;
+
+    /// @notice FORE Universal router
+    address public router;
 
     /// @notice Protocol
     IForeProtocol public protocol;
@@ -126,6 +131,13 @@ contract BasicMarketV2 is ReentrancyGuard {
         factory = msg.sender;
     }
 
+    modifier onlyRouter() {
+        if (msg.sender != router) {
+            revert("OnlyAuthorizedRouter");
+        }
+        _;
+    }
+
     /// @notice Verification array size
     function verificationHeight() external view returns (uint256) {
         return verifications.length;
@@ -158,7 +170,7 @@ contract BasicMarketV2 is ReentrancyGuard {
         token = IERC20(payload.token);
         foreVerifiers = IForeVerifiers(protocol.foreVerifiers());
         tokenRegistry = ITokenIncentiveRegistry(payload.tokenRegistry);
-
+        router = payload.router;
         marketHash = payload.mHash;
 
         predictionFlatFeeRate = payload.predictionFlatFeeRate;
@@ -185,13 +197,33 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @param amount Amount of ForeToken
     /// @param side Prediction side (index of the sides array)
     function predict(uint256 amount, uint8 side) external {
+        _predict(msg.sender, amount, side);
+    }
+
+    /// @notice Add new prediction for account
+    /// @param predictor Predictor
+    /// @param amount Amount of token
+    /// @param side Prediction side (index of the sides array)
+    function predictFor(
+        address predictor,
+        uint256 amount,
+        uint8 side
+    ) external onlyRouter {
+        _predict(predictor, amount, side);
+    }
+
+    /// @notice Add new prediction
+    /// @param predictor Predictor
+    /// @param amount Amount of token
+    /// @param side Prediction side (index of the sides array)
+    function _predict(address predictor, uint256 amount, uint8 side) internal {
         if (!tokenRegistry.isTokenEnabled(address(token))) {
             revert("Basic Market: Token is not enabled");
         }
         uint256 predictionFee = (amount * _calculatePredictionFeeRate()) /
             DIVIDER;
 
-        predictionFeesSpent[msg.sender] += predictionFee;
+        predictionFeesSpent[predictor] += predictionFee;
 
         token.safeTransferFrom(msg.sender, address(this), amount);
         token.safeTransfer(feeReceiver, predictionFee);
@@ -202,7 +234,7 @@ contract BasicMarketV2 is ReentrancyGuard {
             totalPredictions,
             amount - predictionFee,
             side,
-            msg.sender
+            predictor
         );
     }
 
@@ -242,7 +274,25 @@ contract BasicMarketV2 is ReentrancyGuard {
     }
 
     /// @notice Opens dispute
+    /// @param messageHash Message Hash
     function openDispute(bytes32 messageHash) external {
+        _openDispute(msg.sender, messageHash);
+    }
+
+    /// @notice Opens dispute for account
+    /// @param creator Dispute creator
+    /// @param messageHash Message Hash
+    function openDisputeFor(
+        address creator,
+        bytes32 messageHash
+    ) external onlyRouter {
+        _openDispute(creator, messageHash);
+    }
+
+    /// @notice Opens dispute
+    /// @param creator Creator address
+    /// @param messageHash Message Hash
+    function _openDispute(address creator, bytes32 messageHash) internal {
         MarketLibV2.Market memory m = _market;
         (
             uint256 disputePrice,
@@ -268,7 +318,7 @@ contract BasicMarketV2 is ReentrancyGuard {
             _market,
             disputePeriod,
             verificationPeriod,
-            msg.sender
+            creator
         );
     }
 
@@ -420,6 +470,9 @@ contract BasicMarketV2 is ReentrancyGuard {
                 token.safeTransfer(v.verifier, toVerifier);
                 foreVerifiers.increaseValidation(v.tokenId);
             } else {
+                if (address(token) != address(foreToken)) {
+                    revert("OnlyForFOREDenominatedMarkets");
+                }
                 foreVerifiers.increasePower(v.tokenId, toVerifier, true);
                 token.safeTransfer(address(foreVerifiers), toVerifier);
             }

@@ -42,6 +42,9 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     /// @notice Fee receiver
     address public feeReceiver;
 
+    /// @notice Universal router
+    address public router;
+
     /// @notice Token registry
     ITokenIncentiveRegistry public immutable tokenRegistry;
 
@@ -68,13 +71,18 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     event SetVerificationFlatFeeRate(uint32 indexed feeRate);
     event SetFoundationFlatFeeRate(uint32 indexed feeRate);
 
+    /// @param _initialAuthority Initial authority
     /// @param protocolAddress Protocol Contract address
+    /// @param _accountWhitelist Account whitelist contract address
+    /// @param _feeReceiver Fee receiver address
+    /// @param _router Router address
     constructor(
         address _initialAuthority,
         IForeProtocol protocolAddress,
         ITokenIncentiveRegistry _tokenRegistry,
         IAccountWhitelist _accountWhitelist,
-        address _initialFeeReceiver
+        address _feeReceiver,
+        address _router
     ) AccessManaged(_initialAuthority) {
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
@@ -82,11 +90,19 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         foreVerifiers = IForeVerifiers(protocolAddress.foreVerifiers());
         tokenRegistry = _tokenRegistry;
         accountWhitelist = _accountWhitelist;
-        feeReceiver = _initialFeeReceiver;
+        feeReceiver = _feeReceiver;
+        router = _router;
+    }
+
+    modifier onlyRouter() {
+        if (msg.sender != router) {
+            revert("OnlyAuthorizedRouter");
+        }
+        _;
     }
 
     /**
-     * @notice Creates a market
+     * @notice Creates a market with specified creator
      * @param marketHash market hash
      * @param receiver market creator nft receiver
      * @param amounts initial predictions for all sides
@@ -102,7 +118,71 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         uint64 endPredictionTimestamp,
         uint64 startVerificationTimestamp,
         IERC20 token
-    ) external whenNotPaused returns (address createdMarket) {
+    ) external whenNotPaused returns (address) {
+        return
+            _createMarket(
+                marketHash,
+                msg.sender,
+                receiver,
+                amounts,
+                endPredictionTimestamp,
+                startVerificationTimestamp,
+                token
+            );
+    }
+
+    /**
+     * @notice Creates a market with specified creator
+     * @param marketHash market hash
+     * @param creator creator
+     * @param receiver market creator nft receiver
+     * @param amounts initial predictions for all sides
+     * @param endPredictionTimestamp End predictions unix timestamp
+     * @param startVerificationTimestamp Start Verification unix timestamp
+     * @param token Alternative token
+     * @return createdMarket Address of created market
+     **/
+    function createMarketWithCreator(
+        bytes32 marketHash,
+        address creator,
+        address receiver,
+        uint256[] calldata amounts,
+        uint64 endPredictionTimestamp,
+        uint64 startVerificationTimestamp,
+        IERC20 token
+    ) external onlyRouter whenNotPaused returns (address) {
+        return
+            _createMarket(
+                marketHash,
+                creator,
+                receiver,
+                amounts,
+                endPredictionTimestamp,
+                startVerificationTimestamp,
+                token
+            );
+    }
+
+    /**
+     * @notice Creates a market (internal)
+     * @param marketHash market hash
+     * @param creator creator
+     * @param receiver market creator nft receiver
+     * @param amounts initial predictions for all sides
+     * @param endPredictionTimestamp End predictions unix timestamp
+     * @param startVerificationTimestamp Start Verification unix timestamp
+     * @param token Alternative token
+     * @return createdMarket Address of created market
+     **/
+    function _createMarket(
+        bytes32 marketHash,
+        address creator,
+        address receiver,
+        uint256[] calldata amounts,
+        uint64 endPredictionTimestamp,
+        uint64 startVerificationTimestamp,
+        IERC20 token
+    ) internal returns (address createdMarket) {
         if (endPredictionTimestamp > startVerificationTimestamp) {
             revert("Basic Factory: Date error");
         }
@@ -121,7 +201,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         uint256 creationFee = 0;
         uint256 amountSum = ArrayUtils.sum(amounts);
 
-        if (!accountWhitelist.isAccountWhitelisted(msg.sender)) {
+        if (!accountWhitelist.isAccountWhitelisted(creator)) {
             (, , , , creationFee) = tokenRegistry.getTokenIncentives(
                 address(token)
             );
@@ -139,7 +219,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
 
         uint256 marketIdx = foreProtocol.createMarket(
             marketHash,
-            msg.sender,
+            creator,
             receiver,
             createdMarket
         );
@@ -152,6 +232,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
                 address(tokenRegistry),
                 feeReceiver,
                 address(token),
+                router,
                 endPredictionTimestamp,
                 startVerificationTimestamp,
                 uint64(marketIdx),

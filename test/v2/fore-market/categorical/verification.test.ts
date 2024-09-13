@@ -12,6 +12,7 @@ import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockERC20 } from "@/MockERC20";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 import {
   attachContract,
@@ -21,9 +22,9 @@ import {
   txExec,
   deployLibrary,
   executeInSingleBlock,
+  deployUniversalRouter,
 } from "../../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../../helpers/constants";
-import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Categorical / Verification", () => {
   let owner: SignerWithAddress;
@@ -133,6 +134,12 @@ describe("BasicMarketV2 / Categorical / Verification", () => {
       [defaultAdmin.address],
     ]);
 
+    const router = await deployUniversalRouter(
+      foreAccessManager.address,
+      foreProtocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
@@ -140,7 +147,8 @@ describe("BasicMarketV2 / Categorical / Verification", () => {
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
-      foundationWallet.address
+      foundationWallet.address,
+      router.address
     );
 
     // factory assignment

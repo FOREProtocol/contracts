@@ -12,18 +12,19 @@ import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLibV2 } from "@/MarketLibV2";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { ERC20 } from "@/ERC20";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 import {
   assertIsAvailableOnlyForOwner,
   deployContractAs,
   deployLibrary,
   deployMockedContract,
+  deployUniversalRouter,
   impersonateContract,
   timetravel,
   txExec,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
-import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Initialization", () => {
   let owner: SignerWithAddress;
@@ -41,6 +42,7 @@ describe("BasicMarketV2 / Initialization", () => {
   let basicFactory: MockContract<BasicFactoryV2>;
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
+  let router: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
   let foreAccessManager: MockContract<ForeAccessManager>;
@@ -121,6 +123,12 @@ describe("BasicMarketV2 / Initialization", () => {
       [defaultAdmin.address],
     ]);
 
+    router = await deployUniversalRouter(
+      foreAccessManager.address,
+      foreProtocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
@@ -128,7 +136,8 @@ describe("BasicMarketV2 / Initialization", () => {
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
-      foundationWallet.address
+      foundationWallet.address,
+      router.address
     );
     basicFactoryAccount = await impersonateContract(basicFactory.address);
 
@@ -164,6 +173,7 @@ describe("BasicMarketV2 / Initialization", () => {
           marketCreatorFlatFeeRate: 100,
           verificationFlatFeeRate: 100,
           foundationFlatFeeRate: 1800,
+          router: router.address,
         });
       },
       basicFactoryAccount,
@@ -192,6 +202,7 @@ describe("BasicMarketV2 / Initialization", () => {
           marketCreatorFlatFeeRate: 100,
           verificationFlatFeeRate: 100,
           foundationFlatFeeRate: 1800,
+          router: router.address,
         })
       );
     });
@@ -292,6 +303,7 @@ describe("BasicMarketV2 / Initialization", () => {
           marketCreatorFlatFeeRate: 100,
           verificationFlatFeeRate: 100,
           foundationFlatFeeRate: 1800,
+          router: router.address,
         })
       );
     });
@@ -333,6 +345,7 @@ describe("BasicMarketV2 / Initialization", () => {
           marketCreatorFlatFeeRate: 100,
           verificationFlatFeeRate: 100,
           foundationFlatFeeRate: 1800,
+          router: router.address,
         })
       );
     });
@@ -374,6 +387,7 @@ describe("BasicMarketV2 / Initialization", () => {
           marketCreatorFlatFeeRate: 100,
           verificationFlatFeeRate: 100,
           foundationFlatFeeRate: 1800,
+          router: router.address,
         })
       )
     ).to.revertedWith("PredictionPeriodIsAlreadyClosed");

@@ -18,6 +18,7 @@ import {
   attachContract,
   deployLibrary,
   deployMockedContract,
+  deployUniversalRouter,
   executeInSingleBlock,
   generateRandomHexString,
   sendERC20Tokens,
@@ -128,6 +129,12 @@ describe("BasicMarketV2 / Dispute", () => {
       [defaultAdmin.address],
     ]);
 
+    const router = await deployUniversalRouter(
+      foreAccessManager.address,
+      foreProtocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
@@ -135,7 +142,8 @@ describe("BasicMarketV2 / Dispute", () => {
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
-      foundationWallet.address
+      foundationWallet.address,
+      router.address
     );
 
     // factory assignment

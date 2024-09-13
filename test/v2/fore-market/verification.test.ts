@@ -4,6 +4,7 @@ import { expect } from "chai";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
+import { ForeAccessManager } from "@/ForeAccessManager";
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactoryV2 } from "@/BasicFactoryV2";
@@ -21,9 +22,9 @@ import {
   txExec,
   deployLibrary,
   executeInSingleBlock,
+  deployUniversalRouter,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
-import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Verification", () => {
   let owner: SignerWithAddress;
@@ -127,6 +128,12 @@ describe("BasicMarketV2 / Verification", () => {
       [defaultAdmin.address],
     ]);
 
+    const router = await deployUniversalRouter(
+      foreAccessManager.address,
+      foreProtocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
     // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
@@ -134,7 +141,8 @@ describe("BasicMarketV2 / Verification", () => {
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
-      foundationWallet.address
+      foundationWallet.address,
+      router.address
     );
 
     // factory assignment
