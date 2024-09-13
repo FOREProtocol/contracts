@@ -27,7 +27,7 @@ contract ProtocolConfig is Ownable {
     mapping(uint256 => Tier) internal _tiers;
 
     /// @notice Max fee (1 = 0.01%)
-    uint256 public constant MAX_FEE = 500;
+    uint256 public constant MAX_FEE = 2000;
 
     /// @notice Max price (FORE)
     uint256 public constant MAX_PRICE = 1000 ether;

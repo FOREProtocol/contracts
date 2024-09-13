@@ -107,6 +107,17 @@ const config: HardhatUserConfig = {
             saveDeployments: true,
             deploy: ["deploy/arbitrum/"],
         },
+        arbitrum: {
+            url: process.env.ARBITRUM_MAINNET_URL || "",
+            chainId: 42161,
+            accounts: {
+                mnemonic:
+                    process.env.MNEMONIC_MAINNET !== undefined
+                        ? process.env.MNEMONIC_MAINNET
+                        : "",
+            },
+            saveDeployments: true,
+        },
     },
     gasReporter: {
         enabled: process.env.REPORT_GAS !== undefined,
