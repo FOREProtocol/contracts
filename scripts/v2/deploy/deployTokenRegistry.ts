@@ -7,6 +7,7 @@ async function main() {
     "TokenIncentiveRegistry"
   );
   const tokenRegistry = await upgrades.deployProxy(TokenRegistryArtifact, [
+    contractAddresses.accessManager,
     [contractAddresses.foreToken, contractAddresses.usdt],
     [incentives.foreToken, incentives.usdt],
   ]);

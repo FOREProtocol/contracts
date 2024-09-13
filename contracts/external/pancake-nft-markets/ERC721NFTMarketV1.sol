@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import {Ownable} from "openzeppelin-v4/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "openzeppelin-v4/contracts/security/ReentrancyGuard.sol";
+import {EnumerableSet} from "openzeppelin-v4/contracts/utils/structs/EnumerableSet.sol";
+import {IERC20} from "openzeppelin-v4/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC721} from "openzeppelin-v4/contracts/token/ERC721/IERC721.sol";
+import {ERC721Holder} from "openzeppelin-v4/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 import {IWETH} from "./interfaces/IWETH.sol";
 

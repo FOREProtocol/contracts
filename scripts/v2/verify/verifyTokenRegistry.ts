@@ -11,7 +11,7 @@ async function main() {
     address: implAddress,
     constructorArguments: [],
   });
-  console.log("Contract verified on Etherscan");
+  console.log("Token registry verified on Etherscan");
 }
 
 main().catch((error) => {

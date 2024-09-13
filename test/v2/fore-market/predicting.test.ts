@@ -7,27 +7,23 @@ import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactoryV2 } from "@/BasicFactoryV2";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
-import { MarketLib } from "@/MarketLib";
+import { MarketLibV2 } from "@/MarketLibV2";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { MockERC20 } from "@/MockERC20";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 import {
   attachContract,
   deployLibrary,
   deployMockedContract,
   deployMockedContractAs,
+  deployUniversalRouter,
   timetravel,
   txExec,
 } from "../../helpers/utils";
-
-const defaultIncentives = {
-  predictionDiscountRate: 1000,
-  marketCreatorDiscountRate: 1000,
-  verificationDiscountRate: 1000,
-  foundationDiscountRate: 1000,
-} as const;
+import { SIDES, defaultIncentives } from "../../helpers/constants";
 
 const calculatePredictionFee = async (
   contract: BasicMarketV2,
@@ -47,16 +43,19 @@ describe("BasicMarketV2 / Predicting", () => {
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
   let usdcHolder: SignerWithAddress;
+  let defaultAdmin: SignerWithAddress;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
   let usdcToken: MockERC20;
   let basicFactory: MockContract<BasicFactoryV2>;
-  let marketLib: MarketLib;
+  let marketLib: MarketLibV2;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -74,10 +73,11 @@ describe("BasicMarketV2 / Predicting", () => {
       alice,
       bob,
       usdcHolder,
+      defaultAdmin,
     ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLib", [
+    marketLib = await deployLibrary("MarketLibV2", [
       "BasicMarketV2",
       "BasicFactoryV2",
     ]);
@@ -115,19 +115,47 @@ describe("BasicMarketV2 / Predicting", () => {
       ethers.utils.parseEther("1000000")
     );
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
+    const router = await deployUniversalRouter(
+      foreAccessManager.address,
+      foreProtocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      accountWhitelist.address,
+      foundationWallet.address,
+      router.address
     );
 
     // factory assignment
@@ -174,8 +202,7 @@ describe("BasicMarketV2 / Predicting", () => {
         .createMarket(
           marketHash,
           alice.address,
-          0,
-          0,
+          [0, 0],
           BigNumber.from(blockTimestamp + 200000),
           BigNumber.from(blockTimestamp + 300000),
           foreToken.address
@@ -218,14 +245,15 @@ describe("BasicMarketV2 / Predicting", () => {
   describe("initial state", () => {
     it("Should return proper market state", async () => {
       expect(await contract.marketInfo()).to.be.eql([
-        BigNumber.from(0), // side A
-        BigNumber.from(0), // side B
-        BigNumber.from(0), // verified A
-        BigNumber.from(0), // verified B
+        [BigNumber.from(0), BigNumber.from(0)], // sides
+        [BigNumber.from(0), BigNumber.from(0)], // verifications
         ethers.constants.AddressZero, // dispute creator
+        BigNumber.from(0), // total markets size
+        BigNumber.from(0), // total verifications amount
         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
         0, // result
+        0, // winner side index
         false, // confirmed
         false, // solved
       ]);
@@ -234,14 +262,14 @@ describe("BasicMarketV2 / Predicting", () => {
 
   it("Should revert without sufficient funds", async () => {
     await expect(
-      contract.connect(bob).predict(ethers.utils.parseEther("2"), true)
+      contract.connect(bob).predict(ethers.utils.parseEther("2"), SIDES.TRUE)
     ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
   });
 
   it("Should revert with 0 stake", async () => {
-    await expect(contract.connect(bob).predict(0, true)).to.be.revertedWith(
-      "AmountCantBeZero"
-    );
+    await expect(
+      contract.connect(bob).predict(0, SIDES.TRUE)
+    ).to.be.revertedWith("AmountCantBeZero");
   });
 
   describe("successfully (vote on A)", async () => {
@@ -249,7 +277,9 @@ describe("BasicMarketV2 / Predicting", () => {
 
     beforeEach(async () => {
       [tx] = await txExec(
-        contract.connect(alice).predict(ethers.utils.parseEther("2"), true)
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("2"), SIDES.TRUE)
       );
       predictionFees.foreToken = await calculatePredictionFee(
         contract,
@@ -262,7 +292,7 @@ describe("BasicMarketV2 / Predicting", () => {
         .to.emit({ ...marketLib, address: contract.address }, "Predict")
         .withArgs(
           alice.address,
-          true,
+          SIDES.TRUE,
           ethers.utils.parseEther("2").sub(predictionFees.foreToken)
         );
     });
@@ -279,14 +309,18 @@ describe("BasicMarketV2 / Predicting", () => {
 
     it("Should return proper market state", async () => {
       expect(await contract.marketInfo()).to.be.eql([
-        ethers.utils.parseEther("2").sub(predictionFees.foreToken), // side A
-        BigNumber.from(0), // side B
-        BigNumber.from(0), // verified A
-        BigNumber.from(0), // verified B
+        [
+          ethers.utils.parseEther("2").sub(predictionFees.foreToken),
+          BigNumber.from(0),
+        ], // sides
+        [BigNumber.from(0), BigNumber.from(0)], // verifications
         ethers.constants.AddressZero, // dispute creator
+        ethers.utils.parseEther("2").sub(predictionFees.foreToken), // total markets size
+        BigNumber.from(0), // total verifications amount
         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
         0, // result
+        0, // winner side index
         false, // confirmed
         false, // solved
       ]);
@@ -298,7 +332,9 @@ describe("BasicMarketV2 / Predicting", () => {
 
     beforeEach(async () => {
       [tx] = await txExec(
-        contract.connect(alice).predict(ethers.utils.parseEther("3"), false)
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("3"), SIDES.FALSE)
       );
       predictionFees.foreToken = await calculatePredictionFee(
         contract,
@@ -311,7 +347,7 @@ describe("BasicMarketV2 / Predicting", () => {
         .to.emit({ ...marketLib, address: contract.address }, "Predict")
         .withArgs(
           alice.address,
-          false,
+          SIDES.FALSE,
           ethers.utils.parseEther("3").sub(predictionFees.foreToken)
         );
     });
@@ -328,17 +364,77 @@ describe("BasicMarketV2 / Predicting", () => {
 
     it("Should return proper market state", async () => {
       expect(await contract.marketInfo()).to.be.eql([
-        ethers.utils.parseEther("0"), // side A
-        ethers.utils.parseEther("3").sub(predictionFees.foreToken), // side B
-        BigNumber.from(0), // verified A
-        BigNumber.from(0), // verified B
+        [
+          ethers.utils.parseEther("0"),
+          ethers.utils.parseEther("3").sub(predictionFees.foreToken),
+        ], // sides
+        [BigNumber.from(0), BigNumber.from(0)], // verifications
         ethers.constants.AddressZero, // dispute creator
+        ethers.utils.parseEther("3").sub(predictionFees.foreToken), // total markets size
+        BigNumber.from(0), // total verifications amount
         BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
         BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
         0, // result
+        0, // winner side index
         false, // confirmed
         false, // solved
       ]);
+    });
+  });
+
+  describe("invalid market", () => {
+    beforeEach(async () => {
+      await txExec(
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("2"), SIDES.TRUE)
+      );
+      predictionFees.foreToken = await calculatePredictionFee(
+        contract,
+        ethers.utils.parseEther("2")
+      );
+      await timetravel(blockTimestamp + 300001);
+      await txExec(contract.closeMarket());
+    });
+
+    describe("refund prediction stake", async () => {
+      let tx: ContractTransaction;
+
+      beforeEach(async () => {
+        [tx] = await txExec(
+          contract.connect(alice).withdrawPredictionReward(alice.address)
+        );
+      });
+
+      it("Should emit WithdrawReward event", async () => {
+        await expect(tx)
+          .to.emit(contract, "WithdrawReward")
+          .withArgs(alice.address, 1, ethers.utils.parseEther("2"));
+      });
+
+      it("Should emit Transfer (ERC20) event", async () => {
+        await expect(tx)
+          .to.emit(foreToken, "Transfer")
+          .withArgs(
+            contract.address,
+            alice.address,
+            ethers.utils.parseEther("2").sub(predictionFees.foreToken)
+          );
+      });
+    });
+  });
+
+  describe("token not enabled", async () => {
+    beforeEach(async () => {
+      await tokenRegistry.connect(defaultAdmin).removeToken(foreToken.address);
+    });
+
+    it("should revert token not enabled", async () => {
+      await expect(
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("2"), SIDES.TRUE)
+      ).to.revertedWith("Basic Market: Token is not enabled");
     });
   });
 
@@ -349,7 +445,9 @@ describe("BasicMarketV2 / Predicting", () => {
 
     it("Should revert if executed after end", async () => {
       await expect(
-        contract.connect(alice).predict(ethers.utils.parseEther("2"), true)
+        contract
+          .connect(alice)
+          .predict(ethers.utils.parseEther("2"), SIDES.TRUE)
       ).to.revertedWith("PredictionPeriodIsAlreadyClosed");
     });
   });

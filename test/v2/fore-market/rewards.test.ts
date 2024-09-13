@@ -4,13 +4,14 @@ import { expect } from "chai";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
+import { ForeAccessManager } from "@/ForeAccessManager";
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactoryV2 } from "@/BasicFactoryV2";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
-import { MarketLib } from "@/MarketLib";
+import { MarketLibV2 } from "@/MarketLibV2";
 import { MockERC20 } from "@/MockERC20";
 
 import {
@@ -22,14 +23,10 @@ import {
   timetravel,
   txExec,
   assertIsAvailableOnlyForOwner,
+  generateRandomHexString,
+  deployUniversalRouter,
 } from "../../helpers/utils";
-
-const defaultIncentives = {
-  predictionDiscountRate: 1000,
-  marketCreatorDiscountRate: 1000,
-  verificationDiscountRate: 1000,
-  foundationDiscountRate: 1000,
-} as const;
+import { SIDES, defaultIncentives } from "../../helpers/constants";
 
 const calculateMarketCreatorFeeRate = async (contract: BasicMarketV2) => {
   const flatRate = await contract.marketCreatorFlatFeeRate();
@@ -52,8 +49,9 @@ describe("BasicMarketV2 / Rewards", () => {
   let verifierSideB1: SignerWithAddress;
   let verifierSideB2: SignerWithAddress;
   let marketCreator: SignerWithAddress;
-  let marketLib: MarketLib;
+  let marketLib: MarketLibV2;
   let disputeCreator: SignerWithAddress;
+  let defaultAdmin: SignerWithAddress;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
@@ -61,8 +59,10 @@ describe("BasicMarketV2 / Rewards", () => {
   let foreProtocol: MockContract<ForeProtocol>;
   let basicFactory: MockContract<BasicFactoryV2>;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
   let usdcToken: MockContract<MockERC20>;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
@@ -82,10 +82,11 @@ describe("BasicMarketV2 / Rewards", () => {
       verifierSideB2,
       marketCreator,
       disputeCreator,
+      defaultAdmin,
     ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLib", [
+    marketLib = await deployLibrary("MarketLibV2", [
       "BasicMarketV2",
       "BasicFactoryV2",
     ]);
@@ -122,19 +123,47 @@ describe("BasicMarketV2 / Rewards", () => {
       ethers.utils.parseEther("1000000")
     );
 
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
+
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
+    const router = await deployUniversalRouter(
+      foreAccessManager.address,
+      foreProtocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      accountWhitelist.address,
+      foundationWallet.address,
+      router.address
     );
 
     // factory assignment
@@ -175,8 +204,7 @@ describe("BasicMarketV2 / Rewards", () => {
         .createMarket(
           marketHash,
           marketCreator.address,
-          ethers.utils.parseEther("1000"),
-          ethers.utils.parseEther("0"),
+          [ethers.utils.parseEther("1000"), ethers.utils.parseEther("0")],
           blockTimestamp + 100000,
           blockTimestamp + 300000,
           foreToken.address
@@ -244,24 +272,24 @@ describe("BasicMarketV2 / Rewards", () => {
       /// predictions
       await contract
         .connect(predictorSideA1)
-        .predict(ethers.utils.parseEther("500"), true);
+        .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
       await contract
         .connect(predictorSideA2)
-        .predict(ethers.utils.parseEther("500"), true);
+        .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
       await contract
         .connect(predictorSideB1)
-        .predict(ethers.utils.parseEther("1000"), false);
+        .predict(ethers.utils.parseEther("1000"), SIDES.FALSE);
       await contract
         .connect(predictorSideB2)
-        .predict(ethers.utils.parseEther("2000"), false);
+        .predict(ethers.utils.parseEther("2000"), SIDES.FALSE);
 
       await timetravel(blockTimestamp + 300005);
 
       // verifications
-      await contract.connect(verifierSideB2).verify(3, false);
-      await contract.connect(verifierSideA1).verify(0, true);
-      await contract.connect(verifierSideA2).verify(1, true);
-      await contract.connect(verifierSideB1).verify(2, true);
+      await contract.connect(verifierSideB2).verify(3, SIDES.FALSE);
+      await contract.connect(verifierSideA1).verify(0, SIDES.TRUE);
+      await contract.connect(verifierSideA2).verify(1, SIDES.TRUE);
+      await contract.connect(verifierSideB1).verify(2, SIDES.TRUE);
     });
 
     // side a: 2000
@@ -305,8 +333,7 @@ describe("BasicMarketV2 / Rewards", () => {
           [tx] = await txExec(
             contract.connect(marketCreator).marketCreatorFeeWithdraw()
           );
-          const marketInfo = await contract.marketInfo();
-          const totalMarketSize = marketInfo.sideA.add(marketInfo.sideB);
+          const { totalMarketSize } = await contract.marketInfo();
           const marketCreatorFeeRate = await calculateMarketCreatorFeeRate(
             contract
           );
@@ -386,6 +413,14 @@ describe("BasicMarketV2 / Rewards", () => {
     });
 
     describe("Prediction reward", () => {
+      it("should have 0 prediction reward", async () => {
+        expect(
+          await contract
+            .connect(predictorSideA1)
+            .calculatePredictionReward(predictorSideA1.address)
+        ).to.be.eql(BigNumber.from(0));
+      });
+
       it("Should revert when market not closed", async () => {
         await expect(
           contract
@@ -518,7 +553,7 @@ describe("BasicMarketV2 / Rewards", () => {
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
             );
 
-          await contract.connect(highGuardAccount).resolveDispute(2);
+          await contract.connect(highGuardAccount).resolveDispute(2, 1);
         });
 
         it("Should return proper calculated value after market closed", async () => {
@@ -587,6 +622,15 @@ describe("BasicMarketV2 / Rewards", () => {
               .withArgs(contract.address, verifierSideB2.address, 3);
           });
 
+          it("Should calculate 0 rewards", async () => {
+            expect(await contract.calculateVerificationReward(0)).to.be.eql([
+              ethers.utils.parseEther("0"),
+              ethers.utils.parseEther("0"),
+              ethers.utils.parseEther("0"),
+              false,
+            ]);
+          });
+
           it("Should revert when rewards already withdrawn", async () => {
             await expect(
               contract
@@ -640,9 +684,9 @@ describe("BasicMarketV2 / Rewards", () => {
         describe("Withdraw reward (incorrect verification)", () => {
           let tx: ContractTransaction;
 
-          // const num = ethers.utils
-          //     .parseEther("750")
-          //     .div(ethers.BigNumber.from("2"));
+          const num = ethers.utils
+            .parseEther("750")
+            .div(ethers.BigNumber.from("2"));
 
           beforeEach(async () => {
             [tx] = await txExec(
@@ -652,25 +696,17 @@ describe("BasicMarketV2 / Rewards", () => {
             );
           });
 
-          // it("Should emit Fore token Transfer to HG", async () => {
-          //     await expect(tx)
-          //         .to.emit(foreToken, "Transfer")
-          //         .withArgs(
-          //             foreVerifiers.address,
-          //             highGuardAccount.address,
-          //             num
-          //         );
-          // });
+          it("Should emit Fore token Transfer to HG", async () => {
+            await expect(tx)
+              .to.emit(foreToken, "Transfer")
+              .withArgs(foreVerifiers.address, highGuardAccount.address, num);
+          });
 
-          // it("Should emit Fore token Transfer to dispute creator", async () => {
-          //     await expect(tx)
-          //         .to.emit(foreToken, "Transfer")
-          //         .withArgs(
-          //             foreVerifiers.address,
-          //             disputeCreator.address,
-          //             num
-          //         );
-          // });
+          it("Should emit Fore token Transfer to dispute creator", async () => {
+            await expect(tx)
+              .to.emit(foreToken, "Transfer")
+              .withArgs(foreVerifiers.address, disputeCreator.address, num);
+          });
 
           it("Should emit vNFT Transfer event (burn)", async () => {
             await expect(tx)
@@ -681,12 +717,11 @@ describe("BasicMarketV2 / Rewards", () => {
 
         describe("Withdraw reward with exhausted token balance", () => {
           let tx: ContractTransaction;
-
-          const num = ethers.utils.parseEther("41.76");
+          const num = ethers.utils.parseEther("30");
 
           beforeEach(async () => {
             await foreToken.setVariable("_balances", {
-              [contract.address]: ethers.utils.parseEther("80"),
+              [contract.address]: num,
             });
 
             [tx] = await txExec(
@@ -702,17 +737,17 @@ describe("BasicMarketV2 / Rewards", () => {
                 { ...marketLib, address: contract.address },
                 "WithdrawReward"
               )
-              .withArgs(verifierSideB2.address, 2, num);
+              .withArgs(
+                verifierSideB2.address,
+                2,
+                ethers.utils.parseEther("41.76")
+              );
           });
 
           it("Should emit Fore token Transfer event", async () => {
             await expect(tx)
               .to.emit(foreToken, "Transfer")
-              .withArgs(
-                contract.address,
-                verifierSideB2.address,
-                ethers.utils.parseEther("41.76")
-              );
+              .withArgs(contract.address, verifierSideB2.address, num);
           });
 
           it("Should emit vNFT Transfer event", async () => {
@@ -747,7 +782,7 @@ describe("BasicMarketV2 / Rewards", () => {
             verifierSideB2.address,
             ethers.utils.parseEther("750"),
             BigNumber.from(3),
-            false,
+            SIDES.FALSE,
             false,
           ]);
         });
@@ -835,7 +870,7 @@ describe("BasicMarketV2 / Rewards", () => {
               .to.emit(foreToken, "Transfer")
               .withArgs(
                 foreVerifiers.address,
-                ethers.constants.AddressZero,
+                "0x000000000000000000000000000000000000dEaD",
                 ethers.utils.parseEther("750")
               );
           });
@@ -855,21 +890,21 @@ describe("BasicMarketV2 / Rewards", () => {
       /// predictions
       await contract
         .connect(predictorSideA1)
-        .predict(ethers.utils.parseEther("500"), true);
+        .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
       await contract
         .connect(predictorSideA2)
-        .predict(ethers.utils.parseEther("500"), true);
+        .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
       await contract
         .connect(predictorSideB1)
-        .predict(ethers.utils.parseEther("1000"), false);
+        .predict(ethers.utils.parseEther("1000"), SIDES.FALSE);
       await contract
         .connect(predictorSideB2)
-        .predict(ethers.utils.parseEther("2000"), false);
+        .predict(ethers.utils.parseEther("2000"), SIDES.FALSE);
 
       await timetravel(blockTimestamp + 300000 + 1);
       await executeInSingleBlock(() => [
-        contract.connect(verifierSideA1).verify(0, false),
-        contract.connect(verifierSideA2).verify(1, false),
+        contract.connect(verifierSideA1).verify(0, SIDES.FALSE),
+        contract.connect(verifierSideA2).verify(1, SIDES.FALSE),
       ]);
     });
 
@@ -999,21 +1034,21 @@ describe("BasicMarketV2 / Rewards", () => {
       /// predictions
       await contract
         .connect(predictorSideA1)
-        .predict(ethers.utils.parseEther("500"), true);
+        .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
       await contract
         .connect(predictorSideA2)
-        .predict(ethers.utils.parseEther("500"), true);
+        .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
       await contract
         .connect(predictorSideB1)
-        .predict(ethers.utils.parseEther("1000"), false);
+        .predict(ethers.utils.parseEther("1000"), SIDES.FALSE);
       await contract
         .connect(predictorSideB2)
-        .predict(ethers.utils.parseEther("2000"), false);
+        .predict(ethers.utils.parseEther("2000"), SIDES.FALSE);
 
       await timetravel(blockTimestamp + 300000 + 1);
       await executeInSingleBlock(() => [
-        contract.connect(verifierSideA1).verify(0, true),
-        contract.connect(verifierSideA2).verify(1, false),
+        contract.connect(verifierSideA1).verify(0, SIDES.TRUE),
+        contract.connect(verifierSideA2).verify(1, SIDES.FALSE),
       ]);
     });
 
@@ -1099,17 +1134,43 @@ describe("BasicMarketV2 / Rewards", () => {
         });
       });
     });
+
+    describe("Verification reward", () => {
+      it("Should revert when market not closed", async () => {
+        await expect(
+          contract.connect(verifierSideA1).withdrawVerificationReward(0, false)
+        ).to.be.revertedWith("MarketIsNotClosedYet");
+      });
+
+      describe("after closing", () => {
+        beforeEach(async () => {
+          await timetravel(blockTimestamp + 4000000);
+          await contract.connect(marketCreator).closeMarket();
+        });
+
+        it("Should calculate reward", async () => {
+          expect(
+            await contract
+              .connect(verifierSideA1)
+              .calculateVerificationReward(0)
+          ).to.be.eql([
+            ethers.utils.parseEther("0"),
+            ethers.utils.parseEther("0"),
+            ethers.utils.parseEther("0"),
+            false,
+          ]);
+        });
+      });
+    });
   });
 
   describe("Invalid market", () => {
     beforeEach(async () => {
       await contract
         .connect(predictorSideA1)
-        .predict(ethers.utils.parseEther("500"), true);
-
+        .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
       await timetravel(blockTimestamp + 300005);
-
-      await contract.connect(verifierSideA1).verify(0, true);
+      await contract.connect(verifierSideA1).verify(0, SIDES.TRUE);
     });
 
     describe("Market creator reward", () => {
@@ -1121,12 +1182,241 @@ describe("BasicMarketV2 / Rewards", () => {
     });
 
     describe("Prediction reward", () => {
-      it("Should return 0 reward", async () => {
+      it("Should return correct prediction reward", async () => {
         expect(
           await contract
-            .connect(verifierSideA1)
-            .calculatePredictionReward(verifierSideA1.address)
-        ).to.be.equal(ethers.utils.parseEther("0"));
+            .connect(predictorSideA1)
+            .calculatePredictionReward(predictorSideA1.address)
+        ).to.be.equal(ethers.utils.parseEther("455"));
+      });
+    });
+  });
+
+  describe("with usdc market", () => {
+    beforeEach(async () => {
+      await sendERC20Tokens(usdcToken, {
+        [predictorSideA1.address]: ethers.utils.parseEther("1000"),
+        [predictorSideA2.address]: ethers.utils.parseEther("1000"),
+        [predictorSideB1.address]: ethers.utils.parseEther("2000"),
+        [predictorSideB2.address]: ethers.utils.parseEther("4000"),
+        [marketCreator.address]: ethers.utils.parseEther("1010"),
+        [disputeCreator.address]: ethers.utils.parseEther("2000"),
+      });
+
+      const previousBlock = await ethers.provider.getBlock("latest");
+      blockTimestamp = previousBlock.timestamp;
+
+      await txExec(
+        usdcToken
+          .connect(marketCreator)
+          .approve(
+            basicFactory.address,
+            ethers.utils.parseUnits("1010", "ether")
+          )
+      );
+
+      const marketHash = generateRandomHexString(64);
+      await txExec(
+        basicFactory
+          .connect(marketCreator)
+          .createMarket(
+            marketHash,
+            marketCreator.address,
+            [ethers.utils.parseEther("1000"), ethers.utils.parseEther("0")],
+            blockTimestamp + 100000,
+            blockTimestamp + 300000,
+            usdcToken.address
+          )
+      );
+
+      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
+      const salt = marketHash;
+      const newAddress = ethers.utils.getCreate2Address(
+        basicFactory.address,
+        salt,
+        initCode
+      );
+
+      contract = await attachContract<BasicMarketV2>(
+        "BasicMarketV2",
+        newAddress
+      );
+
+      await executeInSingleBlock(() => [
+        usdcToken
+          .connect(marketCreator)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        usdcToken
+          .connect(verifierSideA1)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        usdcToken
+          .connect(verifierSideA2)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        usdcToken
+          .connect(verifierSideB1)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        usdcToken
+          .connect(verifierSideB2)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        usdcToken
+          .connect(predictorSideA1)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        usdcToken
+          .connect(predictorSideA2)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
+        usdcToken
+          .connect(predictorSideB1)
+          .approve(contract.address, ethers.utils.parseUnits("2000", "ether")),
+        usdcToken
+          .connect(predictorSideB2)
+          .approve(contract.address, ethers.utils.parseUnits("4000", "ether")),
+      ]);
+
+      await executeInSingleBlock(() => [
+        foreToken
+          .connect(owner)
+          .approve(
+            foreProtocol.address,
+            ethers.utils.parseUnits("3000", "ether")
+          ),
+        foreProtocol.connect(owner).mintVerifier(verifierSideA1.address),
+        foreProtocol.connect(owner).mintVerifier(verifierSideA2.address),
+        foreProtocol.connect(owner).mintVerifier(verifierSideB1.address),
+        foreProtocol.connect(owner).mintVerifier(verifierSideB2.address),
+      ]);
+    });
+
+    describe("Valid market", () => {
+      beforeEach(async () => {
+        await contract
+          .connect(predictorSideA1)
+          .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
+        await contract
+          .connect(predictorSideA2)
+          .predict(ethers.utils.parseEther("500"), SIDES.TRUE);
+        await contract
+          .connect(predictorSideB1)
+          .predict(ethers.utils.parseEther("1000"), SIDES.FALSE);
+        await contract
+          .connect(predictorSideB2)
+          .predict(ethers.utils.parseEther("2000"), SIDES.FALSE);
+
+        await timetravel(blockTimestamp + 300005);
+        await contract.connect(verifierSideB2).verify(3, SIDES.FALSE);
+        await contract.connect(verifierSideA1).verify(0, SIDES.TRUE);
+        await contract.connect(verifierSideA2).verify(1, SIDES.TRUE);
+        await contract.connect(verifierSideB1).verify(2, SIDES.TRUE);
+      });
+
+      describe("Verifier reward", () => {
+        it("Should return 0 before market closed", async () => {
+          expect(await contract.calculateVerificationReward(0)).to.be.eql([
+            ethers.utils.parseEther("0"),
+            ethers.utils.parseEther("0"),
+            ethers.utils.parseEther("0"),
+            false,
+          ]);
+
+          expect(await contract.calculateVerificationReward(1)).to.be.eql([
+            ethers.utils.parseEther("0"),
+            ethers.utils.parseEther("0"),
+            ethers.utils.parseEther("0"),
+            false,
+          ]);
+        });
+
+        describe("after closing", () => {
+          beforeEach(async () => {
+            await timetravel(blockTimestamp + 4000000);
+
+            await contract.connect(marketCreator).closeMarket();
+          });
+
+          it("Should return proper verification", async () => {
+            expect(await contract.verifications(0)).to.be.eql([
+              verifierSideB2.address,
+              ethers.utils.parseEther("750"),
+              BigNumber.from(3),
+              SIDES.FALSE,
+              false,
+            ]);
+          });
+
+          it("Should return proper calculated value after market closed", async () => {
+            const num = ethers.utils
+              .parseEther("41.76")
+              .div(ethers.BigNumber.from("3"));
+            expect(await contract.calculateVerificationReward(1)).to.be.eql([
+              num,
+              ethers.utils.parseEther("0"),
+              ethers.utils.parseEther("0"),
+              false,
+            ]);
+            expect(await contract.calculateVerificationReward(2)).to.be.eql([
+              num,
+              ethers.utils.parseEther("0"),
+              ethers.utils.parseEther("0"),
+              false,
+            ]);
+            expect(await contract.calculateVerificationReward(3)).to.be.eql([
+              num,
+              ethers.utils.parseEther("0"),
+              ethers.utils.parseEther("0"),
+              false,
+            ]);
+            expect(await contract.calculateVerificationReward(0)).to.be.eql([
+              ethers.utils.parseEther("0"),
+              ethers.utils.parseEther("0"),
+              ethers.utils.parseEther("0"),
+              true,
+            ]);
+          });
+
+          it("should revert increase NFT power reward", async () => {
+            await expect(
+              contract
+                .connect(verifierSideA1)
+                .withdrawVerificationReward(1, false)
+            ).to.be.revertedWith("OnlyForFOREDenominatedMarkets");
+          });
+
+          describe("Withdraw reward (proper verification)", () => {
+            let tx: ContractTransaction;
+
+            const num = ethers.utils
+              .parseEther("41.76")
+              .div(ethers.BigNumber.from("3"));
+
+            beforeEach(async () => {
+              [tx] = await txExec(
+                contract
+                  .connect(verifierSideA1)
+                  .withdrawVerificationReward(1, true)
+              );
+            });
+
+            it("Should emit WithdrawReward event", async () => {
+              await expect(tx)
+                .to.emit(
+                  { ...marketLib, address: contract.address },
+                  "WithdrawReward"
+                )
+                .withArgs(verifierSideA1.address, 2, num);
+            });
+
+            it("Should emit usdc token Transfer event", async () => {
+              await expect(tx)
+                .to.emit(usdcToken, "Transfer")
+                .withArgs(contract.address, verifierSideA1.address, num);
+            });
+
+            it("Should emit vNFT Transfer event", async () => {
+              await expect(tx)
+                .to.emit(foreVerifiers, "Transfer")
+                .withArgs(contract.address, verifierSideA1.address, 0);
+            });
+          });
+        });
       });
     });
   });

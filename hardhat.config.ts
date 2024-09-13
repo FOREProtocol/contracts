@@ -14,6 +14,7 @@ import "hardhat-interface-generator";
 import "solidity-coverage";
 import "hardhat-deploy";
 import "@openzeppelin/hardhat-upgrades";
+import "@nomicfoundation/hardhat-foundry";
 
 dotenv.config();
 
@@ -123,7 +124,7 @@ const config: HardhatUserConfig = {
         enabled: process.env.REPORT_GAS !== undefined,
         currency: "USD",
         // gasPrice: 100,
-        token: "FTM",
+        token: "ETH",
         coinmarketcap: process.env.COINMARKETCAP_API_KEY,
     },
     verify: {

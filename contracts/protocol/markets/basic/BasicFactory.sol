@@ -2,12 +2,12 @@
 pragma solidity 0.8.20;
 
 import "./BasicMarket.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 
 contract BasicFactory {
-    using SafeERC20 for IERC20Burnable;
+    using SafeERC20 for IERC20;
 
     /// @notice Init creatin code
     /// @dev Needed to calculate market address
@@ -18,7 +18,7 @@ contract BasicFactory {
     IForeProtocol public immutable foreProtocol;
 
     /// @notice ForeToken
-    IERC20Burnable public immutable foreToken;
+    IERC20 public immutable foreToken;
 
     /// @notice Protocol Config
     IProtocolConfig public immutable config;
@@ -30,7 +30,7 @@ contract BasicFactory {
     constructor(IForeProtocol protocolAddress) {
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
-        foreToken = IERC20Burnable(protocolAddress.foreToken());
+        foreToken = IERC20(protocolAddress.foreToken());
         foreVerifiers = IForeVerifiers(protocolAddress.foreVerifiers());
     }
 
@@ -60,7 +60,11 @@ contract BasicFactory {
 
         uint256 creationFee = config.marketCreationPrice();
         if (creationFee != 0) {
-            foreToken.burnFrom(msg.sender, creationFee);
+            foreToken.safeTransferFrom(
+                msg.sender,
+                address(0x000000000000000000000000000000000000dEaD),
+                creationFee
+            );
         }
 
         uint256 amountSum = amountA + amountB;

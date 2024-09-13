@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "openzeppelin-v4/contracts/access/Ownable.sol";
 import "./MarketConfig.sol";
 
 contract ProtocolConfig is Ownable {

@@ -1,33 +1,30 @@
 import { ethers, upgrades } from "hardhat";
 import { BigNumber, Contract, ContractTransaction, Signer } from "ethers";
 import { expect } from "chai";
+import { MockContract } from "@defi-wonderland/smock/dist/src/types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
 import { BasicFactoryV2 } from "@/BasicFactoryV2";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
-import { MarketLib } from "@/MarketLib";
+import { MarketLibV2 } from "@/MarketLibV2";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { ERC20 } from "@/ERC20";
-import { MockContract } from "@defi-wonderland/smock/dist/src/types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { ForeAccessManager } from "@/ForeAccessManager";
 
 import {
   assertIsAvailableOnlyForOwner,
   deployContractAs,
   deployLibrary,
   deployMockedContract,
+  deployUniversalRouter,
   impersonateContract,
+  timetravel,
   txExec,
 } from "../../helpers/utils";
-
-const defaultIncentives = {
-  predictionDiscountRate: 1000,
-  marketCreatorDiscountRate: 1000,
-  verificationDiscountRate: 1000,
-  foundationDiscountRate: 1000,
-} as const;
+import { SIDES, defaultIncentives } from "../../helpers/constants";
 
 describe("BasicMarketV2 / Initialization", () => {
   let owner: SignerWithAddress;
@@ -35,25 +32,36 @@ describe("BasicMarketV2 / Initialization", () => {
   let highGuardAccount: SignerWithAddress;
   let marketplaceContract: SignerWithAddress;
   let basicFactoryAccount: Signer;
+  let defaultAdmin: SignerWithAddress;
 
-  let marketLib: MarketLib;
+  let marketLib: MarketLibV2;
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
   let basicFactory: MockContract<BasicFactoryV2>;
   let tokenRegistry: Contract;
+  let accountWhitelist: Contract;
+  let router: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
+  let foreAccessManager: MockContract<ForeAccessManager>;
 
   let blockTimestamp: number;
 
   beforeEach(async () => {
-    [owner, foundationWallet, highGuardAccount, marketplaceContract, , ,] =
-      await ethers.getSigners();
+    [
+      owner,
+      foundationWallet,
+      highGuardAccount,
+      marketplaceContract,
+      ,
+      ,
+      defaultAdmin,
+    ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLib", [
+    marketLib = await deployLibrary("MarketLibV2", [
       "BasicMarketV2",
       "BasicFactoryV2",
     ]);
@@ -83,21 +91,53 @@ describe("BasicMarketV2 / Initialization", () => {
       "https://markets.api.foreprotocol.io/market/"
     );
 
-    usdcToken = await deployMockedContract<ERC20>("ERC20", "USDC", "USD Coin");
+    usdcToken = await deployMockedContract<ERC20>(
+      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "USDC",
+      "USD Coin"
+    );
+
+    // setup the access manager
+    // preparing fore protocol
+    foreAccessManager = await deployMockedContract<ForeAccessManager>(
+      "ForeAccessManager",
+      defaultAdmin.address
+    );
 
     // preparing token registry
     const tokenRegistryFactory = await ethers.getContractFactory(
       "TokenIncentiveRegistry"
     );
     tokenRegistry = await upgrades.deployProxy(tokenRegistryFactory, [
+      foreAccessManager.address,
       [usdcToken.address, foreToken.address],
       [defaultIncentives, defaultIncentives],
     ]);
 
+    // preparing account whitelist
+    const accountWhitelistFactory = await ethers.getContractFactory(
+      "AccountWhitelist"
+    );
+    accountWhitelist = await upgrades.deployProxy(accountWhitelistFactory, [
+      foreAccessManager.address,
+      [defaultAdmin.address],
+    ]);
+
+    router = await deployUniversalRouter(
+      foreAccessManager.address,
+      foreProtocol.address,
+      [usdcToken.address, foreToken.address]
+    );
+
+    // preparing factory
     basicFactory = await deployMockedContract<BasicFactoryV2>(
       "BasicFactoryV2",
+      foreAccessManager.address,
       foreProtocol.address,
-      tokenRegistry.address
+      tokenRegistry.address,
+      accountWhitelist.address,
+      foundationWallet.address,
+      router.address
     );
     basicFactoryAccount = await impersonateContract(basicFactory.address);
 
@@ -121,8 +161,7 @@ describe("BasicMarketV2 / Initialization", () => {
           mHash:
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
           receiver: owner.address,
-          amountA: ethers.utils.parseEther("1"),
-          amountB: ethers.utils.parseEther("2"),
+          amounts: [ethers.utils.parseEther("1"), ethers.utils.parseEther("2")],
           protocolAddress: foreProtocol.address,
           tokenRegistry: tokenRegistry.address,
           feeReceiver: owner.address,
@@ -134,6 +173,7 @@ describe("BasicMarketV2 / Initialization", () => {
           marketCreatorFlatFeeRate: 100,
           verificationFlatFeeRate: 100,
           foundationFlatFeeRate: 1800,
+          router: router.address,
         });
       },
       basicFactoryAccount,
@@ -150,8 +190,7 @@ describe("BasicMarketV2 / Initialization", () => {
           mHash:
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
           receiver: owner.address,
-          amountA: ethers.utils.parseEther("1"),
-          amountB: ethers.utils.parseEther("2"),
+          amounts: [ethers.utils.parseEther("1"), ethers.utils.parseEther("2")],
           protocolAddress: foreProtocol.address,
           tokenRegistry: tokenRegistry.address,
           feeReceiver: owner.address,
@@ -163,6 +202,7 @@ describe("BasicMarketV2 / Initialization", () => {
           marketCreatorFlatFeeRate: 100,
           verificationFlatFeeRate: 100,
           foundationFlatFeeRate: 1800,
+          router: router.address,
         })
       );
     });
@@ -204,14 +244,15 @@ describe("BasicMarketV2 / Initialization", () => {
 
     it("Should return proper market struct", async () => {
       expect(await contract.marketInfo()).to.be.eql([
-        ethers.utils.parseEther("1"), // side A
-        ethers.utils.parseEther("2"), // side B
-        BigNumber.from(0), // verified A
-        BigNumber.from(0), // verified B
+        [ethers.utils.parseEther("1"), ethers.utils.parseEther("2")], // sides
+        [BigNumber.from(0), BigNumber.from(0)], // verifications
         ethers.constants.AddressZero, // dispute creator
+        ethers.utils.parseEther("1").add(ethers.utils.parseEther("2")), // total market size
+        BigNumber.from(0),
         BigNumber.from(blockTimestamp + 100000), // endPredictionTimestamp
         BigNumber.from(blockTimestamp + 200000), // startVerificationTimestamp
         0, // result
+        0, // winner side index
         false, // confirmed
         false, // solved
       ]);
@@ -220,20 +261,20 @@ describe("BasicMarketV2 / Initialization", () => {
     it("Should emit Predict events", async () => {
       await expect(tx)
         .to.emit({ ...marketLib, address: contract.address }, "Predict")
-        .withArgs(owner.address, true, ethers.utils.parseEther("1"));
+        .withArgs(owner.address, SIDES.TRUE, ethers.utils.parseEther("1"));
 
       await expect(tx)
         .to.emit({ ...marketLib, address: contract.address }, "Predict")
-        .withArgs(owner.address, false, ethers.utils.parseEther("2"));
+        .withArgs(owner.address, SIDES.FALSE, ethers.utils.parseEther("2"));
     });
 
     it("Should update predictions state", async () => {
-      expect(await contract.predictionsA(owner.address)).to.be.equal(
-        ethers.utils.parseEther("1")
-      );
-      expect(await contract.predictionsB(owner.address)).to.be.equal(
-        ethers.utils.parseEther("2")
-      );
+      expect(
+        await contract.getPredictionAmountBySide(owner.address, SIDES.TRUE)
+      ).to.be.equal(ethers.utils.parseEther("1"));
+      expect(
+        await contract.getPredictionAmountBySide(owner.address, SIDES.FALSE)
+      ).to.be.equal(ethers.utils.parseEther("2"));
     });
 
     it("Should return initial verificationHeight", async () => {
@@ -250,8 +291,7 @@ describe("BasicMarketV2 / Initialization", () => {
           mHash:
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
           receiver: owner.address,
-          amountA: 0,
-          amountB: ethers.utils.parseEther("2"),
+          amounts: [0, ethers.utils.parseEther("2")],
           protocolAddress: foreProtocol.address,
           tokenRegistry: tokenRegistry.address,
           feeReceiver: owner.address,
@@ -263,6 +303,7 @@ describe("BasicMarketV2 / Initialization", () => {
           marketCreatorFlatFeeRate: 100,
           verificationFlatFeeRate: 100,
           foundationFlatFeeRate: 1800,
+          router: router.address,
         })
       );
     });
@@ -270,14 +311,16 @@ describe("BasicMarketV2 / Initialization", () => {
     it("Should emit Predict events", async () => {
       await expect(tx)
         .to.emit({ ...marketLib, address: contract.address }, "Predict")
-        .withArgs(owner.address, false, ethers.utils.parseEther("2"));
+        .withArgs(owner.address, SIDES.FALSE, ethers.utils.parseEther("2"));
     });
 
     it("Should update predictions state", async () => {
-      expect(await contract.predictionsA(owner.address)).to.be.equal(0);
-      expect(await contract.predictionsB(owner.address)).to.be.equal(
-        ethers.utils.parseEther("2")
-      );
+      expect(
+        await contract.getPredictionAmountBySide(owner.address, SIDES.TRUE)
+      ).to.be.equal(0);
+      expect(
+        await contract.getPredictionAmountBySide(owner.address, SIDES.FALSE)
+      ).to.be.equal(ethers.utils.parseEther("2"));
     });
   });
 
@@ -290,8 +333,7 @@ describe("BasicMarketV2 / Initialization", () => {
           mHash:
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
           receiver: owner.address,
-          amountA: ethers.utils.parseEther("1"),
-          amountB: 0,
+          amounts: [ethers.utils.parseEther("1"), 0],
           protocolAddress: foreProtocol.address,
           tokenRegistry: tokenRegistry.address,
           feeReceiver: owner.address,
@@ -303,6 +345,7 @@ describe("BasicMarketV2 / Initialization", () => {
           marketCreatorFlatFeeRate: 100,
           verificationFlatFeeRate: 100,
           foundationFlatFeeRate: 1800,
+          router: router.address,
         })
       );
     });
@@ -310,14 +353,43 @@ describe("BasicMarketV2 / Initialization", () => {
     it("Should emit Predict events", async () => {
       await expect(tx)
         .to.emit({ ...marketLib, address: contract.address }, "Predict")
-        .withArgs(owner.address, true, ethers.utils.parseEther("1"));
+        .withArgs(owner.address, SIDES.TRUE, ethers.utils.parseEther("1"));
     });
 
     it("Should update predictions state", async () => {
-      expect(await contract.predictionsA(owner.address)).to.be.equal(
-        ethers.utils.parseEther("1")
-      );
-      expect(await contract.predictionsB(owner.address)).to.be.equal(0);
+      expect(
+        await contract.getPredictionAmountBySide(owner.address, SIDES.TRUE)
+      ).to.be.equal(ethers.utils.parseEther("1"));
+      expect(
+        await contract.getPredictionAmountBySide(owner.address, SIDES.FALSE)
+      ).to.be.equal(0);
     });
+  });
+
+  it("should revert prediction period is already closed", async () => {
+    await timetravel(blockTimestamp + 100001);
+
+    await expect(
+      txExec(
+        contract.connect(basicFactoryAccount).initialize({
+          mHash:
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+          receiver: owner.address,
+          amounts: [ethers.utils.parseEther("1"), ethers.utils.parseEther("2")],
+          protocolAddress: foreProtocol.address,
+          tokenRegistry: tokenRegistry.address,
+          feeReceiver: owner.address,
+          token: foreToken.address,
+          endPredictionTimestamp: blockTimestamp + 100000,
+          startVerificationTimestamp: blockTimestamp + 200000,
+          tokenId: 0,
+          predictionFlatFeeRate: 1000,
+          marketCreatorFlatFeeRate: 100,
+          verificationFlatFeeRate: 100,
+          foundationFlatFeeRate: 1800,
+          router: router.address,
+        })
+      )
+    ).to.revertedWith("PredictionPeriodIsAlreadyClosed");
   });
 });
