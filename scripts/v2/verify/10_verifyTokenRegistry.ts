@@ -3,8 +3,12 @@ import hre, { upgrades } from "hardhat";
 import { contractAddresses } from "../constants";
 
 async function main() {
+  const network = hre.hardhatArguments.network;
+
+  console.log(`Verifying token registry on ${network}...`);
+
   const implAddress = await upgrades.erc1967.getImplementationAddress(
-    contractAddresses.tokenRegistry
+    contractAddresses[network].tokenRegistry
   );
 
   await hre.run("verify:verify", {

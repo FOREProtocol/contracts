@@ -69,11 +69,18 @@ library ArrayUtils {
      * @param array The array of uint256 elements to check
      * @return A boolean indicating if more than two elements have the same value
      */
-    function hasDuplicates(
+    function hasNonZeroDuplicates(
         uint256[] memory array
     ) internal pure returns (bool) {
         uint256 length = array.length;
         for (uint256 i = 0; i < length; ) {
+            if (array[i] == 0) {
+                unchecked {
+                    i++;
+                }
+                continue;
+            }
+
             for (uint256 j = i + 1; j < length; ) {
                 if (array[i] == array[j]) {
                     return true;

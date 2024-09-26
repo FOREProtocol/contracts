@@ -3,8 +3,12 @@ import hre, { upgrades } from "hardhat";
 import { contractAddresses } from "../constants";
 
 async function main() {
+  const network = hre.hardhatArguments.network;
+
+  console.log(`Verifying router on ${network}...`);
+
   const implAddress = await upgrades.erc1967.getImplementationAddress(
-    contractAddresses.router
+    contractAddresses[network].router
   );
 
   await hre.run("verify:verify", {

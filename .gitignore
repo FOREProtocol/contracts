@@ -23,3 +23,6 @@ yarn-error.log
 # Foundry files
 cache_forge
 out
+
+# Scripts
+scripts/v2/test

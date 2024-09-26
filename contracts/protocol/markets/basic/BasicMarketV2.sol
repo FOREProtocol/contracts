@@ -312,7 +312,7 @@ contract BasicMarketV2 is ReentrancyGuard {
             _closeMarket(MarketLibV2.ResultType.INVALID);
             return;
         }
-        token.safeTransferFrom(msg.sender, address(this), disputePrice);
+        foreToken.safeTransferFrom(msg.sender, address(this), disputePrice);
         disputeMessage = messageHash;
         MarketLibV2.openDispute(
             _market,
@@ -337,7 +337,7 @@ contract BasicMarketV2 is ReentrancyGuard {
             highGuard,
             msg.sender
         );
-        token.safeTransfer(receiver, marketConfig.disputePrice());
+        foreToken.safeTransfer(receiver, marketConfig.disputePrice());
         _closeMarket(result);
     }
 
