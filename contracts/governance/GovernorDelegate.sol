@@ -59,10 +59,10 @@ contract GovernorDelegate is GovernorInterface {
         proposalThreshold = proposalThreshold_;
         _notEntered = true;
 
-        _tier[0] = Tier(weeks13, 2000); // 20%;
-        _tier[1] = Tier(weeks26, 2000); // 20%;
-        _tier[2] = Tier(weeks52, 2000); // 20%;
-        _tier[3] = Tier(weeks104, 2000); // 20%;
+        _tiers[0] = Tier(weeks13, 2000); // 20%;
+        _tiers[1] = Tier(weeks26, 2000); // 20%;
+        _tiers[2] = Tier(weeks52, 2000); // 20%;
+        _tiers[3] = Tier(weeks104, 2000); // 20%;
     }
 
     /**
@@ -284,13 +284,13 @@ contract GovernorDelegate is GovernorInterface {
         uint stakePeriodLen = stake.endsAtTimestamp - stake.startsAtTimestamp;
 
         if (stakePeriodLen >= weeks104) {
-            return _tier[3];
+            return _tiers[3];
         } else if (stakePeriodLen >= weeks52) {
-            return _tier[2];
+            return _tiers[2];
         } else if (stakePeriodLen >= weeks26) {
-            return _tier[1];
+            return _tiers[1];
         } else {
-            return _tier[0];
+            return _tiers[0];
         }
     }
 
@@ -850,7 +850,7 @@ contract GovernorDelegate is GovernorInterface {
     }
 
     function _manageTier(
-        uint256 tierId,
+        uint256 tierIndex,
         uint256 lockedWeeks,
         uint256 slashPercentage
     ) external override {
@@ -864,20 +864,35 @@ contract GovernorDelegate is GovernorInterface {
             "Governor::_manageTier: slashPercentage must be greater than 0"
         );
 
-        Tier memory prevTier = _tier[tierId];
-        Tier memory nextTier = _tier[tierId];
+        Tier memory nextTier = _tiers[tierIndex + 1];
 
-        require(
-            prevTier.lockedWeeks < lockedWeeks,
-            "Governor::_manageTier: last tier lockedWeeks must be greater than the previous tier"
-        );
-        require(
-            nextTier.lockedWeeks > lockedWeeks,
-            "Governor::_manageTier: last tier lockedWeeks must be less than the next tier"
-        );
+        if (tierIndex == 0) {
+            require(
+                nextTier.lockedWeeks > lockedWeeks,
+                "Governor::_manageTier: last tier lockedWeeks must be less than the next tier"
+            );
+        } else {
+            Tier memory prevTier = _tiers[tierIndex - 1];
 
-        emit ManagedTier(tierId, lockedWeeks, slashPercentage);
-        _tier[tierId] = Tier(lockedWeeks, slashPercentage);
+            if (tierIndex == 1 || tierIndex == 2) {
+                require(
+                    prevTier.lockedWeeks < lockedWeeks,
+                    "Governor::_manageTier: last tier lockedWeeks must be greater than the previous tier"
+                );
+                require(
+                    nextTier.lockedWeeks > lockedWeeks,
+                    "Governor::_manageTier: last tier lockedWeeks must be less than the next tier"
+                );
+            } else {
+                require(
+                    prevTier.lockedWeeks < lockedWeeks,
+                    "Governor::_manageTier: last tier lockedWeeks must be greater than the previous tier"
+                );
+            }
+        }
+
+        emit ManagedTier(tierIndex, lockedWeeks, slashPercentage);
+        _tiers[tierIndex] = Tier(lockedWeeks, slashPercentage);
     }
 
     /**

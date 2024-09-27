@@ -148,7 +148,7 @@ contract GovernorStorage is GovernorDelegationStorage {
     mapping(address => uint) public votedDuringForeRewardsCampaign;
 
     /// @notice Tier
-    mapping(uint256 => Tier) internal _tier;
+    mapping(uint256 => Tier) internal _tiers;
 }
 
 abstract contract GovernorInterface is GovernorStorage {
@@ -240,7 +240,7 @@ abstract contract GovernorInterface is GovernorStorage {
 
     /// @notice Emitted when tier is changed
     event ManagedTier(
-        uint256 indexed tierId,
+        uint256 indexed tierIndex,
         uint256 lockedWeeks,
         uint256 slashPercentage
     );
@@ -390,7 +390,7 @@ abstract contract GovernorInterface is GovernorStorage {
     function _setPendingAdmin(address newPendingAdmin) external virtual;
 
     function _manageTier(
-        uint256 tierId,
+        uint256 tierIndex,
         uint256 lockedWeeks,
         uint256 slashPercentage
     ) external virtual;
