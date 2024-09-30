@@ -100,6 +100,7 @@ contract GovernorStorage is GovernorDelegationStorage {
     struct Tier {
         uint256 lockedWeeks;
         uint256 earlyWithdrawalSlashPercentage;
+        uint256 votingPowerCoefficient;
     }
 
     /// @notice Possible states that a proposal may be in
@@ -153,7 +154,7 @@ contract GovernorStorage is GovernorDelegationStorage {
 
 abstract contract GovernorInterface is GovernorStorage {
     /// @notice The name of this contract
-    string public constant name = "Paribus Governor";
+    string public constant name = "Fore Governor";
 
     /// @notice The minimum setable proposal threshold
     uint public constant MIN_PROPOSAL_THRESHOLD = 1000e18; // 1,000 Fore
@@ -184,6 +185,9 @@ abstract contract GovernorInterface is GovernorStorage {
     uint public constant weeks26 = 15724800;
     uint public constant weeks52 = 31449600;
     uint public constant weeks104 = 62899200;
+
+    /// @notice Divider
+    uint constant DIVIDER = 10000;
 
     /// @notice An event emitted when a new proposal is created
     event ProposalCreated(
@@ -240,9 +244,10 @@ abstract contract GovernorInterface is GovernorStorage {
 
     /// @notice Emitted when tier is changed
     event ManagedTier(
-        uint256 indexed tierIndex,
-        uint256 lockedWeeks,
-        uint256 slashPercentage
+        uint8 indexed tierIndex,
+        uint lockedWeeks,
+        uint slashPercentage,
+        uint votingPowerCoefficient
     );
 
     /// @notice Emitted when pendingAdmin is accepted, which means admin is updated
@@ -390,9 +395,10 @@ abstract contract GovernorInterface is GovernorStorage {
     function _setPendingAdmin(address newPendingAdmin) external virtual;
 
     function _manageTier(
-        uint256 tierIndex,
-        uint256 lockedWeeks,
-        uint256 slashPercentage
+        uint8 tierIndex,
+        uint lockedWeeks,
+        uint slashPercentage,
+        uint votingPowerCoefficient
     ) external virtual;
 
     function _acceptAdmin() external virtual;

@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 
 import "./GovernorInterfaces.sol";
+import "hardhat/console.sol";
 
 contract GovernorDelegate is GovernorInterface {
     /**
@@ -59,10 +60,10 @@ contract GovernorDelegate is GovernorInterface {
         proposalThreshold = proposalThreshold_;
         _notEntered = true;
 
-        _tiers[0] = Tier(weeks13, 2000); // 20%;
-        _tiers[1] = Tier(weeks26, 2000); // 20%;
-        _tiers[2] = Tier(weeks52, 2000); // 20%;
-        _tiers[3] = Tier(weeks104, 2000); // 20%;
+        _tiers[0] = Tier(weeks13, 1700, 1000);
+        _tiers[1] = Tier(weeks26, 1800, 2100);
+        _tiers[2] = Tier(weeks52, 1900, 4500);
+        _tiers[3] = Tier(weeks104, 2000, 10000);
     }
 
     /**
@@ -197,9 +198,12 @@ contract GovernorDelegate is GovernorInterface {
 
         // Early withdrawal
         if (getBlockTimestamp() < ForeStakes[msg.sender].endsAtTimestamp) {
-            Tier memory tier = getRewarTierFromStakeLength(msg.sender);
+            Tier memory tier = getRewarTierFromStakeLength(
+                ForeStakes[msg.sender].endsAtTimestamp -
+                    ForeStakes[msg.sender].startsAtTimestamp
+            );
             uint256 toBurn = (amount * tier.earlyWithdrawalSlashPercentage) /
-                10000;
+                DIVIDER;
             amount = amount - toBurn;
 
             require(
@@ -258,7 +262,7 @@ contract GovernorDelegate is GovernorInterface {
             if (newStakePeriodLenSecs == 0 || addForeAmount == 0)
                 return ForeStake(0, 0, 0); // no previous stake and no new votes
             require(
-                newStakePeriodLenSecs >= weeks13,
+                newStakePeriodLenSecs >= _tiers[0].lockedWeeks,
                 "Governor::getNewStakeData: stakePeriodLen too low"
             );
             result.startsAtTimestamp = getBlockTimestamp();
@@ -272,26 +276,14 @@ contract GovernorDelegate is GovernorInterface {
     }
 
     function getRewarTierFromStakeLength(
-        address account
+        uint stakeLength
     ) internal view returns (Tier memory) {
-        ForeStake memory stake = ForeStakes[account];
-
-        require(
-            getBlockTimestamp() < stake.endsAtTimestamp,
-            "Governor::getRewarTierFromStakeLength: stake expired"
-        );
-
-        uint stakePeriodLen = stake.endsAtTimestamp - stake.startsAtTimestamp;
-
-        if (stakePeriodLen >= weeks104) {
-            return _tiers[3];
-        } else if (stakePeriodLen >= weeks52) {
-            return _tiers[2];
-        } else if (stakePeriodLen >= weeks26) {
-            return _tiers[1];
-        } else {
-            return _tiers[0];
+        for (uint i = 3; i >= 0; --i) {
+            if (stakeLength >= _tiers[i].lockedWeeks) {
+                return _tiers[i];
+            }
         }
+        return _tiers[0];
     }
 
     /**
@@ -311,25 +303,15 @@ contract GovernorDelegate is GovernorInterface {
             newStakePeriodLenSecs
         );
 
-        if (getBlockTimestamp() >= newStake.endsAtTimestamp) return 0; // stake expired
-
-        uint stakePeriodLen = newStake.endsAtTimestamp -
-            newStake.startsAtTimestamp;
-        // uint stakePeriodLeft = newStake.endsAtTimestamp - getBlockTimestamp();
-
-        if (stakePeriodLen >= weeks104) {
-            votes = newStake.ForeAmount; // coefficient: 1
-        } else if (stakePeriodLen >= weeks52) {
-            votes = (newStake.ForeAmount * 9) / 20; // coefficient: 0.45
-        } else if (stakePeriodLen >= weeks26) {
-            votes = (newStake.ForeAmount * 21) / 100; // coefficient: 0.21
-        } else {
-            // stakePeriodLen >= weeks13
-            votes = newStake.ForeAmount / 10; // coefficient: 0.1
+        if (getBlockTimestamp() >= newStake.endsAtTimestamp) {
+            return 0; // stake expired
         }
 
-        // return votes * stakePeriodLeft / stakePeriodLen;
-        return votes;
+        Tier memory tier = getRewarTierFromStakeLength(
+            newStake.endsAtTimestamp - newStake.startsAtTimestamp
+        );
+
+        votes = (newStake.ForeAmount * tier.votingPowerCoefficient) / DIVIDER;
     }
 
     /**
@@ -849,10 +831,28 @@ contract GovernorDelegate is GovernorInterface {
         pendingAdmin = newPendingAdmin;
     }
 
+    /**
+     * @notice Modifies the parameters of a specific tier in the staking mechanism.
+     * @dev Only the admin can call this function. It allows the admin to update a tier's locked period and slashing percentage.
+     *      The function enforces the following conditions:
+     *      - `lockedWeeks` must be greater than 0.
+     *      - `slashPercentage` must be greater than 0.
+     *       - `votingPowerCoefficient` must be greater than 0.
+     *      - For tierIndex 0, `lockedWeeks` must be less than the next tier's `lockedWeeks`.
+     *      - For tierIndex 1 or 2, `lockedWeeks` must be greater than the previous tier's `lockedWeeks` and less than the next tier's `lockedWeeks`.
+     *      - For any other tier, `lockedWeeks` must be greater than the previous tier's `lockedWeeks`.
+     * @param tierIndex The index of the tier being modified.
+     * @param lockedWeeks The new lock-up duration for this tier, expressed in weeks.
+     * @param slashPercentage The penalty percentage (slashing) applied to stakers in this tier for early withdrawal.
+     * @param votingPowerCoefficient The voting power coefficient
+     *
+     * Emits a {ManagedTier} event indicating that a tier has been updated.
+     */
     function _manageTier(
-        uint256 tierIndex,
-        uint256 lockedWeeks,
-        uint256 slashPercentage
+        uint8 tierIndex,
+        uint lockedWeeks,
+        uint slashPercentage,
+        uint votingPowerCoefficient
     ) external override {
         require(msg.sender == admin, "Governor::_manageTier: admin only");
         require(
@@ -862,6 +862,10 @@ contract GovernorDelegate is GovernorInterface {
         require(
             slashPercentage > 0,
             "Governor::_manageTier: slashPercentage must be greater than 0"
+        );
+        require(
+            votingPowerCoefficient > 0,
+            "Governor::_manageTier: votingPowerCoefficient must be greater than 0"
         );
 
         Tier memory nextTier = _tiers[tierIndex + 1];
@@ -874,7 +878,12 @@ contract GovernorDelegate is GovernorInterface {
         } else {
             Tier memory prevTier = _tiers[tierIndex - 1];
 
-            if (tierIndex == 1 || tierIndex == 2) {
+            if (tierIndex == 3) {
+                require(
+                    prevTier.lockedWeeks < lockedWeeks,
+                    "Governor::_manageTier: last tier lockedWeeks must be greater than the previous tier"
+                );
+            } else {
                 require(
                     prevTier.lockedWeeks < lockedWeeks,
                     "Governor::_manageTier: last tier lockedWeeks must be greater than the previous tier"
@@ -883,16 +892,30 @@ contract GovernorDelegate is GovernorInterface {
                     nextTier.lockedWeeks > lockedWeeks,
                     "Governor::_manageTier: last tier lockedWeeks must be less than the next tier"
                 );
-            } else {
-                require(
-                    prevTier.lockedWeeks < lockedWeeks,
-                    "Governor::_manageTier: last tier lockedWeeks must be greater than the previous tier"
-                );
             }
         }
 
-        emit ManagedTier(tierIndex, lockedWeeks, slashPercentage);
-        _tiers[tierIndex] = Tier(lockedWeeks, slashPercentage);
+        emit ManagedTier(
+            tierIndex,
+            lockedWeeks,
+            slashPercentage,
+            votingPowerCoefficient
+        );
+        _tiers[tierIndex] = Tier(
+            lockedWeeks,
+            slashPercentage,
+            votingPowerCoefficient
+        );
+    }
+
+    /**
+     * @notice Retrieves the details of a specific staking tier.
+     * @dev Returns the `lockedWeeks` and `slashPercentage` for the given tier index.
+     * @param tierIndex The index of the tier to fetch.
+     * @return A `Tier` struct containing the lock-up duration (in weeks) and the penalty percentage.
+     */
+    function getTier(uint256 tierIndex) external view returns (Tier memory) {
+        return _tiers[tierIndex];
     }
 
     /**

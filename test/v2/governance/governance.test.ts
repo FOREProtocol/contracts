@@ -2,7 +2,7 @@ import { ethers } from "hardhat";
 import { MockContract } from "@defi-wonderland/smock";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber } from "ethers";
+import { BigNumber, ContractReceipt, ContractTransaction } from "ethers";
 import { Block } from "@ethersproject/abstract-provider";
 
 import { ForeToken } from "@/ForeToken";
@@ -11,6 +11,7 @@ import {
   ForeRewardWithdrawalEvent,
   ForeWithdrawalEvent,
   GovernorDelegate,
+  ManagedTierEvent,
   NewForeStakeEvent,
   ProposalCanceledEvent,
   ProposalExecutedEvent,
@@ -1002,6 +1003,156 @@ describe("FORE Governance", function () {
       await expect(governor.connect(bob).cancel(1)).to.be.revertedWith(
         "Governor::cancel: whitelisted proposer"
       );
+    });
+  });
+
+  describe("early withdrawal", async () => {
+    let previousBlock: Block;
+
+    beforeEach(async () => {
+      await sendERC20Tokens(foreToken, {
+        [alice.address]: MORE_THAN_QUORUM_VOTES,
+      });
+      await foreToken.connect(alice).approve(governor.address, UINT_MAX);
+
+      await governor._setWhitelistAccountExpiration(alice.address, UINT_MAX);
+    });
+
+    it("should slash 20%", async () => {
+      await governor
+        .connect(alice)
+        .stakeForeForVotes(ethers.utils.parseEther("100"), weeks(104));
+
+      previousBlock = await ethers.provider.getBlock("latest");
+
+      await timetravel(previousBlock.timestamp + weeks(103));
+      const [, receipt] = await txExec(
+        governor.connect(alice).withdrawForeStake()
+      );
+      assertEvent<ForeWithdrawalEvent>(receipt, "ForeWithdrawal", {
+        account: alice.address,
+        amount: ethers.utils.parseEther("80"),
+      });
+    });
+
+    it("should slash 19%", async () => {
+      await governor
+        .connect(alice)
+        .stakeForeForVotes(ethers.utils.parseEther("100"), weeks(52));
+
+      previousBlock = await ethers.provider.getBlock("latest");
+
+      await timetravel(previousBlock.timestamp + weeks(51));
+      const [, receipt] = await txExec(
+        governor.connect(alice).withdrawForeStake()
+      );
+      assertEvent<ForeWithdrawalEvent>(receipt, "ForeWithdrawal", {
+        account: alice.address,
+        amount: ethers.utils.parseEther("81"),
+      });
+    });
+
+    it("should slash 18%", async () => {
+      await governor
+        .connect(alice)
+        .stakeForeForVotes(ethers.utils.parseEther("100"), weeks(26));
+
+      previousBlock = await ethers.provider.getBlock("latest");
+
+      await timetravel(previousBlock.timestamp + weeks(25));
+      const [, receipt] = await txExec(
+        governor.connect(alice).withdrawForeStake()
+      );
+      assertEvent<ForeWithdrawalEvent>(receipt, "ForeWithdrawal", {
+        account: alice.address,
+        amount: ethers.utils.parseEther("82"),
+      });
+    });
+
+    it("should slash 17%", async () => {
+      await governor
+        .connect(alice)
+        .stakeForeForVotes(ethers.utils.parseEther("100"), weeks(13));
+
+      previousBlock = await ethers.provider.getBlock("latest");
+
+      await timetravel(previousBlock.timestamp + weeks(12));
+      const [, receipt] = await txExec(
+        governor.connect(alice).withdrawForeStake()
+      );
+      assertEvent<ForeWithdrawalEvent>(receipt, "ForeWithdrawal", {
+        account: alice.address,
+        amount: ethers.utils.parseEther("83"),
+      });
+    });
+  });
+
+  describe("manage tiers", async () => {
+    it("should not update tier by a normal user", async () => {
+      await expect(
+        governor.connect(alice)._manageTier(0, weeks(4), 1000, 1000)
+      ).to.be.revertedWith("Governor::_manageTier: admin only");
+    });
+
+    describe("successfully", async () => {
+      let tx: ContractTransaction;
+      let receipt: ContractReceipt;
+      let previousBlock: Block;
+
+      beforeEach(async () => {
+        [tx, receipt] = await txExec(
+          governor._manageTier(0, weeks(4), 1000, 1000)
+        );
+        previousBlock = await ethers.provider.getBlock("latest");
+      });
+
+      it("should emit event", async () => {
+        assertEvent<ManagedTierEvent>(receipt, "ManagedTier", {
+          tierIndex: 0,
+          lockedWeeks: BigNumber.from(weeks(4)),
+          slashPercentage: BigNumber.from(1000),
+          votingPowerCoefficient: BigNumber.from(1000),
+        });
+      });
+
+      it("should update storage", async () => {
+        expect(await governor.getTier(0)).to.be.eql([
+          BigNumber.from(weeks(4)),
+          BigNumber.from(1000),
+          BigNumber.from(1000),
+        ]);
+      });
+
+      describe("withdraw stake with updated tier", async () => {
+        beforeEach(async () => {
+          await sendERC20Tokens(foreToken, {
+            [alice.address]: MORE_THAN_QUORUM_VOTES,
+          });
+          await foreToken.connect(alice).approve(governor.address, UINT_MAX);
+
+          await governor._setWhitelistAccountExpiration(
+            alice.address,
+            UINT_MAX
+          );
+        });
+
+        it("should early withdraw and slash 10%", async () => {
+          await governor
+            .connect(alice)
+            .stakeForeForVotes(ethers.utils.parseEther("100"), weeks(4));
+
+          previousBlock = await ethers.provider.getBlock("latest");
+
+          await timetravel(previousBlock.timestamp + weeks(3));
+          const [, receipt] = await txExec(
+            governor.connect(alice).withdrawForeStake()
+          );
+          assertEvent<ForeWithdrawalEvent>(receipt, "ForeWithdrawal", {
+            account: alice.address,
+            amount: ethers.utils.parseEther("90"),
+          });
+        });
+      });
     });
   });
 });
