@@ -835,9 +835,10 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Modifies the parameters of a specific tier in the staking mechanism.
      * @dev Only the admin can call this function. It allows the admin to update a tier's locked period and slashing percentage.
      *      The function enforces the following conditions:
+     *      - `tierIndex` must be less than 4.
      *      - `lockedWeeks` must be greater than 0.
      *      - `slashPercentage` must be greater than 0.
-     *       - `votingPowerCoefficient` must be greater than 0.
+     *      - `votingPowerCoefficient` must be greater than 0.
      *      - For tierIndex 0, `lockedWeeks` must be less than the next tier's `lockedWeeks`.
      *      - For tierIndex 1 or 2, `lockedWeeks` must be greater than the previous tier's `lockedWeeks` and less than the next tier's `lockedWeeks`.
      *      - For any other tier, `lockedWeeks` must be greater than the previous tier's `lockedWeeks`.
@@ -855,6 +856,7 @@ contract GovernorDelegate is GovernorInterface {
         uint votingPowerCoefficient
     ) external override {
         require(msg.sender == admin, "Governor::_manageTier: admin only");
+        require(tierIndex < 4, "Governor::_manageTier: invalid tier index");
         require(
             lockedWeeks > 0,
             "Governor::_manageTier: lockedWeeks must be greater than 0"
