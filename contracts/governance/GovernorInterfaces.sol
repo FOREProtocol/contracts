@@ -149,7 +149,7 @@ contract GovernorStorage is GovernorDelegationStorage {
     mapping(address => uint) public votedDuringForeRewardsCampaign;
 
     /// @notice Tier
-    mapping(uint256 => Tier) internal _tiers;
+    mapping(uint8 => Tier) internal _tiers;
 }
 
 abstract contract GovernorInterface is GovernorStorage {
@@ -189,9 +189,16 @@ abstract contract GovernorInterface is GovernorStorage {
     /// @notice Divider
     uint constant DIVIDER = 10000;
 
+    /// @notice A governor is initialized
+    event GovernorInitialized(
+        uint votingDelay,
+        uint votingPeriod,
+        uint proposalThreshold
+    );
+
     /// @notice An event emitted when a new proposal is created
     event ProposalCreated(
-        uint id,
+        uint indexed id,
         address proposer,
         address[] targets,
         uint[] values,
@@ -262,6 +269,7 @@ abstract contract GovernorInterface is GovernorStorage {
     /// @notice Emitted when Fore stake is created or updated for an account
     event NewForeStake(
         address indexed account,
+        uint8 tierIndex,
         uint ForeAmount,
         uint startsAtTimestamp,
         uint endsAtTimestamp

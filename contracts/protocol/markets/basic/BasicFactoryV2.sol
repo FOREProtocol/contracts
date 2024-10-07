@@ -204,12 +204,16 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
                 address(token)
             );
         }
-        if (creationFee > 0 && address(token) == address(foreToken)) {
-            token.safeTransferFrom(
-                msg.sender,
-                address(0x000000000000000000000000000000000000dEaD),
-                creationFee
-            );
+        if (creationFee > 0) {
+            if (address(token) == address(foreToken)) {
+                token.safeTransferFrom(
+                    msg.sender,
+                    address(0x000000000000000000000000000000000000dEaD),
+                    creationFee
+                );
+            } else {
+                token.safeTransferFrom(msg.sender, feeReceiver, creationFee);
+            }
         }
         if (amountSum != 0) {
             token.safeTransferFrom(msg.sender, createdMarket, amountSum);

@@ -440,6 +440,7 @@ describe("FORE Governance", function () {
 
     assertEvent<NewForeStakeEvent>(receipt, "NewForeStake", {
       account: defaultAdmin.address,
+      tierIndex: 0,
       startsAtTimestamp: BigNumber.from(firstStakeStartsAt),
       endsAtTimestamp: BigNumber.from(firstStakeEndsAt),
       ForeAmount: ethers.utils.parseEther("50"),
@@ -456,6 +457,7 @@ describe("FORE Governance", function () {
     );
     assertEvent<NewForeStakeEvent>(receipt, "NewForeStake", {
       account: defaultAdmin.address,
+      tierIndex: 0,
       startsAtTimestamp: BigNumber.from(firstStakeStartsAt),
       endsAtTimestamp: BigNumber.from(firstStakeEndsAt),
       ForeAmount: ethers.utils.parseEther("75"),
@@ -468,6 +470,7 @@ describe("FORE Governance", function () {
     );
     assertEvent<NewForeStakeEvent>(receipt, "NewForeStake", {
       account: defaultAdmin.address,
+      tierIndex: 0,
       startsAtTimestamp: BigNumber.from(firstStakeStartsAt),
       endsAtTimestamp: BigNumber.from(firstStakeEndsAt + weeks(2)),
       ForeAmount: ethers.utils.parseEther("100"),

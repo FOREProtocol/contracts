@@ -2,7 +2,6 @@
 pragma solidity 0.8.20;
 
 import "./GovernorInterfaces.sol";
-import "hardhat/console.sol";
 
 contract GovernorDelegate is GovernorInterface {
     /**
@@ -64,6 +63,12 @@ contract GovernorDelegate is GovernorInterface {
         _tiers[1] = Tier(weeks26, 1800, 2100);
         _tiers[2] = Tier(weeks52, 1900, 4500);
         _tiers[3] = Tier(weeks104, 2000, 10000);
+
+        emit GovernorInitialized(
+            votingDelay_,
+            votingPeriod_,
+            proposalThreshold_
+        );
     }
 
     /**
@@ -174,13 +179,19 @@ contract GovernorDelegate is GovernorInterface {
             ForeStakes[msg.sender].ForeAmount > 0,
             "Governor::stakeForeForVotes: invalid argument"
         );
-
         require(
             ForeToken.transferFrom(msg.sender, address(this), addForeAmount),
             "Governor::stakeForeForVotes: transferFrom failed"
         );
+
+        uint8 tierIndex = getRewarTierIndexFromStakeLength(
+            ForeStakes[msg.sender].endsAtTimestamp -
+                ForeStakes[msg.sender].startsAtTimestamp
+        );
+
         emit NewForeStake(
             msg.sender,
+            tierIndex,
             ForeStakes[msg.sender].ForeAmount,
             ForeStakes[msg.sender].startsAtTimestamp,
             ForeStakes[msg.sender].endsAtTimestamp
@@ -278,12 +289,23 @@ contract GovernorDelegate is GovernorInterface {
     function getRewarTierFromStakeLength(
         uint stakeLength
     ) internal view returns (Tier memory) {
-        for (uint i = 3; i >= 0; --i) {
+        uint8 tierIndex = getRewarTierIndexFromStakeLength(stakeLength);
+        return _tiers[tierIndex];
+    }
+
+    function getRewarTierIndexFromStakeLength(
+        uint stakeLength
+    ) internal view returns (uint8) {
+        require(
+            stakeLength >= _tiers[0].lockedWeeks,
+            "getRewarTierIndexFromStakeLength: stakeLength too low"
+        );
+        for (uint8 i = 3; i >= 0; --i) {
             if (stakeLength >= _tiers[i].lockedWeeks) {
-                return _tiers[i];
+                return i;
             }
         }
-        return _tiers[0];
+        return 0;
     }
 
     /**
@@ -916,7 +938,7 @@ contract GovernorDelegate is GovernorInterface {
      * @param tierIndex The index of the tier to fetch.
      * @return A `Tier` struct containing the lock-up duration (in weeks) and the penalty percentage.
      */
-    function getTier(uint256 tierIndex) external view returns (Tier memory) {
+    function getTier(uint8 tierIndex) external view returns (Tier memory) {
         return _tiers[tierIndex];
     }
 
