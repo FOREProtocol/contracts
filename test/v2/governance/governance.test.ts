@@ -2,7 +2,7 @@ import { ethers } from "hardhat";
 import { MockContract } from "@defi-wonderland/smock";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, ContractReceipt, ContractTransaction } from "ethers";
+import { BigNumber, ContractReceipt } from "ethers";
 import { Block } from "@ethersproject/abstract-provider";
 
 import { ForeToken } from "@/ForeToken";
