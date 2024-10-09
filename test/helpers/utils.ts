@@ -3,10 +3,11 @@ import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { Block } from "@ethersproject/abstract-provider";
 import { ContractReceipt } from "@ethersproject/contracts/src.ts/index";
 import { TypedEvent } from "@typechain/ethers-v5/static/common";
-import chai, { expect } from "chai";
+import chai, { assert, expect } from "chai";
 import chaiSubset from "chai-subset";
 import { solidity } from "ethereum-waffle";
 import {
+  BigNumber,
   BigNumberish,
   Contract,
   ContractTransaction,
@@ -350,3 +351,45 @@ export async function deployUniversalRouter(
 
   return contract;
 }
+
+export const encodeParameters = (types: string[], values: any[]) => {
+  const abi = new ethers.utils.AbiCoder();
+  return abi.encode(types, values);
+};
+
+export const expectFractionalAmount = function (
+  amount1: BigNumberish,
+  amount2: BigNumberish,
+  precision = 10
+) {
+  assert(precision < 18); // most likely wrong function usage
+  // 166666666666666666111 == 166666666666666666222
+  expect(
+    BigNumber.from(amount1).sub(BigNumber.from(amount2)).abs().toString().length
+  ).to.be.lessThanOrEqual(precision);
+};
+
+export const getEvent = async function (
+  eventName: string,
+  txPromise: Promise<ContractTransaction>
+) {
+  assert(txPromise);
+
+  txPromise.catch(() => {}); // Avoids uncaught promise rejections in case an input validation causes us to return early
+
+  const receipt = await (await txPromise).wait();
+  return getEventFromReceipt(eventName, receipt);
+};
+
+export const getEventFromReceipt = async function (
+  eventName: string,
+  receipt: ContractReceipt
+) {
+  const _eventName = function (event: Event) {
+    const res = event.event;
+    return res ? res.toString() : undefined;
+  };
+
+  assert(receipt);
+  return receipt.events.find((event) => _eventName(event) === eventName);
+};

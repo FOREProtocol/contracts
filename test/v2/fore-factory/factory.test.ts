@@ -89,7 +89,7 @@ describe("BasicFactoryV2", () => {
     );
 
     usdcToken = await deployMockedContract<ERC20>(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "USDC",
       "USD Coin"
     );
