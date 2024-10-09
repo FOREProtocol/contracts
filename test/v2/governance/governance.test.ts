@@ -443,6 +443,7 @@ describe("FORE Governance", function () {
       tierIndex: 0,
       startsAtTimestamp: BigNumber.from(firstStakeStartsAt),
       endsAtTimestamp: BigNumber.from(firstStakeEndsAt),
+      addForeAmount: ethers.utils.parseEther("50"),
       ForeAmount: ethers.utils.parseEther("50"),
     });
 
@@ -460,6 +461,7 @@ describe("FORE Governance", function () {
       tierIndex: 0,
       startsAtTimestamp: BigNumber.from(firstStakeStartsAt),
       endsAtTimestamp: BigNumber.from(firstStakeEndsAt),
+      addForeAmount: ethers.utils.parseEther("25"),
       ForeAmount: ethers.utils.parseEther("75"),
     });
 
@@ -473,6 +475,7 @@ describe("FORE Governance", function () {
       tierIndex: 0,
       startsAtTimestamp: BigNumber.from(firstStakeStartsAt),
       endsAtTimestamp: BigNumber.from(firstStakeEndsAt + weeks(2)),
+      addForeAmount: ethers.utils.parseEther("25"),
       ForeAmount: ethers.utils.parseEther("100"),
     });
   });

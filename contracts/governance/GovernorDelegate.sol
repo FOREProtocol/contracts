@@ -192,6 +192,7 @@ contract GovernorDelegate is GovernorInterface {
         emit NewForeStake(
             msg.sender,
             tierIndex,
+            addForeAmount,
             ForeStakes[msg.sender].ForeAmount,
             ForeStakes[msg.sender].startsAtTimestamp,
             ForeStakes[msg.sender].endsAtTimestamp

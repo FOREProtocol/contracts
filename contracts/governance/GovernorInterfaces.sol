@@ -270,6 +270,7 @@ abstract contract GovernorInterface is GovernorStorage {
     event NewForeStake(
         address indexed account,
         uint8 tierIndex,
+        uint addForeAmount,
         uint ForeAmount,
         uint startsAtTimestamp,
         uint endsAtTimestamp
