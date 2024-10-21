@@ -30,13 +30,13 @@ contract ForeUniversalRouter is
 {
     using SafeERC20 for IERC20;
 
-    bytes4 constant PREDICT_SELECTOR_HASH =
+    bytes4 private constant PREDICT_SELECTOR_HASH =
         bytes4(keccak256("predictFor(address,uint256,uint8)"));
 
-    bytes4 constant OPEN_DISPUTE_SELECTOR_HASH =
+    bytes4 private constant OPEN_DISPUTE_SELECTOR_HASH =
         bytes4(keccak256("openDisputeFor(address,bytes32)"));
 
-    bytes4 constant CREATE_MARKET_SELECTOR_HASH =
+    bytes4 private constant CREATE_MARKET_SELECTOR_HASH =
         bytes4(
             keccak256(
                 "createMarketWithCreator(bytes32,address,address,uint256[],uint64,uint64,address)"
@@ -69,43 +69,6 @@ contract ForeUniversalRouter is
         uint160 amount
     );
     event ManagedToken(address indexed token, bool indexed shouldAdd);
-
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
-    /**
-     * @notice Initializes the contract
-     * @param protocolAddress The address of the ForeProtocol contract to be used by this contract.
-     * @param permit2Address The address of the Permit2 contract for handling allowances.
-     * @param tokenAddresses An array of token addresses to be marked as valid tokens within the contract
-     */
-    function initialize(
-        address initialAuthority,
-        IForeProtocol protocolAddress,
-        IAllowanceTransfer permit2Address,
-        address[] memory tokenAddresses
-    ) public initializer {
-        __Pausable_init();
-        __AccessManaged_init(initialAuthority);
-        __ReentrancyGuard_init();
-        __UUPSUpgradeable_init();
-
-        foreProtocol = protocolAddress;
-        permit2 = permit2Address;
-
-        for (uint i = 0; i < tokenAddresses.length; i++) {
-            if (tokenAddresses[i] == address(0)) {
-                revert InvalidToken();
-            }
-            tokens[tokenAddresses[i]] = true;
-        }
-
-        allowedFunctions[PREDICT_SELECTOR_HASH] = true;
-        allowedFunctions[OPEN_DISPUTE_SELECTOR_HASH] = true;
-        allowedFunctions[CREATE_MARKET_SELECTOR_HASH] = true;
-    }
 
     /**
      * @notice Verify the validity of a function call based on the target address, operator status, and function selector.
@@ -160,6 +123,43 @@ contract ForeUniversalRouter is
             }
         }
         _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * @notice Initializes the contract
+     * @param protocolAddress The address of the ForeProtocol contract to be used by this contract.
+     * @param permit2Address The address of the Permit2 contract for handling allowances.
+     * @param tokenAddresses An array of token addresses to be marked as valid tokens within the contract
+     */
+    function initialize(
+        address initialAuthority,
+        IForeProtocol protocolAddress,
+        IAllowanceTransfer permit2Address,
+        address[] memory tokenAddresses
+    ) public initializer {
+        __Pausable_init();
+        __AccessManaged_init(initialAuthority);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
+
+        foreProtocol = protocolAddress;
+        permit2 = permit2Address;
+
+        for (uint i = 0; i < tokenAddresses.length; i++) {
+            if (tokenAddresses[i] == address(0)) {
+                revert InvalidToken();
+            }
+            tokens[tokenAddresses[i]] = true;
+        }
+
+        allowedFunctions[PREDICT_SELECTOR_HASH] = true;
+        allowedFunctions[OPEN_DISPUTE_SELECTOR_HASH] = true;
+        allowedFunctions[CREATE_MARKET_SELECTOR_HASH] = true;
     }
 
     /**
