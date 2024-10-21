@@ -33,5 +33,8 @@ export const contractAddresses = {
     marketplace: "0x0e3Bb834e8b7ce33A5666cB69e59ead693830669",
     foreVerifiers: "0x7Bd2102a585E03229a4Ddf7D45cA5399E8e23Bb5",
     verifiersNFTHelper: "0x063316a43c53c73b7e096beC6f2DAc12d7900437",
+    governorDelegate: "0xD626657f577A12E9362B36E3125fD7Ff9e176C79",
+    governorDelegator: "0x8E3384A585888E4FB062D96B6d230684892E6C0f",
+    timelock: "0xA61Bbc84c29Ea25F56Cc37aC0c0EA1a5A539F996",
   },
 };

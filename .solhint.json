@@ -3,6 +3,10 @@
     "rules": {
         "compiler-version": ["error", "^0.8.20"],
         "func-visibility": ["warn", { "ignoreConstructors": true }],
-        "not-rely-on-time": "off"
+        "not-rely-on-time": "off",
+        "no-global-import": "off",
+        "explicit-types": "off",
+        "reason-string": "off",
+        "custom-errors": "off"
     }
 }
