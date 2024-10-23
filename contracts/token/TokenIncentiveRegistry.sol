@@ -28,6 +28,8 @@ contract TokenIncentiveRegistry is
         uint256 foundationDiscountRate;
         /// @notice Market creation fee
         uint256 marketCreationFee;
+        /// @notice Verifiers NFT multiplier (FORE token = 1)
+        uint256 verifiersNFTMultiplier;
     }
 
     /**
@@ -82,14 +84,19 @@ contract TokenIncentiveRegistry is
      */
     function getTokenIncentives(
         address tokenAddress
-    ) external view returns (uint256, uint256, uint256, uint256, uint256) {
+    )
+        external
+        view
+        returns (uint256, uint256, uint256, uint256, uint256, uint256)
+    {
         TokenIncentives memory incentives = tokenIncentives[tokenAddress];
         return (
             incentives.predictionDiscountRate,
             incentives.marketCreatorDiscountRate,
             incentives.verificationDiscountRate,
             incentives.foundationDiscountRate,
-            incentives.marketCreationFee
+            incentives.marketCreationFee,
+            incentives.verifiersNFTMultiplier
         );
     }
 
@@ -177,9 +184,11 @@ contract TokenIncentiveRegistry is
             incentives.marketCreatorDiscountRate == 0 &&
             incentives.verificationDiscountRate == 0 &&
             incentives.foundationDiscountRate == 0 &&
-            incentives.marketCreationFee == 0;
+            incentives.marketCreationFee == 0 &&
+            incentives.verifiersNFTMultiplier == 0;
     }
 
     /// @notice Ensure only the owner can upgrade the contract
+    // solhint-disable-next-line no-empty-blocks
     function _authorizeUpgrade(address) internal override restricted {}
 }

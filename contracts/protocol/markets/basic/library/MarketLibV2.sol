@@ -70,7 +70,7 @@ library MarketLibV2 {
         bool solved;
     }
 
-    uint256 constant DIVIDER = 10000;
+    uint256 private constant DIVIDER = 10000;
 
     /// FUNCTIONS
     /// @dev Checks if one side of the market verifies more than the total market size

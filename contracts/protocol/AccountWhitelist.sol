@@ -73,5 +73,6 @@ contract AccountWhitelist is
     }
 
     /// @notice Ensure only the owner can upgrade the contract
+    // solhint-disable-next-line no-empty-blocks
     function _authorizeUpgrade(address) internal override restricted {}
 }

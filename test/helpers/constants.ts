@@ -42,6 +42,7 @@ export const defaultIncentives = {
   verificationDiscountRate: 1000,
   foundationDiscountRate: 1000,
   marketCreationFee: ethers.utils.parseEther("10"),
+  verifiersNFTMultiplier: 10000,
 } as const;
 
 export const TIME_LOCK_DELAY = 172800;

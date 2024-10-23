@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
+// solhint-disable immutable-vars-naming
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -17,13 +18,18 @@ import "../../IAccountWhitelist.sol";
 contract BasicFactoryV2 is Pausable, AccessManaged {
     using SafeERC20 for IERC20;
 
+    error AnauthorizedRouterError();
+    error InvalidDates();
+    error TokenNotEnabled();
+    error MaxSidesReached();
+
     /// @notice Init creatin code
     /// @dev Needed to calculate market address
     bytes32 public constant INIT_CODE_PAIR_HASH =
         keccak256(abi.encodePacked(type(BasicMarketV2).creationCode));
 
     /// @notice Maximum sides allowed
-    uint32 constant MAX_SIDES = 10;
+    uint32 public constant MAX_SIDES = 10;
 
     /// @notice Prediction flat fee rate - 10%
     uint32 public predictionFlatFeeRate = 1000;
@@ -61,7 +67,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     /// @notice ForeVerifiers
     IForeVerifiers public immutable foreVerifiers;
 
-    uint256 constant DIVIDER = 10000;
+    uint256 private constant DIVIDER = 10000;
 
     /// EVENTS
     event SetPredictionFlatFeeRate(uint32 indexed feeRate);
@@ -71,6 +77,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
 
     /// @param _initialAuthority Initial authority
     /// @param protocolAddress Protocol Contract address
+    /// @param _tokenRegistry Token registry
     /// @param _accountWhitelist Account whitelist contract address
     /// @param _feeReceiver Fee receiver address
     /// @param _router Router address
@@ -94,7 +101,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
 
     modifier onlyRouter() {
         if (msg.sender != router) {
-            revert("OnlyAuthorizedRouter");
+            revert AnauthorizedRouterError();
         }
         _;
     }
@@ -182,13 +189,13 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         IERC20 token
     ) internal returns (address createdMarket) {
         if (endPredictionTimestamp > startVerificationTimestamp) {
-            revert("Basic Factory: Date error");
+            revert InvalidDates();
         }
         if (!tokenRegistry.isTokenEnabled(address(token))) {
-            revert("Basic Factory: Token is not enabled");
+            revert TokenNotEnabled();
         }
         if (amounts.length > MAX_SIDES) {
-            revert("Basic Factory: Maximum sides reached");
+            revert MaxSidesReached();
         }
 
         BasicMarketV2 createdMarketContract = new BasicMarketV2{
@@ -200,7 +207,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         uint256 amountSum = ArrayUtils.sum(amounts);
 
         if (!accountWhitelist.isAccountWhitelisted(creator)) {
-            (, , , , creationFee) = tokenRegistry.getTokenIncentives(
+            (, , , , creationFee, ) = tokenRegistry.getTokenIncentives(
                 address(token)
             );
         }

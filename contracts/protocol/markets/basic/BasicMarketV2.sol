@@ -14,6 +14,7 @@ import "../../config/IMarketConfig.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
 
 /// @custom:security-contact security@foreprotocol.io
+// solhint-disable-next-line max-states-count
 contract BasicMarketV2 is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -69,6 +70,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     uint32 public foundationFlatFeeRate;
 
     /// @notice Factory
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable factory;
 
     /// @notice Fee receiver
@@ -102,10 +104,10 @@ contract BasicMarketV2 is ReentrancyGuard {
     MarketLibV2.Market internal _market;
 
     /// @notice Predictions (address => side => amount)
-    mapping(address => mapping(uint8 => uint256)) predictions;
+    mapping(address => mapping(uint8 => uint256)) private predictions;
 
     /// @notice Total predictions
-    mapping(address => uint256) totalPredictions;
+    mapping(address => uint256) private totalPredictions;
 
     /// @notice Is prediction reward withdrawn for address
     mapping(address => bool) public predictionWithdrawn;
@@ -118,7 +120,7 @@ contract BasicMarketV2 is ReentrancyGuard {
 
     bytes32 public disputeMessage;
 
-    uint256 constant DIVIDER = 10000;
+    uint256 private constant DIVIDER = 10000;
 
     /// EVENTS
     event WithdrawReward(
@@ -261,13 +263,18 @@ contract BasicMarketV2 is ReentrancyGuard {
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
 
         uint256 multipliedPower = foreVerifiers.multipliedPowerOf(tokenId);
+        (, , , , , uint256 verifiersNFTMultiplier) = tokenRegistry
+            .getTokenIncentives(address(token));
+
+        uint256 finalPower = (multipliedPower * verifiersNFTMultiplier) /
+            DIVIDER;
 
         MarketLibV2.verify(
             _market,
             verifications,
             msg.sender,
             verificationPeriod,
-            multipliedPower,
+            finalPower,
             tokenId,
             side
         );
@@ -579,7 +586,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the prediction fee rate
     /// @return The calculated fee rate
     function _calculatePredictionFeeRate() private view returns (uint256) {
-        (uint256 discountRate, , , , ) = tokenRegistry.getTokenIncentives(
+        (uint256 discountRate, , , , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (predictionFlatFeeRate * discountRate) / DIVIDER;
@@ -589,7 +596,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the verification fee rate
     /// @return The calculated fee rate
     function _calculateVerificationFeeRate() private view returns (uint256) {
-        (, , uint256 discountRate, , ) = tokenRegistry.getTokenIncentives(
+        (, , uint256 discountRate, , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (verificationFlatFeeRate * discountRate) / DIVIDER;
@@ -599,7 +606,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the foundation fee rate
     /// @return The calculated fee rate
     function _calculateFoundationFeeRate() private view returns (uint256) {
-        (, , , uint256 discountRate, ) = tokenRegistry.getTokenIncentives(
+        (, , , uint256 discountRate, , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (foundationFlatFeeRate * discountRate) / DIVIDER;
@@ -609,7 +616,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the market creator fee rate
     /// @return The calculated fee rate
     function _calculateMarketCreatorFeeRate() private view returns (uint256) {
-        (, uint256 discountRate, , , ) = tokenRegistry.getTokenIncentives(
+        (, uint256 discountRate, , , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (marketCreatorFlatFeeRate * discountRate) / DIVIDER;

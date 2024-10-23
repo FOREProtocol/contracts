@@ -26,6 +26,7 @@ const mockIncentives = {
   verificationDiscountRate: 100,
   foundationDiscountRate: 100,
   marketCreationFee: ethers.utils.parseEther("1"),
+  verifiersNFTMultiplier: 1000,
 };
 
 describe("Token Incentive Registry", function () {
@@ -368,6 +369,7 @@ describe("Token Incentive Registry", function () {
         BigNumber.from(1000),
         BigNumber.from(1000),
         ethers.utils.parseEther("10"),
+        BigNumber.from(10000),
       ]);
     });
   });
@@ -451,6 +453,7 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(1000),
           BigNumber.from(1000),
           ethers.utils.parseEther("10"),
+          BigNumber.from(10000),
         ]);
         expect(await contract.getTokenIncentives(token2.address)).to.eql([
           BigNumber.from(1000),
@@ -458,6 +461,7 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(1000),
           BigNumber.from(1000),
           ethers.utils.parseEther("10"),
+          BigNumber.from(10000),
         ]);
         expect(await contract.getTokenIncentives(token3.address)).to.eql([
           BigNumber.from(1000),
@@ -465,6 +469,7 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(1000),
           BigNumber.from(1000),
           ethers.utils.parseEther("10"),
+          BigNumber.from(10000),
         ]);
       });
 
@@ -482,6 +487,7 @@ describe("Token Incentive Registry", function () {
           verificationDiscountRate: 0,
           foundationDiscountRate: 0,
           marketCreationFee: 0,
+          verifiersNFTMultiplier: 0,
         };
         await expect(contract.addToken(token4.address, incentives)).to.be
           .reverted;
@@ -521,6 +527,7 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
+          BigNumber.from(0),
         ]);
         expect(await contract.getTokenIncentives(token2.address)).to.eql([
           BigNumber.from(0),
@@ -528,8 +535,10 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
+          BigNumber.from(0),
         ]);
         expect(await contract.getTokenIncentives(token3.address)).to.eql([
+          BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
@@ -566,6 +575,7 @@ describe("Token Incentive Registry", function () {
             BigNumber.from(100),
             BigNumber.from(100),
             ethers.utils.parseEther("1"),
+            BigNumber.from(1000),
           ]);
           expect(await contract.getTokenIncentives(token2.address)).to.be.eql([
             BigNumber.from(100),
@@ -573,6 +583,7 @@ describe("Token Incentive Registry", function () {
             BigNumber.from(100),
             BigNumber.from(100),
             ethers.utils.parseEther("1"),
+            BigNumber.from(1000),
           ]);
           expect(await contract.getTokenIncentives(token3.address)).to.be.eql([
             BigNumber.from(100),
@@ -580,6 +591,7 @@ describe("Token Incentive Registry", function () {
             BigNumber.from(100),
             BigNumber.from(100),
             ethers.utils.parseEther("1"),
+            BigNumber.from(1000),
           ]);
         });
       });
@@ -597,6 +609,7 @@ describe("Token Incentive Registry", function () {
               verificationDiscountRate: 0,
               foundationDiscountRate: 0,
               marketCreationFee: 0,
+              verifiersNFTMultiplier: 0,
             })
           ).to.be.reverted;
         });

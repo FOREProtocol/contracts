@@ -723,7 +723,7 @@ describe("BasicFactoryV2", () => {
               1653327334588,
               foreToken.address
             )
-        ).to.revertedWith("Basic Factory: Date error");
+        ).to.reverted;
       });
     });
 
@@ -742,7 +742,7 @@ describe("BasicFactoryV2", () => {
                 "0x0000000000000000000000000000000000000000"
               )
           )
-        ).to.revertedWith("Basic Factory: Token is not enabled");
+        ).to.reverted;
       });
 
       it("should revert maximum sides reached", async () => {
@@ -759,7 +759,7 @@ describe("BasicFactoryV2", () => {
                 foreToken.address
               )
           )
-        ).to.revertedWith("Basic Factory: Maximum sides reached");
+        ).to.reverted;
       });
     });
   });
