@@ -23,6 +23,7 @@ import {
   deployLibrary,
   executeInSingleBlock,
   deployUniversalRouter,
+  generateRandomHexString,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
 
@@ -582,6 +583,154 @@ describe("BasicMarketV2 / Verification", () => {
           });
         });
       }
+    });
+  });
+
+  describe("With modified nft multiplier", async () => {
+    let contract: BasicMarketV2;
+    let tx: ContractTransaction;
+
+    beforeEach(async () => {
+      await tokenRegistry
+        .connect(defaultAdmin)
+        .setTokenIncentives(usdcToken.address, {
+          predictionDiscountRate: 1000,
+          marketCreatorDiscountRate: 1000,
+          verificationDiscountRate: 1000,
+          foundationDiscountRate: 1000,
+          marketCreationFee: ethers.utils.parseEther("10"),
+          verifiersNFTMultiplier: 1000,
+        });
+
+      await sendERC20Tokens(usdcToken, {
+        [alice.address]: ethers.utils.parseEther("1000"),
+        [bob.address]: ethers.utils.parseEther("1000"),
+        [carol.address]: ethers.utils.parseEther("1000"),
+        [dave.address]: ethers.utils.parseEther("1000"),
+      });
+
+      await txExec(
+        usdcToken
+          .connect(alice)
+          .approve(
+            basicFactory.address,
+            ethers.utils.parseUnits("1000", "ether")
+          )
+      );
+      await txExec(
+        usdcToken
+          .connect(bob)
+          .approve(
+            basicFactory.address,
+            ethers.utils.parseUnits("1000", "ether")
+          )
+      );
+      await txExec(
+        usdcToken
+          .connect(carol)
+          .approve(
+            basicFactory.address,
+            ethers.utils.parseUnits("1000", "ether")
+          )
+      );
+      await txExec(
+        usdcToken
+          .connect(dave)
+          .approve(
+            basicFactory.address,
+            ethers.utils.parseUnits("1000", "ether")
+          )
+      );
+
+      const marketHash = generateRandomHexString(64);
+      await txExec(
+        basicFactory
+          .connect(alice)
+          .createMarket(
+            marketHash,
+            alice.address,
+            [0, 0],
+            blockTimestamp + 200000,
+            blockTimestamp + 300000,
+            usdcToken.address
+          )
+      );
+
+      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
+      const salt = marketHash;
+      const newAddress = ethers.utils.getCreate2Address(
+        basicFactory.address,
+        salt,
+        initCode
+      );
+
+      contract = await attachContract<BasicMarketV2>(
+        "BasicMarketV2",
+        newAddress
+      );
+
+      await txExec(
+        usdcToken
+          .connect(alice)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether"))
+      );
+      await txExec(
+        usdcToken
+          .connect(bob)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether"))
+      );
+      await txExec(
+        usdcToken
+          .connect(carol)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether"))
+      );
+      await txExec(
+        usdcToken
+          .connect(dave)
+          .approve(contract.address, ethers.utils.parseUnits("1000", "ether"))
+      );
+
+      await contract
+        .connect(alice)
+        .predict(ethers.utils.parseEther("50"), SIDES.TRUE);
+      await contract
+        .connect(bob)
+        .predict(ethers.utils.parseEther("40"), SIDES.TRUE);
+      await contract
+        .connect(dave)
+        .predict(ethers.utils.parseEther("100"), SIDES.TRUE);
+      await contract
+        .connect(carol)
+        .predict(ethers.utils.parseEther("30"), SIDES.FALSE);
+
+      await timetravel(blockTimestamp + 300001);
+
+      [tx] = await txExec(contract.connect(bob).verify(1, SIDES.TRUE));
+    });
+
+    it("should return modified power", async () => {
+      await expect(tx)
+        .to.emit({ ...marketLib, address: contract.address }, "Verify")
+        .withArgs(
+          bob.address,
+          ethers.utils.parseEther("3.5"),
+          BigNumber.from(0),
+          BigNumber.from(1),
+          SIDES.TRUE
+        );
+    });
+
+    it("should return correct reward", async () => {
+      await timetravel(blockTimestamp + 4000000);
+      await contract.connect(alice).closeMarket();
+      expect(
+        await contract.calculateVerificationReward(BigNumber.from(0))
+      ).to.be.eql([
+        ethers.utils.parseEther("1.8018"),
+        BigNumber.from(0),
+        BigNumber.from(0),
+        false,
+      ]);
     });
   });
 });
