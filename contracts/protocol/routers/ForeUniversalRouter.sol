@@ -12,14 +12,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import "../IForeProtocol.sol";
 
-error InvalidToken();
-error InvalidSpender();
-error InvalidOperator();
-error InvalidTarget();
-error InvalidSelector();
-error InvalidMsgSender();
-error CallFunctionFailed();
-
 /// @custom:security-contact security@foreprotocol.io
 contract ForeUniversalRouter is
     Initializable,
@@ -29,6 +21,15 @@ contract ForeUniversalRouter is
     UUPSUpgradeable
 {
     using SafeERC20 for IERC20;
+
+    error InvalidToken();
+    error InvalidSpender();
+    error InvalidOperator();
+    error InvalidTarget();
+    error InvalidSelector();
+    error InvalidMsgSender();
+    error InvalidAuthority();
+    error CallFunctionFailed();
 
     bytes4 private constant PREDICT_SELECTOR_HASH =
         bytes4(keccak256("predictFor(address,uint256,uint8)"));
@@ -85,6 +86,7 @@ contract ForeUniversalRouter is
         }
 
         bytes4 selector;
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             selector := calldataload(data.offset)
         }
@@ -142,6 +144,9 @@ contract ForeUniversalRouter is
         IAllowanceTransfer permit2Address,
         address[] memory tokenAddresses
     ) public initializer {
+        if (initialAuthority == address(0)) {
+            revert InvalidAuthority();
+        }
         __Pausable_init();
         __AccessManaged_init(initialAuthority);
         __ReentrancyGuard_init();
@@ -184,9 +189,15 @@ contract ForeUniversalRouter is
         nonReentrant
         returns (bool success, bytes memory result)
     {
+        if (token == address(0)) {
+            revert InvalidToken();
+        }
+        if (target == address(0)) {
+            revert InvalidTarget();
+        }
         _transferAndApprove(target, amount, token);
 
-        (success, result) = target.call(data);
+        (success, result) = target.call{value: msg.value}(data);
         if (!success) {
             revert CallFunctionFailed();
         }
@@ -220,10 +231,17 @@ contract ForeUniversalRouter is
         nonReentrant
         returns (bool success, bytes memory result)
     {
+        if (token == address(0)) {
+            revert InvalidToken();
+        }
+        if (target == address(0)) {
+            revert InvalidTarget();
+        }
+
         _permit(permitSingle, signature);
         _transferAndApprove(target, amount, token);
 
-        (success, result) = target.call(data);
+        (success, result) = target.call{value: msg.value}(data);
         if (!success) {
             revert CallFunctionFailed();
         }
@@ -329,5 +347,6 @@ contract ForeUniversalRouter is
     }
 
     /// @notice Ensure only the owner can upgrade the contract
+    // solhint-disable-next-line no-empty-blocks
     function _authorizeUpgrade(address) internal override restricted {}
 }

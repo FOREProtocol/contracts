@@ -178,6 +178,9 @@ library MarketLibV2 {
         if (block.timestamp >= endPredictionTimestamp) {
             revert("PredictionPeriodIsAlreadyClosed");
         }
+        if (receiver == address(0)) {
+            revert("InvalidReceiverAddress");
+        }
         market.sides = new uint256[](amounts.length);
         market.verifications = new uint256[](amounts.length);
         market.endPredictionTimestamp = endPredictionTimestamp;
@@ -240,6 +243,9 @@ library MarketLibV2 {
         if (block.timestamp >= market.endPredictionTimestamp) {
             revert("PredictionPeriodIsAlreadyClosed");
         }
+        if (receiver == address(0)) {
+            revert("InvalidReceiverAddress");
+        }
         market.sides[side] += amount;
         market.totalMarketSize += amount;
         predictions[receiver][side] += amount;
@@ -273,6 +279,9 @@ library MarketLibV2 {
             verificationPeriod;
         if (block.timestamp > verificationEndTime) {
             revert("VerificationAlreadyClosed");
+        }
+        if (verifier == address(0)) {
+            revert("InvalidVerifierAddress");
         }
 
         market.verifications[side] += power;
@@ -331,6 +340,9 @@ library MarketLibV2 {
         uint256 verificationPeriod,
         address creator
     ) external {
+        if (creator == address(0)) {
+            revert("InvalidCreatorAddress");
+        }
         Market memory m = market;
 
         bool isDisputeStarted = ((block.timestamp >=
@@ -367,6 +379,12 @@ library MarketLibV2 {
         address highGuard,
         address requester
     ) external returns (address receiverAddress) {
+        if (highGuard == address(0)) {
+            revert("InvalidHighGuardAddress");
+        }
+        if (requester == address(0)) {
+            revert("InvalidRequesterAddress");
+        }
         if (highGuard != requester) {
             revert("HighGuardOnly");
         }
@@ -530,6 +548,9 @@ library MarketLibV2 {
         uint256 predictionFeesSpent,
         address predictor
     ) external returns (uint256) {
+        if (predictor == address(0)) {
+            revert("InvalidPredictorAddress");
+        }
         if (m.result == MarketLibV2.ResultType.NULL) {
             revert("MarketIsNotClosedYet");
         }

@@ -18,6 +18,7 @@ import "../../IAccountWhitelist.sol";
 contract BasicFactoryV2 is Pausable, AccessManaged {
     using SafeERC20 for IERC20;
 
+    error InvalidAuthority();
     error AnauthorizedRouterError();
     error InvalidDates();
     error TokenNotEnabled();
@@ -89,6 +90,9 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         address _feeReceiver,
         address _router
     ) AccessManaged(_initialAuthority) {
+        if (_initialAuthority == address(0)) {
+            revert InvalidAuthority();
+        }
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
         foreToken = IERC20(protocolAddress.foreToken());
