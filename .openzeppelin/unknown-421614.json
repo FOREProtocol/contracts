@@ -60,6 +60,11 @@
       "address": "0xc4aa77159C190349FC2EfD40511E42597ff95b4C",
       "txHash": "0xbb54ec5fec83dd28c2c7398990b85cce52d1b2c98d1598ba1cef92a023c69d1f",
       "kind": "uups"
+    },
+    {
+      "address": "0x0a4eDA60Ecc643803E2F96Aa5Db7BC7Ef1d41A14",
+      "txHash": "0x045ecc1f89326f4f1fa03bada4276c1d53d543b6b5fa98bd7623adfdddcc6594",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -860,6 +865,115 @@
               "label": "_paused",
               "type": "t_bool",
               "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73"
+            }
+          ]
+        }
+      }
+    },
+    "4813b25ce718a3cb69943ffcfea12f373b3960125a58ecf36dab88dd0fc5b1b6": {
+      "address": "0x9C5B34edC47b40BfAD015242B0171FC729f3B3c5",
+      "txHash": "0xe036c63346243f417f04b00b79b7da8b8b4c24de84a52b6266b7866b1a998ccd",
+      "layout": {
+        "solcVersion": "0.8.20",
+        "storage": [
+          {
+            "label": "tokenIncentives",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_mapping(t_address,t_struct(TokenIncentives)5114_storage)",
+            "contract": "TokenIncentiveRegistry",
+            "src": "contracts/token/TokenIncentiveRegistry.sol:40"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_struct(TokenIncentives)5114_storage)": {
+            "label": "mapping(address => struct TokenIncentiveRegistry.TokenIncentives)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(TokenIncentives)5114_storage": {
+            "label": "struct TokenIncentiveRegistry.TokenIncentives",
+            "members": [
+              {
+                "label": "predictionDiscountRate",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "marketCreatorDiscountRate",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "verificationDiscountRate",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "foundationDiscountRate",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "marketCreationFee",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "verifiersNFTMultiplier",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "5"
+              }
+            ],
+            "numberOfBytes": "192"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_bool": {
+            "label": "bool"
+          },
+          "t_uint64": {
+            "label": "uint64"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.AccessManaged": [
+            {
+              "contract": "AccessManagedUpgradeable",
+              "label": "_authority",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol:24"
+            },
+            {
+              "contract": "AccessManagedUpgradeable",
+              "label": "_consumingSchedule",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol:26"
             }
           ],
           "erc7201:openzeppelin.storage.Initializable": [

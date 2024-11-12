@@ -7,6 +7,7 @@ export const incentives = {
     verificationDiscountRate: 0,
     foundationDiscountRate: 1000,
     marketCreationFee: ethers.utils.parseEther("10"),
+    verifiersNFTMultiplier: 10000,
   },
   usdt: {
     predictionDiscountRate: 1000,
@@ -14,9 +15,11 @@ export const incentives = {
     verificationDiscountRate: 0,
     foundationDiscountRate: 1000,
     marketCreationFee: ethers.utils.parseEther("10"),
+    verifiersNFTMultiplier: 1000,
   },
 };
 
+/// @note: These are all staging contract addresses
 export const contractAddresses = {
   arbitrumTestnet: {
     accessManager: "0x664d1e8a89C240e27f511b474e71a6845edC17d8",
@@ -24,9 +27,9 @@ export const contractAddresses = {
     protocolConfig: "0x741eDDD71FC1231D466e5f4d6975a2f3ec40F8D3",
     foreToken: "0x0B34793E6E996aA34031d29f4b62b2e9ad684B4A",
     mockUsdt: "0x7b092Da900Bcaf79F8228966Eb4f345945bf4645",
-    tokenRegistry: "0xACa790cba249eA677Ac3d105B3d2973Eb850c0f9",
-    factory: "0xE3FD02203E605B500364E8d175bD286a4b136Bf3",
-    marketLib: "0x3d19A9DD392Fa4a9690e124DeaE55f14988A0B90",
+    tokenRegistry: "0x0a4eDA60Ecc643803E2F96Aa5Db7BC7Ef1d41A14",
+    factory: "0x1Da20633793ed2c1d92C66e1b3599a2867e67492",
+    marketLib: "0x5A68391F9e165dab3EcEDD6f1D5FBaae7c5632A5",
     permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
     router: "0x09Dc07116C24A0EF76420316F0aCb3e227033a1b",
     accountWhitelist: "0xc4aa77159C190349FC2EfD40511E42597ff95b4C",
