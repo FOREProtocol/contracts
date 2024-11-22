@@ -65,6 +65,41 @@
       "address": "0x0a4eDA60Ecc643803E2F96Aa5Db7BC7Ef1d41A14",
       "txHash": "0x045ecc1f89326f4f1fa03bada4276c1d53d543b6b5fa98bd7623adfdddcc6594",
       "kind": "uups"
+    },
+    {
+      "address": "0xE37C9b5174f9d089D8c68E3F2D81c3b05aEeF5f0",
+      "txHash": "0x376989027ee7ee64dd2afaba3fa4cd21e418b49782ac7341e5b6bede9de65420",
+      "kind": "uups"
+    },
+    {
+      "address": "0xE438e31c453e826500d7d7d4714ce6E986B98E7a",
+      "txHash": "0x2057ad7fbb67b8c462102d170d9b4379fcea2d50fa5398317e3a915e2bfcf7ae",
+      "kind": "uups"
+    },
+    {
+      "address": "0x9146E4cD0Be1fd1D6966950C335f1199F450DE51",
+      "txHash": "0xfb057d471dccf3c8ddcbf574cd72aa2ffa53423bc4605ad00bccd334973d8de8",
+      "kind": "uups"
+    },
+    {
+      "address": "0x4Bc11176dcA9fe99663Ad40898987dBBa95ce6f8",
+      "txHash": "0x271debdc6266ef2f60a1f0d16feb7164701c7c0821135ff549b3c6b3ce0fb5a9",
+      "kind": "uups"
+    },
+    {
+      "address": "0x3AB4Be953F07D92C771ef8705b5981Df707e9D40",
+      "txHash": "0x52dc55ff59a22dc7bc744592290760017006e2d307f8a7dc641de5d6ee14c837",
+      "kind": "uups"
+    },
+    {
+      "address": "0xC72cAfC16D2844344BE10Ff21Fc90C9e4b1fCAD1",
+      "txHash": "0xe13f05b9694c9aec6832a2af08888c9c162c331ceb53cd4169472d461d7b22d4",
+      "kind": "uups"
+    },
+    {
+      "address": "0x7591A6e14569b01C05F7a9813513EdaEA5f075b5",
+      "txHash": "0x4dcbe777c27a971f03ea54e6ae286e5ad4f663f463d6e72c41cdde6483a36617",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -974,6 +1009,129 @@
               "label": "_consumingSchedule",
               "type": "t_bool",
               "src": "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol:26"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73"
+            }
+          ]
+        }
+      }
+    },
+    "4f66718a72a80ef144ad9651e0c590ef2e04b2b40c15f4dcd78ce0b908db3f11": {
+      "address": "0xfF6Ce852760146AF298621f44620a918C7c208db",
+      "txHash": "0xd6d9528533ceee2fae0f56d77bf53e67f2343d50ecb75064a6163fabd7bd6a9d",
+      "layout": {
+        "solcVersion": "0.8.20",
+        "storage": [
+          {
+            "label": "permit2",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IAllowanceTransfer)32549",
+            "contract": "ForeUniversalRouter",
+            "src": "contracts/protocol/routers/ForeUniversalRouter.sol:48"
+          },
+          {
+            "label": "foreProtocol",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_contract(IForeProtocol)15420",
+            "contract": "ForeUniversalRouter",
+            "src": "contracts/protocol/routers/ForeUniversalRouter.sol:51"
+          },
+          {
+            "label": "tokens",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "ForeUniversalRouter",
+            "src": "contracts/protocol/routers/ForeUniversalRouter.sol:54"
+          },
+          {
+            "label": "allowedFunctions",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_bytes4,t_bool)",
+            "contract": "ForeUniversalRouter",
+            "src": "contracts/protocol/routers/ForeUniversalRouter.sol:57"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_bytes4": {
+            "label": "bytes4",
+            "numberOfBytes": "4"
+          },
+          "t_contract(IAllowanceTransfer)32549": {
+            "label": "contract IAllowanceTransfer",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IForeProtocol)15420": {
+            "label": "contract IForeProtocol",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes4,t_bool)": {
+            "label": "mapping(bytes4 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256"
+          },
+          "t_uint64": {
+            "label": "uint64"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:40"
+            }
+          ],
+          "erc7201:openzeppelin.storage.AccessManaged": [
+            {
+              "contract": "AccessManagedUpgradeable",
+              "label": "_authority",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol:24"
+            },
+            {
+              "contract": "AccessManagedUpgradeable",
+              "label": "_consumingSchedule",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol:26"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21"
             }
           ],
           "erc7201:openzeppelin.storage.Initializable": [

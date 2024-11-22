@@ -1,5 +1,5 @@
 import { ethers, upgrades } from "hardhat";
-import { incentives } from "../constants";
+import { contractAddresses, incentives } from "../constants";
 
 const PERMIT_2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
 
@@ -29,11 +29,18 @@ async function main() {
   const marketplace = await ForeMarketPlaceArtifact.deploy(
     deployer.address,
     process.env.REVENUE_WALLET,
-    foreToken.address,
+    contractAddresses.arbitrumTestnet.foreToken,
     ethers.utils.parseEther("1"),
     ethers.utils.parseEther("1000000000")
   );
   await marketplace.deployed();
+  await marketplace.addCollection(
+    foreVerifiers.address,
+    "0x0000000000000000000000000000000000000000",
+    "0x0000000000000000000000000000000000000000",
+    1000,
+    0
+  );
   console.log("FORE NFT Marketplace deployed to:", marketplace.address);
 
   /// Deploy Protocol Config
@@ -44,7 +51,7 @@ async function main() {
     process.env.FOUNDATION_WALLET,
     process.env.HIGH_GUARD_WALLET,
     marketplace.address, // marketplace
-    foreToken.address, // foreToken
+    contractAddresses.arbitrumTestnet.foreToken, // foreToken
     foreVerifiers.address, // fore verifiers
     ethers.utils.parseEther("10"), // market creation price
     ethers.utils.parseEther("1000") // verifier mint price
@@ -58,7 +65,8 @@ async function main() {
     protocolConfig.address,
     process.env.TESTNET_VERIFIERS_BASE_URI
   );
-  await protocolConfig.deployed();
+  await protocol.deployed();
+  await foreVerifiers.setProtocol(protocol.address);
   console.log("FORE Protocol deployed to:", protocol.address);
 
   /// Deploy Access Manager
@@ -66,7 +74,7 @@ async function main() {
     "ForeAccessManager"
   );
   const accessManager = await ForeAccessManagerArtifact.deploy(
-    process.env.FOUNDATION_WALLET
+    deployer.address
   );
   await accessManager.deployed();
   console.log("AccessManager deployed to:", accessManager.address);
@@ -83,7 +91,10 @@ async function main() {
   );
   const tokenRegistry = await upgrades.deployProxy(TokenRegistryArtifact, [
     accessManager.address,
-    [foreToken.address, mockUSDTToken.address],
+    [
+      contractAddresses.arbitrumTestnet.foreToken,
+      contractAddresses.arbitrumTestnet.mockUsdt,
+    ],
     [incentives.foreToken, incentives.usdt],
   ]);
   await tokenRegistry.deployed();
@@ -110,13 +121,16 @@ async function main() {
       accessManager.address,
       protocol.address,
       PERMIT_2_ADDRESS,
-      [foreToken.address, mockUSDTToken.address],
+      [
+        contractAddresses.arbitrumTestnet.foreToken,
+        contractAddresses.arbitrumTestnet.mockUsdt,
+      ],
     ]
   );
   await foreUniversalRouter.deployed();
   console.log("Router deployed to:", foreUniversalRouter.address);
 
-  /// Deploy Marketlib
+  /// Deploy Market lib
   const MarketLibArtifact = await ethers.getContractFactory("MarketLibV2");
   const marketLib = await MarketLibArtifact.deploy();
   await marketLib.deployed();
