@@ -184,7 +184,7 @@ contract GovernorDelegate is GovernorInterface {
             "Governor::stakeForeForVotes: transferFrom failed"
         );
 
-        uint8 tierIndex = getRewarTierIndexFromStakeLength(
+        uint8 tierIndex = getRewardTierIndexFromStakeLength(
             ForeStakes[msg.sender].endsAtTimestamp -
                 ForeStakes[msg.sender].startsAtTimestamp
         );
@@ -210,7 +210,7 @@ contract GovernorDelegate is GovernorInterface {
 
         // Early withdrawal
         if (getBlockTimestamp() < ForeStakes[msg.sender].endsAtTimestamp) {
-            Tier memory tier = getRewarTierFromStakeLength(
+            Tier memory tier = getRewardTierFromStakeLength(
                 ForeStakes[msg.sender].endsAtTimestamp -
                     ForeStakes[msg.sender].startsAtTimestamp
             );
@@ -287,19 +287,19 @@ contract GovernorDelegate is GovernorInterface {
         return result;
     }
 
-    function getRewarTierFromStakeLength(
+    function getRewardTierFromStakeLength(
         uint stakeLength
     ) internal view returns (Tier memory) {
-        uint8 tierIndex = getRewarTierIndexFromStakeLength(stakeLength);
+        uint8 tierIndex = getRewardTierIndexFromStakeLength(stakeLength);
         return _tiers[tierIndex];
     }
 
-    function getRewarTierIndexFromStakeLength(
+    function getRewardTierIndexFromStakeLength(
         uint stakeLength
     ) internal view returns (uint8) {
         require(
             stakeLength >= _tiers[0].lockedWeeks,
-            "getRewarTierIndexFromStakeLength: stakeLength too low"
+            "getRewardTierIndexFromStakeLength: stakeLength too low"
         );
         for (uint8 i = 3; i >= 0; --i) {
             if (stakeLength >= _tiers[i].lockedWeeks) {
@@ -330,7 +330,7 @@ contract GovernorDelegate is GovernorInterface {
             return 0; // stake expired
         }
 
-        Tier memory tier = getRewarTierFromStakeLength(
+        Tier memory tier = getRewardTierFromStakeLength(
             newStake.endsAtTimestamp - newStake.startsAtTimestamp
         );
 
@@ -392,7 +392,7 @@ contract GovernorDelegate is GovernorInterface {
 
         proposalCount++;
         Proposal storage newProposal = proposals[proposalCount];
-        require(newProposal.id == 0, "Governor::propose: ProposalID collsion"); // This should never happen but add a check in case
+        require(newProposal.id == 0, "Governor::propose: ProposalID collision"); // This should never happen but add a check in case
         newProposal.id = proposalCount;
         newProposal.proposer = msg.sender;
         newProposal.eta = 0;
