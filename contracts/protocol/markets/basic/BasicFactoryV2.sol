@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import {AccessManaged} from "@openzeppelin/contracts/access/manager/AccessManaged.sol";
 import "./BasicMarketV2.sol";
 import "./library/ArrayUtils.sol";
+import "./library/MarketLibV2.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
@@ -19,12 +20,10 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     using SafeERC20 for IERC20;
 
     error InvalidAuthority();
-    error AnauthorizedRouterError();
-    error InvalidDates();
-    error TokenNotEnabled();
-    error MaxSidesReached();
+    error UnauthorizedCall();
+    error InvalidCall();
 
-    /// @notice Init creatin code
+    /// @notice Init creation code
     /// @dev Needed to calculate market address
     bytes32 public constant INIT_CODE_PAIR_HASH =
         keccak256(abi.encodePacked(type(BasicMarketV2).creationCode));
@@ -32,17 +31,17 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     /// @notice Maximum sides allowed
     uint32 public constant MAX_SIDES = 10;
 
-    /// @notice Prediction flat fee rate - 10%
-    uint32 public predictionFlatFeeRate = 1000;
+    /// @notice Prediction flat fee rate - 0%
+    uint32 public predictionFlatFeeRate = 0;
 
     /// @notice Market creator flat fee rate - 1%
     uint32 public marketCreatorFlatFeeRate = 100;
 
-    /// @notice Verification flat fee rate - 1%
-    uint32 public verificationFlatFeeRate = 100;
+    /// @notice Verification flat fee rate - 2%
+    uint32 public verificationFlatFeeRate = 200;
 
-    /// @notice Foundation flat fee rate - 18%
-    uint32 public foundationFlatFeeRate = 1800;
+    /// @notice Foundation flat fee rate - 6.5%
+    uint32 public foundationFlatFeeRate = 650;
 
     /// @notice Fee receiver
     address public feeReceiver;
@@ -105,7 +104,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
 
     modifier onlyRouter() {
         if (msg.sender != router) {
-            revert AnauthorizedRouterError();
+            revert UnauthorizedCall();
         }
         _;
     }
@@ -193,13 +192,13 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         IERC20 token
     ) internal returns (address createdMarket) {
         if (endPredictionTimestamp > startVerificationTimestamp) {
-            revert InvalidDates();
+            revert InvalidCall();
         }
         if (!tokenRegistry.isTokenEnabled(address(token))) {
-            revert TokenNotEnabled();
+            revert InvalidCall();
         }
         if (amounts.length > MAX_SIDES) {
-            revert MaxSidesReached();
+            revert InvalidCall();
         }
 
         BasicMarketV2 createdMarketContract = new BasicMarketV2{
@@ -236,7 +235,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
             receiver,
             createdMarket
         );
-        BasicMarketV2.MarketCreationInitialData memory payload = BasicMarketV2
+        MarketLibV2.MarketCreationInitialData memory payload = MarketLibV2
             .MarketCreationInitialData(
                 marketHash,
                 receiver,

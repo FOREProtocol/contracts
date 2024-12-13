@@ -430,7 +430,7 @@ describe("BasicMarketV2 / Rewards", () => {
       });
 
       describe("after closing", () => {
-        const estimatedRewardValue = BigNumber.from("895325654450261780104");
+        const estimatedRewardValue = BigNumber.from("1130625000000000000000");
 
         beforeEach(async () => {
           await timetravel(blockTimestamp + 4000000);
@@ -557,7 +557,7 @@ describe("BasicMarketV2 / Rewards", () => {
         });
 
         it("Should return proper calculated value after market closed", async () => {
-          const num = ethers.utils.parseEther("41.76");
+          const num = ethers.utils.parseEther("90");
           const num2 = ethers.utils
             .parseEther("750")
             .div(ethers.BigNumber.from(2));
@@ -591,7 +591,7 @@ describe("BasicMarketV2 / Rewards", () => {
         describe("Increase NFT power (proper verification)", () => {
           let tx: ContractTransaction;
 
-          const num = ethers.utils.parseEther("41.76");
+          const num = ethers.utils.parseEther("90");
 
           beforeEach(async () => {
             [tx] = await txExec(
@@ -643,7 +643,7 @@ describe("BasicMarketV2 / Rewards", () => {
         describe("Withdraw reward (proper verification)", () => {
           let tx: ContractTransaction;
 
-          const num = ethers.utils.parseEther("41.76");
+          const num = ethers.utils.parseEther("90");
 
           beforeEach(async () => {
             [tx] = await txExec(
@@ -740,7 +740,7 @@ describe("BasicMarketV2 / Rewards", () => {
               .withArgs(
                 verifierSideB2.address,
                 2,
-                ethers.utils.parseEther("41.76")
+                ethers.utils.parseEther("90")
               );
           });
 
@@ -789,7 +789,7 @@ describe("BasicMarketV2 / Rewards", () => {
 
         it("Should return proper calculated value after market closed", async () => {
           const num = ethers.utils
-            .parseEther("41.76")
+            .parseEther("90")
             .div(ethers.BigNumber.from("3"));
           expect(await contract.calculateVerificationReward(1)).to.be.eql([
             num,
@@ -821,7 +821,7 @@ describe("BasicMarketV2 / Rewards", () => {
           let tx: ContractTransaction;
 
           const num = ethers.utils
-            .parseEther("41.76")
+            .parseEther("90")
             .div(ethers.BigNumber.from("3"));
 
           beforeEach(async () => {
@@ -919,7 +919,7 @@ describe("BasicMarketV2 / Rewards", () => {
 
       describe("after closing", () => {
         const estimatedPredictionReward = BigNumber.from(
-          "2505600000000000000000"
+          "3015000000000000000000"
         );
 
         beforeEach(async () => {
@@ -1021,7 +1021,7 @@ describe("BasicMarketV2 / Rewards", () => {
               .withArgs(
                 contract.address,
                 predictorSideB2.address,
-                estimatedPredictionReward
+                ethers.utils.parseEther("3000")
               );
           });
         });
@@ -1053,7 +1053,7 @@ describe("BasicMarketV2 / Rewards", () => {
     });
 
     describe("Prediction reward", () => {
-      const estimatedPredictionReward = BigNumber.from("368550000000000000000");
+      const estimatedPredictionReward = BigNumber.from("452250000000000000000");
 
       it("Should revert when market not closed", async () => {
         await expect(
@@ -1187,7 +1187,7 @@ describe("BasicMarketV2 / Rewards", () => {
           await contract
             .connect(predictorSideA1)
             .calculatePredictionReward(predictorSideA1.address)
-        ).to.be.equal(ethers.utils.parseEther("455"));
+        ).to.be.equal(ethers.utils.parseEther("500"));
       });
     });
   });
@@ -1344,7 +1344,7 @@ describe("BasicMarketV2 / Rewards", () => {
 
           it("Should return proper calculated value after market closed", async () => {
             const num = ethers.utils
-              .parseEther("41.76")
+              .parseEther("90")
               .div(ethers.BigNumber.from("3"));
             expect(await contract.calculateVerificationReward(1)).to.be.eql([
               num,
@@ -1384,7 +1384,7 @@ describe("BasicMarketV2 / Rewards", () => {
             let tx: ContractTransaction;
 
             const num = ethers.utils
-              .parseEther("41.76")
+              .parseEther("90")
               .div(ethers.BigNumber.from("3"));
 
             beforeEach(async () => {

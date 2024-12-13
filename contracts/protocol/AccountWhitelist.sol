@@ -5,11 +5,13 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 error InvalidAccount();
 
 contract AccountWhitelist is
     Initializable,
+    PausableUpgradeable,
     AccessManagedUpgradeable,
     UUPSUpgradeable
 {
@@ -34,6 +36,7 @@ contract AccountWhitelist is
         address initialAuthority,
         address[] memory initialAccounts
     ) public initializer {
+        __Pausable_init();
         __AccessManaged_init(initialAuthority);
         __UUPSUpgradeable_init();
 
@@ -70,6 +73,22 @@ contract AccountWhitelist is
         address account
     ) external view returns (bool) {
         return accounts[account];
+    }
+
+    /**
+     * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the authorized account can call this function
+     */
+    function pause() external restricted {
+        _pause();
+    }
+
+    /**
+     * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the authorized account can call this function
+     */
+    function unpause() external restricted {
+        _unpause();
     }
 
     /// @notice Ensure only the owner can upgrade the contract

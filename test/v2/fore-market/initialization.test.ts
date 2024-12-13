@@ -169,10 +169,10 @@ describe("BasicMarketV2 / Initialization", () => {
           endPredictionTimestamp: blockTimestamp + 100000,
           startVerificationTimestamp: blockTimestamp + 200000,
           tokenId: 0,
-          predictionFlatFeeRate: 1000,
+          predictionFlatFeeRate: 0,
           marketCreatorFlatFeeRate: 100,
-          verificationFlatFeeRate: 100,
-          foundationFlatFeeRate: 1800,
+          verificationFlatFeeRate: 200,
+          foundationFlatFeeRate: 650,
           router: router.address,
         });
       },
@@ -198,10 +198,10 @@ describe("BasicMarketV2 / Initialization", () => {
           endPredictionTimestamp: blockTimestamp + 100000,
           startVerificationTimestamp: blockTimestamp + 200000,
           tokenId: 0,
-          predictionFlatFeeRate: 1000,
+          predictionFlatFeeRate: 0,
           marketCreatorFlatFeeRate: 100,
-          verificationFlatFeeRate: 100,
-          foundationFlatFeeRate: 1800,
+          verificationFlatFeeRate: 200,
+          foundationFlatFeeRate: 650,
           router: router.address,
         })
       );

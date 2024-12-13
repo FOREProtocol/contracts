@@ -35,7 +35,7 @@ library MarketLibV2 {
     struct Verification {
         /// @notice Address of verifier
         address verifier;
-        /// @notice Verficaton power
+        /// @notice Verification power
         uint256 power;
         /// @notice Token id used for verification
         uint256 tokenId;
@@ -62,12 +62,45 @@ library MarketLibV2 {
         uint64 startVerificationTimestamp;
         /// @notice Market result
         ResultType result;
-        /// @notice Winnder side index
+        /// @notice Winner side index
         uint8 winnerSideIndex;
         /// @notice Wrong result confirmed by HG
         bool confirmed;
         /// @notice Dispute solved by HG
         bool solved;
+    }
+
+    struct MarketCreationInitialData {
+        /// @notice Market hash
+        bytes32 mHash;
+        /// @notice Market creator nft receiver
+        address receiver;
+        /// @notice Initial prediction for all sides
+        uint256[] amounts;
+        /// @notice FORE protocol address
+        address protocolAddress;
+        /// @notice Token registry address
+        address tokenRegistry;
+        /// @notice Fee receiver address
+        address feeReceiver;
+        /// @notice Currency token address
+        address token;
+        /// @notice Universal router
+        address router;
+        /// @notice End prediction Timestamp
+        uint64 endPredictionTimestamp;
+        /// @notice Start verification Timestamp
+        uint64 startVerificationTimestamp;
+        /// @notice Market token Id
+        uint64 tokenId;
+        /// @notice Prediction flat fee rate
+        uint32 predictionFlatFeeRate;
+        /// @notice Market creator flat fee rate
+        uint32 marketCreatorFlatFeeRate;
+        /// @notice Verification flat fee rate
+        uint32 verificationFlatFeeRate;
+        /// @notice Foundation flat fee rate
+        uint32 foundationFlatFeeRate;
     }
 
     uint256 private constant DIVIDER = 10000;
@@ -102,7 +135,7 @@ library MarketLibV2 {
     /// @param m Market Info
     /// @param predictions Predictions contribution for all sides
     /// @param totalPredictions Total predictions amount
-    /// @param feesSum Sum of all fees im perc
+    /// @param feesSum Sum of all fees
     /// @return toWithdraw amount to withdraw
     function calculatePredictionReward(
         Market memory m,
@@ -209,7 +242,7 @@ library MarketLibV2 {
     /// @param predictions Storage of predictions
     /// @param totalPredictions Storage of total amount of predictions
     /// @param amount Amount of ForeToken
-    /// @param side Predicition side (true - positive result, false - negative result)
+    /// @param side Prediction side (true - positive result, false - negative result)
     /// @param receiver Prediction creator
     function predict(
         Market storage market,
@@ -300,7 +333,7 @@ library MarketLibV2 {
     /// @param verificationPeriod Verification Period is sec
     /// @param power Power of vNFT
     /// @param tokenId vNFT token id
-    /// @param side Marketd side (true - positive / false - negative);
+    /// @param side Market side (true - positive / false - negative);
     function verify(
         Market storage market,
         Verification[] storage verifications,
@@ -370,8 +403,8 @@ library MarketLibV2 {
     /// @param market Market storage
     /// @param result Result type
     /// @param highGuard High Guard address
-    /// @param requester Function rerquester address
-    /// @return receiverAddress Address receives dispute creration tokens
+    /// @param requester Function requester address
+    /// @return receiverAddress Address receives dispute creation tokens
     function resolveDispute(
         Market storage market,
         MarketLibV2.ResultType result,

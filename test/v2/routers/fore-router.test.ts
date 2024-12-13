@@ -600,10 +600,10 @@ describe("Fore Universal Router", function () {
 
         it("should update market info", async () => {
           expect(await markets[0].marketInfo()).to.be.eql([
-            [ethers.utils.parseEther("1.82"), BigNumber.from(0)], // sides
+            [ethers.utils.parseEther("2"), BigNumber.from(0)], // sides
             [BigNumber.from(0), BigNumber.from(0)], // verifications
             ethers.constants.AddressZero, // dispute creator
-            ethers.utils.parseEther("1.82"), // total markets size
+            ethers.utils.parseEther("2"), // total markets size
             BigNumber.from(0), // total verifications amount
             BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
             BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
@@ -638,10 +638,10 @@ describe("Fore Universal Router", function () {
           );
 
           expect(await markets[0].marketInfo()).to.be.eql([
-            [ethers.utils.parseEther("1.82"), BigNumber.from(0)], // sides
+            [ethers.utils.parseEther("2"), BigNumber.from(0)], // sides
             [BigNumber.from(0), BigNumber.from(0)], // verifications
             ethers.constants.AddressZero, // dispute creator
-            ethers.utils.parseEther("1.82"), // total markets size
+            ethers.utils.parseEther("2"), // total markets size
             BigNumber.from(0), // total verifications amount
             BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
             BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
@@ -696,10 +696,10 @@ describe("Fore Universal Router", function () {
 
         it("should update all markets", async () => {
           const expectedMarketInfo = [
-            [ethers.utils.parseEther("1.82"), BigNumber.from(0)], // sides
+            [ethers.utils.parseEther("2"), BigNumber.from(0)], // sides
             [BigNumber.from(0), BigNumber.from(0)], // verifications
             ethers.constants.AddressZero, // dispute creator
-            ethers.utils.parseEther("1.82"), // total markets size
+            ethers.utils.parseEther("2"), // total markets size
             BigNumber.from(0), // total verifications amount
             BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
             BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
@@ -718,19 +718,19 @@ describe("Fore Universal Router", function () {
               alice.address,
               SIDES.TRUE
             )
-          ).to.be.eq(ethers.utils.parseEther("1.82"));
+          ).to.be.eq(ethers.utils.parseEther("2"));
           expect(
             await markets[1].getPredictionAmountBySide(
               alice.address,
               SIDES.TRUE
             )
-          ).to.be.eq(ethers.utils.parseEther("1.82"));
+          ).to.be.eq(ethers.utils.parseEther("2"));
           expect(
             await markets[2].getPredictionAmountBySide(
               alice.address,
               SIDES.TRUE
             )
-          ).to.be.eq(ethers.utils.parseEther("1.82"));
+          ).to.be.eq(ethers.utils.parseEther("2"));
         });
       });
 

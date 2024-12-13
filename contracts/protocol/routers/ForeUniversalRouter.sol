@@ -291,7 +291,7 @@ contract ForeUniversalRouter is
 
     /**
      * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
-     * @dev Only the owner can call this function.
+     * @dev Only the authorized account can call this function
      */
     function pause() external restricted {
         _pause();
@@ -299,7 +299,7 @@ contract ForeUniversalRouter is
 
     /**
      * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
-     * @dev Only the owner can call this function.
+     * @dev Only the authorized account can call this function
      */
     function unpause() external restricted {
         _unpause();
@@ -343,7 +343,14 @@ contract ForeUniversalRouter is
         address token
     ) internal {
         permit2.transferFrom(msg.sender, address(this), amount, address(token));
-        IERC20(token).forceApprove(spender, amount);
+        uint256 currentAllowance = IERC20(token).allowance(
+            address(this),
+            spender
+        );
+        if (currentAllowance != 0) {
+            IERC20(token).approve(spender, 0);
+        }
+        IERC20(token).approve(spender, amount);
     }
 
     /// @notice Ensure only the owner can upgrade the contract

@@ -434,7 +434,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               foundationWallet.address,
-              ethers.utils.parseEther("16.2")
+              ethers.utils.parseEther("5.85")
             );
         });
 
@@ -530,7 +530,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               foundationWallet.address,
-              ethers.utils.parseEther("16.2")
+              ethers.utils.parseEther("5.85")
             );
         });
 
@@ -540,7 +540,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               "0x000000000000000000000000000000000000dEaD",
-              ethers.utils.parseEther("1.9")
+              ethers.utils.parseEther("2.8")
             );
         });
 
@@ -608,7 +608,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               foundationWallet.address,
-              ethers.utils.parseEther("16.2")
+              ethers.utils.parseEther("5.85")
             );
         });
 
@@ -628,7 +628,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               highGuardAccount.address,
-              ethers.utils.parseEther("0.45")
+              ethers.utils.parseEther("0.9")
             );
         });
 
@@ -648,7 +648,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               alice.address,
-              ethers.utils.parseEther("0.45")
+              ethers.utils.parseEther("0.9")
             );
         });
 
@@ -729,7 +729,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               foundationWallet.address,
-              ethers.utils.parseEther("16.2")
+              ethers.utils.parseEther("5.85")
             );
         });
 
@@ -739,7 +739,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               "0x000000000000000000000000000000000000dEaD",
-              ethers.utils.parseEther("1.45")
+              ethers.utils.parseEther("1.9")
             );
         });
 
@@ -759,7 +759,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               highGuardAccount.address,
-              ethers.utils.parseEther("0.45")
+              ethers.utils.parseEther("0.9")
             );
         });
 

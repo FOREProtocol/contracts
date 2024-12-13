@@ -436,7 +436,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
       });
 
       describe("after closing", () => {
-        const estimatedRewardValue = BigNumber.from("1107579581151832460732");
+        const estimatedRewardValue = BigNumber.from("1379362500000000000000");
 
         beforeEach(async () => {
           await timetravel(blockTimestamp + 4000000);
@@ -563,7 +563,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
         });
 
         it("Should return proper calculated value after market closed", async () => {
-          const num = ethers.utils.parseEther("51.66");
+          const num = ethers.utils.parseEther("109.8");
           const num2 = ethers.utils
             .parseEther("750")
             .div(ethers.BigNumber.from(2));
@@ -597,7 +597,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
         describe("Increase NFT power (proper verification)", () => {
           let tx: ContractTransaction;
 
-          const num = ethers.utils.parseEther("51.66");
+          const num = ethers.utils.parseEther("109.8");
 
           beforeEach(async () => {
             [tx] = await txExec(
@@ -649,7 +649,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
         describe("Withdraw reward (proper verification)", () => {
           let tx: ContractTransaction;
 
-          const num = ethers.utils.parseEther("51.66");
+          const num = ethers.utils.parseEther("109.8");
 
           beforeEach(async () => {
             [tx] = await txExec(
@@ -746,7 +746,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
               .withArgs(
                 verifierSideB2.address,
                 2,
-                ethers.utils.parseEther("51.66")
+                ethers.utils.parseEther("109.8")
               );
           });
 
@@ -799,7 +799,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
 
         it("Should return proper calculated value after market closed", async () => {
           const num = ethers.utils
-            .parseEther("51.66")
+            .parseEther("109.8")
             .div(ethers.BigNumber.from("3"));
 
           expect(await contract.calculateVerificationReward(1)).to.be.eql([
@@ -832,7 +832,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
           let tx: ContractTransaction;
 
           const num = ethers.utils
-            .parseEther("51.66")
+            .parseEther("109.8")
             .div(ethers.BigNumber.from("3"));
 
           beforeEach(async () => {
@@ -930,7 +930,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
 
       describe("after closing", () => {
         const estimatedPredictionReward = BigNumber.from(
-          "3099600000000000000000"
+          "3678300000000000000000"
         );
 
         beforeEach(async () => {
@@ -1064,7 +1064,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
     });
 
     describe("Prediction reward", () => {
-      const estimatedPredictionReward = BigNumber.from("368550000000000000000");
+      const estimatedPredictionReward = BigNumber.from("452250000000000000000");
 
       it("Should revert when market not closed", async () => {
         await expect(
@@ -1199,7 +1199,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
           await contract
             .connect(predictorSideA1)
             .calculatePredictionReward(predictorSideA1.address)
-        ).to.be.equal(ethers.utils.parseEther("455"));
+        ).to.be.equal(ethers.utils.parseEther("500"));
       });
     });
   });
@@ -1362,7 +1362,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
 
           it("Should return proper calculated value after market closed", async () => {
             const num = ethers.utils
-              .parseEther("51.66")
+              .parseEther("109.8")
               .div(ethers.BigNumber.from("3"));
             expect(await contract.calculateVerificationReward(1)).to.be.eql([
               num,
@@ -1402,7 +1402,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
             let tx: ContractTransaction;
 
             const num = ethers.utils
-              .parseEther("51.66")
+              .parseEther("109.8")
               .div(ethers.BigNumber.from("3"));
 
             beforeEach(async () => {

@@ -18,39 +18,6 @@ import "../../../token/ITokenIncentiveRegistry.sol";
 contract BasicMarketV2 is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    struct MarketCreationInitialData {
-        /// @notice Market hash
-        bytes32 mHash;
-        /// @notice Market creator nft receiver
-        address receiver;
-        /// @notice Initial prediction for all sides
-        uint256[] amounts;
-        /// @notice FORE protocol address
-        address protocolAddress;
-        /// @notice Token registry address
-        address tokenRegistry;
-        /// @notice Fee receiver address
-        address feeReceiver;
-        /// @notice Currency token address
-        address token;
-        /// @notice Universal router
-        address router;
-        /// @notice End prediction Timestamp
-        uint64 endPredictionTimestamp;
-        /// @notice Start verification Timestamp
-        uint64 startVerificationTimestamp;
-        /// @notice Market token Id
-        uint64 tokenId;
-        /// @notice Prediction flat fee rate
-        uint32 predictionFlatFeeRate;
-        /// @notice Market creator flat fee rate
-        uint32 marketCreatorFlatFeeRate;
-        /// @notice Verification flat fee rate
-        uint32 verificationFlatFeeRate;
-        /// @notice Foundation flat fee rate
-        uint32 foundationFlatFeeRate;
-    }
-
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
 
@@ -115,7 +82,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Prediction fees sent by every address
     mapping(address => uint256) public predictionFeesSpent;
 
-    /// @notice Verification info for verificatioon id
+    /// @notice Verification info for verification id
     MarketLibV2.Verification[] public verifications;
 
     bytes32 public disputeMessage;
@@ -161,7 +128,9 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Initialization function
     /// @param payload Market initial payload data
     /// @dev Possible to call only via the factory
-    function initialize(MarketCreationInitialData calldata payload) external {
+    function initialize(
+        MarketLibV2.MarketCreationInitialData calldata payload
+    ) external {
         if (msg.sender != address(factory)) {
             revert("BasicMarket: Only Factory");
         }
@@ -196,7 +165,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     }
 
     /// @notice Add new prediction
-    /// @param amount Amount of ForeToken
+    /// @param amount Amount of token
     /// @param side Prediction side (index of the sides array)
     function predict(uint256 amount, uint8 side) external {
         _predict(msg.sender, amount, side);
@@ -330,7 +299,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     }
 
     /// @notice Resolves Dispute
-    /// @param result Dipsute result type
+    /// @param result Dispute result type
     /// @dev Only HighGuard
     function resolveDispute(
         MarketLibV2.ResultType result,
@@ -367,7 +336,7 @@ contract BasicMarketV2 is ReentrancyGuard {
 
     /// @notice Returns prediction reward in ForeToken
     /// @dev Returns full available amount to withdraw(Deposited fund + reward of winnings - Protocol fees)
-    /// @param predictor Predictior address
+    /// @param predictor Predictor address
     /// @return 0 Amount to withdraw
     function calculatePredictionReward(
         address predictor
@@ -434,9 +403,9 @@ contract BasicMarketV2 is ReentrancyGuard {
             .calculateVerificationReward(m, v, power, verificationFee);
     }
 
-    /// @notice Withdrawss Verification Reward
+    /// @notice Withdraws Verification Reward
     /// @param verificationId Id of verification
-    /// @param withdrawAsTokens If true witdraws tokens, false - withraws power
+    /// @param withdrawAsTokens If true withdraws tokens, false - withdraws power
     function withdrawVerificationReward(
         uint256 verificationId,
         bool withdrawAsTokens
@@ -532,7 +501,7 @@ contract BasicMarketV2 is ReentrancyGuard {
 
     /// @dev Closes market
     /// @param result Market close result type
-    /// @dev Is not best optimized becouse of deep stack
+    /// @dev Is not best optimized because of deep stack
     function _closeMarket(MarketLibV2.ResultType result) private {
         (uint256 burnFee, , , ) = marketConfig.fees();
         uint256 foundationFee = _calculateFoundationFeeRate();

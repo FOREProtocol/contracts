@@ -271,7 +271,7 @@ describe("BasicMarketV2 / Categorical / Verification", () => {
         contract.connect(alice).predict(ethers.utils.parseEther("40"), 1),
         contract.connect(alice).predict(ethers.utils.parseEther("50"), 2),
         contract.connect(bob).predict(ethers.utils.parseEther("40"), 3),
-        contract.connect(bob).predict(ethers.utils.parseEther("50"), 4),
+        contract.connect(bob).predict(ethers.utils.parseEther("30"), 4),
       ]);
     });
 
@@ -347,15 +347,15 @@ describe("BasicMarketV2 / Categorical / Verification", () => {
 
               expect(await contract.marketInfo()).to.be.eql([
                 [
-                  ethers.utils.parseEther("45.5"),
-                  ethers.utils.parseEther("36.4"),
-                  ethers.utils.parseEther("45.5"),
-                  ethers.utils.parseEther("36.4"),
-                  ethers.utils.parseEther("45.5"),
+                  ethers.utils.parseEther("50"),
+                  ethers.utils.parseEther("40"),
+                  ethers.utils.parseEther("50"),
+                  ethers.utils.parseEther("40"),
+                  ethers.utils.parseEther("30"),
                 ], // sides
                 verifications, // verifications
                 ethers.constants.AddressZero, // dispute creator
-                ethers.utils.parseEther("209.3"), // total market size
+                ethers.utils.parseEther("210"), // total market size
                 ethers.utils.parseEther("35"), // total verifications amount
                 BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                 BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
@@ -387,20 +387,20 @@ describe("BasicMarketV2 / Categorical / Verification", () => {
 
           it("Should increase verification side with partial token power", async () => {
             const verifications = new Array(5).fill(BigNumber.from(0));
-            verifications[1] = ethers.utils.parseEther("209.3");
+            verifications[1] = ethers.utils.parseEther("210");
 
             expect(await contract.marketInfo()).to.be.eql([
               [
-                ethers.utils.parseEther("45.5"),
-                ethers.utils.parseEther("36.4"),
-                ethers.utils.parseEther("45.5"),
-                ethers.utils.parseEther("36.4"),
-                ethers.utils.parseEther("45.5"),
+                ethers.utils.parseEther("50"),
+                ethers.utils.parseEther("40"),
+                ethers.utils.parseEther("50"),
+                ethers.utils.parseEther("40"),
+                ethers.utils.parseEther("30"),
               ], // sides
               verifications, // verifications
               ethers.constants.AddressZero, // dispute creator
-              ethers.utils.parseEther("209.3"), // total market size
-              ethers.utils.parseEther("209.3"), // total verifications amount
+              ethers.utils.parseEther("210"), // total market size
+              ethers.utils.parseEther("210"), // total verifications amount
               BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
               BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp
               0, // result
@@ -500,7 +500,7 @@ describe("BasicMarketV2 / Categorical / Verification", () => {
             it("Should have zero market verification powers", async () => {
               expect(await contract.marketInfo()).to.be.eql([
                 [
-                  ethers.utils.parseEther("81.9"),
+                  ethers.utils.parseEther("90"),
                   BigNumber.from(0),
                   BigNumber.from(0),
                   BigNumber.from(0),
@@ -508,7 +508,7 @@ describe("BasicMarketV2 / Categorical / Verification", () => {
                 ], // sides
                 new Array(5).fill(BigNumber.from(0)), // verifications
                 ethers.constants.AddressZero, // dispute creator
-                ethers.utils.parseEther("81.9"), // total market size
+                ethers.utils.parseEther("90"), // total market size
                 BigNumber.from(0), // total verifications amount
                 BigNumber.from(blockTimestamp + 200000), // endPredictionTimestamp
                 BigNumber.from(blockTimestamp + 300000), // startVerificationTimestamp

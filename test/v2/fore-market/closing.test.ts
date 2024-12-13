@@ -265,7 +265,7 @@ describe("BasicMarketV2 / Closing", () => {
           .withArgs(
             contract.address,
             foundationWallet.address,
-            ethers.utils.parseEther("16.2")
+            ethers.utils.parseEther("5.85")
           );
       });
 
@@ -369,7 +369,7 @@ describe("BasicMarketV2 / Closing", () => {
           .withArgs(
             contract.address,
             foundationWallet.address,
-            ethers.utils.parseEther("16.2")
+            ethers.utils.parseEther("5.85")
           );
       });
 
@@ -379,7 +379,7 @@ describe("BasicMarketV2 / Closing", () => {
           .withArgs(
             contract.address,
             "0x000000000000000000000000000000000000dEaD",
-            ethers.utils.parseEther("1.9")
+            ethers.utils.parseEther("2.8")
           );
       });
 
