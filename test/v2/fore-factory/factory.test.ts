@@ -9,16 +9,18 @@ import { BigNumber, Contract, ContractTransaction } from "ethers";
 import { ethers, upgrades } from "hardhat";
 
 import {
-  BasicFactoryV2,
+  BeaconFactory,
   SetFoundationFlatFeeRateEvent,
   SetMarketCreatorFlatFeeRateEvent,
   SetPredictionFlatFeeRateEvent,
   SetVerificationFlatFeeRateEvent,
-} from "@/BasicFactoryV2";
+} from "@/BeaconFactory";
 import { ERC20 } from "@/ERC20";
 import { ForeAccessManager } from "@/ForeAccessManager";
 import { PausedEvent, UnpausedEvent } from "@/Pausable";
 import { BasicMarketV2 } from "@/BasicMarketV2";
+import { BasicMarket } from "@/BasicMarket";
+import { UpgradeableBeacon } from "@/UpgradeableBeacon";
 
 import {
   assertEvent,
@@ -27,11 +29,12 @@ import {
   deployLibrary,
   deployMockedContract,
   deployUniversalRouter,
+  getBytecode,
   txExec,
 } from "../../helpers/utils";
 import { defaultIncentives } from "../../helpers/constants";
 
-describe("BasicFactoryV2", () => {
+describe.only("BasicFactoryV2", () => {
   let owner: SignerWithAddress;
   let foundationWallet: SignerWithAddress;
   let highGuardAccount: SignerWithAddress;
@@ -45,11 +48,13 @@ describe("BasicFactoryV2", () => {
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let protocol: ForeProtocol;
-  let contract: BasicFactoryV2;
+  let contract: BeaconFactory;
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let usdcToken: MockContract<ERC20>;
   let foreAccessManager: MockContract<ForeAccessManager>;
+  let categoricalMarketBeacon: UpgradeableBeacon;
+  let classicMarketBeacon: UpgradeableBeacon;
 
   beforeEach(async () => {
     [
@@ -81,6 +86,7 @@ describe("BasicFactoryV2", () => {
     );
 
     await deployLibrary("MarketLibV2", ["BasicMarketV2", "BasicFactoryV2"]);
+    await deployLibrary("MarketLib", ["BasicMarket"]);
 
     protocol = await deployContract<ForeProtocol>(
       "ForeProtocol",
@@ -126,9 +132,27 @@ describe("BasicFactoryV2", () => {
       [usdcToken.address, foreToken.address]
     );
 
-    contract = await deployContract<BasicFactoryV2>(
-      "BasicFactoryV2",
+    const categoricalMarketImpl = await deployContract<BasicMarketV2>(
+      "BasicMarketV2"
+    );
+    const classicMarketImpl = await deployContract<BasicMarket>("BasicMarket");
+
+    categoricalMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      categoricalMarketImpl,
+      owner.address
+    );
+    classicMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      classicMarketImpl,
+      owner.address
+    );
+
+    contract = await deployContract<BeaconFactory>(
+      "BeaconFactory",
       foreAccessManager.address,
+      categoricalMarketBeacon,
+      classicMarketBeacon,
       protocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
@@ -419,7 +443,7 @@ describe("BasicFactoryV2", () => {
             SENTINEL_ROLE
           );
 
-        // Functions that can only be called by the foundation multisign
+        // Functions that can only be called by the foundation multisig
         await foreAccessManager
           .connect(defaultAdmin)
           .setTargetFunctionRole(
@@ -670,7 +694,9 @@ describe("BasicFactoryV2", () => {
         await expect(
           contract
             .connect(alice)
-            .createMarket(
+            [
+              "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+            ](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
               alice.address,
               [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -687,7 +713,9 @@ describe("BasicFactoryV2", () => {
         await expect(
           contract
             .connect(alice)
-            .createMarket(
+            [
+              "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+            ](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
               alice.address,
               [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -711,11 +739,13 @@ describe("BasicFactoryV2", () => {
         ).to.revertedWith("FactoryIsNotWhitelisted");
       });
 
-      it("Should revert in case inversed dates", async () => {
+      it("Should revert in case inverse dates", async () => {
         await expect(
           contract
             .connect(alice)
-            .createMarket(
+            [
+              "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+            ](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
               alice.address,
               [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -733,7 +763,9 @@ describe("BasicFactoryV2", () => {
           txExec(
             contract
               .connect(alice)
-              .createMarket(
+              [
+                "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+              ](
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
                 alice.address,
                 [0, 0],
@@ -750,7 +782,9 @@ describe("BasicFactoryV2", () => {
           txExec(
             contract
               .connect(alice)
-              .createMarket(
+              [
+                "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+              ](
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
                 alice.address,
                 new Array(11).fill(0),
@@ -774,7 +808,9 @@ describe("BasicFactoryV2", () => {
       [tx] = await txExec(
         contract
           .connect(bob)
-          .createMarket(
+          [
+            "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+          ](
             marketHash,
             alice.address,
             [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -784,13 +820,13 @@ describe("BasicFactoryV2", () => {
           )
       );
 
-      const initCode = await contract.INIT_CODE_PAIR_HASH();
-
-      const salt = marketHash;
+      const salt = await contract.CLASSIC_MARKET_SALT_HASH();
+      const bytecode = getBytecode(await contract.CATEGORICAL_MARKET_BEACON());
+      const initCodeHash = ethers.utils.keccak256(bytecode);
       const newAddress = ethers.utils.getCreate2Address(
         contract.address,
         salt,
-        initCode
+        initCodeHash
       );
 
       marketContract = await attachContract<BasicMarketV2>(
@@ -881,7 +917,9 @@ describe("BasicFactoryV2", () => {
       [tx] = await txExec(
         contract
           .connect(bob)
-          .createMarket(
+          [
+            "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+          ](
             marketHash,
             alice.address,
             [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -891,13 +929,13 @@ describe("BasicFactoryV2", () => {
           )
       );
 
-      const initCode = await contract.INIT_CODE_PAIR_HASH();
-
-      const salt = marketHash;
+      const salt = await contract.CLASSIC_MARKET_SALT_HASH();
+      const bytecode = getBytecode(await contract.CATEGORICAL_MARKET_BEACON());
+      const initCodeHash = ethers.utils.keccak256(bytecode);
       const newAddress = ethers.utils.getCreate2Address(
         contract.address,
         salt,
-        initCode
+        initCodeHash
       );
 
       marketContract = await attachContract<BasicMarketV2>(

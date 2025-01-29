@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "./BasicMarket.sol";
 import "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../../../verifiers/IForeVerifiers.sol";
-import "../../config/IProtocolConfig.sol";
+
+import "./basic/BasicMarket.sol";
+import "../../verifiers/IForeVerifiers.sol";
+import "../config/IProtocolConfig.sol";
 
 contract BasicFactory {
     using SafeERC20 for IERC20;
 
-    /// @notice Init creatin code
+    /// @notice Init creation code
     /// @dev Needed to calculate market address
     bytes32 public constant INIT_CODE_PAIR_HASH =
         keccak256(abi.encodePacked(type(BasicMarket).creationCode));

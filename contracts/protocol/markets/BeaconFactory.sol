@@ -6,27 +6,36 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import {AccessManaged} from "@openzeppelin/contracts/access/manager/AccessManaged.sol";
-import "./BasicMarketV2.sol";
-import "./library/ArrayUtils.sol";
-import "./library/MarketLibV2.sol";
-import "../../config/IProtocolConfig.sol";
-import "../../../verifiers/IForeVerifiers.sol";
-import "../../../token/ITokenIncentiveRegistry.sol";
-import "../../IAccountWhitelist.sol";
+import "@openzeppelin/contracts/access/manager/AccessManaged.sol";
+import "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import "@openzeppelin/contracts/utils/Create2.sol";
+import "./categorical/library/ArrayUtils.sol";
+import "./categorical/library/MarketLibV2.sol";
+import "./categorical/IBasicMarketV2.sol";
+import "./basic/IBasicMarket.sol";
+import "../config/IProtocolConfig.sol";
+import "../../verifiers/IForeVerifiers.sol";
+import "../../token/ITokenIncentiveRegistry.sol";
+import "../IAccountWhitelist.sol";
+import "../IForeProtocol.sol";
+
+error InvalidAuthority();
+error UnauthorizedCall();
+error InvalidCall();
 
 /// @custom:security-contact security@foreprotocol.io
-contract BasicFactoryV2 is Pausable, AccessManaged {
+contract BeaconFactory is Pausable, AccessManaged {
     using SafeERC20 for IERC20;
 
-    error InvalidAuthority();
-    error UnauthorizedCall();
-    error InvalidCall();
+    bytes32 public constant CLASSIC_MARKET_SALT_HASH =
+        bytes32(keccak256("ClassicMarket"));
 
-    /// @notice Init creation code
-    /// @dev Needed to calculate market address
-    bytes32 public constant INIT_CODE_PAIR_HASH =
-        keccak256(abi.encodePacked(type(BasicMarketV2).creationCode));
+    bytes32 public constant CATEGORICAL_MARKET_SALT_HASH =
+        bytes32(keccak256("CategoricalMarket"));
+
+    address public immutable CLASSIC_MARKET_BEACON;
+
+    address public immutable CATEGORICAL_MARKET_BEACON;
 
     /// @notice Maximum sides allowed
     uint32 public constant MAX_SIDES = 10;
@@ -83,6 +92,8 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
     /// @param _router Router address
     constructor(
         address _initialAuthority,
+        address _categoricalMarketBeacon,
+        address _classicMarketBeacon,
         IForeProtocol protocolAddress,
         ITokenIncentiveRegistry _tokenRegistry,
         IAccountWhitelist _accountWhitelist,
@@ -92,6 +103,9 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         if (_initialAuthority == address(0)) {
             revert InvalidAuthority();
         }
+
+        CATEGORICAL_MARKET_BEACON = _categoricalMarketBeacon;
+        CLASSIC_MARKET_BEACON = _classicMarketBeacon;
         foreProtocol = protocolAddress;
         config = IProtocolConfig(protocolAddress.config());
         foreToken = IERC20(protocolAddress.foreToken());
@@ -119,7 +133,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
      * @param token Alternative token
      * @return createdMarket Address of created market
      **/
-    function createMarket(
+    function createCategoricalMarket(
         bytes32 marketHash,
         address receiver,
         uint256[] calldata amounts,
@@ -128,7 +142,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         IERC20 token
     ) external whenNotPaused returns (address) {
         return
-            _createMarket(
+            _createCategoricalMarket(
                 marketHash,
                 msg.sender,
                 receiver,
@@ -150,7 +164,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
      * @param token Alternative token
      * @return createdMarket Address of created market
      **/
-    function createMarketWithCreator(
+    function createCategoricalMarket(
         bytes32 marketHash,
         address creator,
         address receiver,
@@ -160,7 +174,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
         IERC20 token
     ) external onlyRouter whenNotPaused returns (address) {
         return
-            _createMarket(
+            _createCategoricalMarket(
                 marketHash,
                 creator,
                 receiver,
@@ -182,7 +196,7 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
      * @param token Alternative token
      * @return createdMarket Address of created market
      **/
-    function _createMarket(
+    function _createCategoricalMarket(
         bytes32 marketHash,
         address creator,
         address receiver,
@@ -201,10 +215,12 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
             revert InvalidCall();
         }
 
-        BasicMarketV2 createdMarketContract = new BasicMarketV2{
-            salt: marketHash
-        }();
-        createdMarket = address(createdMarketContract);
+        bytes memory bytecode = _getMarketBytecode(CATEGORICAL_MARKET_BEACON);
+        createdMarket = Create2.deploy(
+            0,
+            CATEGORICAL_MARKET_SALT_HASH,
+            bytecode
+        );
 
         uint256 creationFee = 0;
         uint256 amountSum = ArrayUtils.sum(amounts);
@@ -254,7 +270,130 @@ contract BasicFactoryV2 is Pausable, AccessManaged {
                 foundationFlatFeeRate
             );
 
-        createdMarketContract.initialize(payload);
+        IBasicMarketV2(createdMarket).initialize(payload);
+    }
+
+    /// @notice Creates Market
+    /// @param marketHash market hash
+    /// @param receiver market creator nft receiver
+    /// @param amountA initial prediction for side A
+    /// @param amountB initial prediction for side B
+    /// @param endPredictionTimestamp End predictions unix timestamp
+    /// @param startVerificationTimestamp Start Verification unix timestamp
+    /// @return createdMarket Address of created market
+    function createClassicMarket(
+        bytes32 marketHash,
+        address receiver,
+        uint256 amountA,
+        uint256 amountB,
+        uint64 endPredictionTimestamp,
+        uint64 startVerificationTimestamp
+    ) external returns (address createdMarket) {
+        return
+            _createClassicMarket(
+                marketHash,
+                receiver,
+                msg.sender,
+                amountA,
+                amountB,
+                endPredictionTimestamp,
+                startVerificationTimestamp
+            );
+    }
+
+    /// @notice Creates a market with specified creator
+    /// @param marketHash market hash
+    /// @param creator market creator
+    /// @param receiver market creator nft receiver
+    /// @param amountA initial prediction for side A
+    /// @param amountB initial prediction for side B
+    /// @param endPredictionTimestamp End predictions unix timestamp
+    /// @param startVerificationTimestamp Start Verification unix timestamp
+    /// @return createdMarket Address of created market
+    function createClassicMarket(
+        bytes32 marketHash,
+        address receiver,
+        address creator,
+        uint256 amountA,
+        uint256 amountB,
+        uint64 endPredictionTimestamp,
+        uint64 startVerificationTimestamp
+    ) external returns (address createdMarket) {
+        return
+            _createClassicMarket(
+                marketHash,
+                receiver,
+                creator,
+                amountA,
+                amountB,
+                endPredictionTimestamp,
+                startVerificationTimestamp
+            );
+    }
+
+    /// @notice Creates Market (Internal function)
+    /// @param marketHash market hash
+    /// @param receiver market creator nft receiver
+    /// @param amountA initial prediction for side A
+    /// @param amountB initial prediction for side B
+    /// @param endPredictionTimestamp End predictions unix timestamp
+    /// @param startVerificationTimestamp Start Verification unix timestamp
+    /// @return createdMarket Address of created market
+    function _createClassicMarket(
+        bytes32 marketHash,
+        address receiver,
+        address creator,
+        uint256 amountA,
+        uint256 amountB,
+        uint64 endPredictionTimestamp,
+        uint64 startVerificationTimestamp
+    ) internal returns (address createdMarket) {
+        if (endPredictionTimestamp > startVerificationTimestamp) {
+            revert("BasicFactory: Date error");
+        }
+
+        bytes memory bytecode = _getMarketBytecode(CLASSIC_MARKET_BEACON);
+        createdMarket = Create2.deploy(0, CLASSIC_MARKET_SALT_HASH, bytecode);
+
+        uint256 creationFee = config.marketCreationPrice();
+
+        if (creationFee != 0) {
+            foreToken.safeTransferFrom(
+                msg.sender,
+                address(0x000000000000000000000000000000000000dEaD),
+                creationFee
+            );
+        }
+
+        uint256 amountSum = amountA + amountB;
+        if (amountSum != 0) {
+            foreToken.safeTransferFrom(msg.sender, createdMarket, amountSum);
+        }
+
+        uint256 marketIdx = foreProtocol.createMarket(
+            marketHash,
+            creator,
+            receiver,
+            createdMarket
+        );
+
+        IBasicMarket(createdMarket).initialize(
+            marketHash,
+            receiver,
+            amountA,
+            amountB,
+            address(foreProtocol),
+            endPredictionTimestamp,
+            startVerificationTimestamp,
+            uint64(marketIdx)
+        );
+    }
+
+    function _getMarketBytecode(
+        address impl
+    ) internal pure returns (bytes memory) {
+        bytes memory bytecode = type(BeaconProxy).creationCode;
+        return abi.encodePacked(bytecode, abi.encode(impl, ""));
     }
 
     /**

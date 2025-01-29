@@ -1,3 +1,4 @@
+import { ethers, network, upgrades } from "hardhat";
 import { smock } from "@defi-wonderland/smock";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { Block } from "@ethersproject/abstract-provider";
@@ -14,9 +15,9 @@ import {
   Event,
   Signer,
 } from "ethers";
-import { ethers, network, upgrades } from "hardhat";
 
 import Permit2Artifact from "../abis/Permit2.json";
+import { bytecode as beaconProxyBytecode } from "../../artifacts/@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol/BeaconProxy.json";
 
 chai.use(chaiSubset);
 chai.use(solidity);
@@ -392,4 +393,20 @@ export const getEventFromReceipt = async function (
 
   assert(receipt);
   return receipt.events.find((event) => _eventName(event) === eventName);
+};
+
+export const getBytecode = (beacon: string) => {
+  const defaultAbiCoder = ethers.utils.defaultAbiCoder;
+
+  const constructorArgs = defaultAbiCoder.encode(
+    ["address", "bytes"],
+    [beacon, new Uint8Array()]
+  );
+
+  const finalBytecode = ethers.utils.concat([
+    beaconProxyBytecode,
+    constructorArgs,
+  ]);
+
+  return finalBytecode;
 };
