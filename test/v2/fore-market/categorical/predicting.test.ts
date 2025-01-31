@@ -4,7 +4,7 @@ import { expect } from "chai";
 
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
-import { BasicFactoryV2 } from "@/BasicFactoryV2";
+import { BeaconFactory } from "@/BeaconFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLibV2 } from "@/MarketLibV2";
@@ -13,13 +13,17 @@ import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { MockERC20 } from "@/MockERC20";
 import { ForeAccessManager } from "@/ForeAccessManager";
+import { BasicMarket } from "@/BasicMarket";
+import { UpgradeableBeacon } from "@/UpgradeableBeacon";
 
 import {
   attachContract,
+  deployContract,
   deployLibrary,
   deployMockedContract,
   deployMockedContractAs,
   deployUniversalRouter,
+  getBytecode,
   txExec,
 } from "../../../helpers/utils";
 import { defaultIncentives } from "../../../helpers/constants";
@@ -51,10 +55,12 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let usdcToken: MockERC20;
-  let basicFactory: MockContract<BasicFactoryV2>;
+  let beaconFactory: BeaconFactory;
   let marketLib: MarketLibV2;
   let contract: BasicMarketV2;
   let foreAccessManager: MockContract<ForeAccessManager>;
+  let categoricalMarketBeacon: UpgradeableBeacon;
+  let classicMarketBeacon: UpgradeableBeacon;
 
   let blockTimestamp: number;
 
@@ -76,10 +82,8 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
     ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLibV2", [
-      "BasicMarketV2",
-      "BasicFactoryV2",
-    ]);
+    marketLib = await deployLibrary("MarketLibV2", ["BasicMarketV2"]);
+    await deployLibrary("MarketLib", ["BasicMarket"]);
 
     // preparing dependencies
     foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -147,9 +151,26 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
     );
 
     // preparing factory
-    basicFactory = await deployMockedContract<BasicFactoryV2>(
-      "BasicFactoryV2",
+    const categoricalMarketImpl = await deployContract<BasicMarketV2>(
+      "BasicMarketV2"
+    );
+    const classicMarketImpl = await deployContract<BasicMarket>("BasicMarket");
+
+    categoricalMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      categoricalMarketImpl.address,
+      owner.address
+    );
+    classicMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      classicMarketImpl.address,
+      owner.address
+    );
+    beaconFactory = await deployContract<BeaconFactory>(
+      "BeaconFactory",
       foreAccessManager.address,
+      categoricalMarketBeacon.address,
+      classicMarketBeacon.address,
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
@@ -175,7 +196,7 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
     await txExec(
       protocolConfig
         .connect(owner)
-        .setFactoryStatus([basicFactory.address], [true])
+        .setFactoryStatus([beaconFactory.address], [true])
     );
 
     const previousBlock = await ethers.provider.getBlock("latest");
@@ -184,21 +205,29 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
     await txExec(
       foreToken
         .connect(alice)
-        .approve(basicFactory.address, ethers.utils.parseUnits("1000", "ether"))
+        .approve(
+          beaconFactory.address,
+          ethers.utils.parseUnits("1000", "ether")
+        )
     );
     await txExec(
       usdcToken
         .connect(alice)
-        .approve(basicFactory.address, ethers.utils.parseUnits("1000", "ether"))
+        .approve(
+          beaconFactory.address,
+          ethers.utils.parseUnits("1000", "ether")
+        )
     );
 
     // creating market
     const marketHash =
       "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
     await txExec(
-      basicFactory
+      beaconFactory
         .connect(alice)
-        .createMarket(
+        [
+          "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+        ](
           marketHash,
           alice.address,
           new Array(5).fill(0),
@@ -208,13 +237,14 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
         )
     );
 
-    const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
-
-    const salt = marketHash;
+    const bytecode = getBytecode(
+      await beaconFactory.CATEGORICAL_MARKET_BEACON()
+    );
+    const initCodeHash = ethers.utils.keccak256(bytecode);
     const newAddress = ethers.utils.getCreate2Address(
-      basicFactory.address,
-      salt,
-      initCode
+      beaconFactory.address,
+      marketHash,
+      initCodeHash
     );
 
     contract = await attachContract<BasicMarketV2>("BasicMarketV2", newAddress);
@@ -264,7 +294,9 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
 
       beforeEach(async () => {
         [tx] = await txExec(
-          contract.connect(alice).predict(ethers.utils.parseEther("2"), 0)
+          contract
+            .connect(alice)
+            ["predict(uint256,uint8)"](ethers.utils.parseEther("2"), 0)
         );
         predictionFees.foreToken = await calculatePredictionFee(
           contract,
@@ -320,7 +352,9 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
 
       beforeEach(async () => {
         [tx] = await txExec(
-          contract.connect(alice).predict(ethers.utils.parseEther("2"), 1)
+          contract
+            .connect(alice)
+            ["predict(uint256,uint8)"](ethers.utils.parseEther("2"), 1)
         );
         predictionFees.foreToken = await calculatePredictionFee(
           contract,
@@ -376,7 +410,9 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
 
       beforeEach(async () => {
         [tx] = await txExec(
-          contract.connect(alice).predict(ethers.utils.parseEther("2"), 2)
+          contract
+            .connect(alice)
+            ["predict(uint256,uint8)"](ethers.utils.parseEther("2"), 2)
         );
         predictionFees.foreToken = await calculatePredictionFee(
           contract,
@@ -432,7 +468,9 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
 
       beforeEach(async () => {
         [tx] = await txExec(
-          contract.connect(alice).predict(ethers.utils.parseEther("2"), 3)
+          contract
+            .connect(alice)
+            ["predict(uint256,uint8)"](ethers.utils.parseEther("2"), 3)
         );
         predictionFees.foreToken = await calculatePredictionFee(
           contract,
@@ -488,7 +526,9 @@ describe("BasicMarketV2 / Categorical / Predicting", () => {
 
       beforeEach(async () => {
         [tx] = await txExec(
-          contract.connect(alice).predict(ethers.utils.parseEther("2"), 4)
+          contract
+            .connect(alice)
+            ["predict(uint256,uint8)"](ethers.utils.parseEther("2"), 4)
         );
         predictionFees.foreToken = await calculatePredictionFee(
           contract,

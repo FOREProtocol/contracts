@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../../IForeProtocol.sol";
 import "../../../verifiers/IForeVerifiers.sol";
 import "../../config/IProtocolConfig.sol";
 import "../../config/IMarketConfig.sol";
-import "openzeppelin-v4/contracts/token/ERC20/IERC20.sol";
-import "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
-import "openzeppelin-v4/contracts/security/ReentrancyGuard.sol";
 import "./library/MarketLib.sol";
 
-contract BasicMarket is ReentrancyGuard {
+contract BasicMarket is Initializable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @notice Market hash (ipfs hash without first 2 bytes)
@@ -21,9 +22,6 @@ contract BasicMarket is ReentrancyGuard {
 
     /// @notice Protocol
     IForeProtocol public protocol;
-
-    /// @notice Factory
-    address public immutable factory;
 
     /// @notice Protocol config
     IProtocolConfig public protocolConfig;
@@ -49,7 +47,7 @@ contract BasicMarket is ReentrancyGuard {
     /// @notice Is prediction reward withdrawn for address
     mapping(address => bool) public predictionWithdrawn;
 
-    /// @notice Verification info for verificatioon id
+    /// @notice Verification info for verification id
     MarketLib.Verification[] public verifications;
 
     bytes32 public disputeMessage;
@@ -77,62 +75,47 @@ contract BasicMarket is ReentrancyGuard {
         return verifications.length;
     }
 
-    constructor() {
-        factory = msg.sender;
-    }
-
     /// @notice Returns market info
     function marketInfo() external view returns (MarketLib.Market memory) {
         return _market;
     }
 
     /// @notice Initialization function
-    /// @param mHash _market hash
-    /// @param receiver _market creator nft receiver
-    /// @param amountA initial prediction for side A
-    /// @param amountB initial prediction for side B
-    /// @param endPredictionTimestamp End Prediction Timestamp
-    /// @param startVerificationTimestamp Start Verification Timestamp
-    /// @param tokenId _market creator token id (ForeMarkets)
+    /// @param payload Market initial payload data
     /// @dev Possible to call only via the factory
     function initialize(
-        bytes32 mHash,
-        address receiver,
-        uint256 amountA,
-        uint256 amountB,
-        address protocolAddress,
-        uint64 endPredictionTimestamp,
-        uint64 startVerificationTimestamp,
-        uint64 tokenId
-    ) external {
-        if (msg.sender != address(factory)) {
-            revert("BasicMarket: Only Factory");
-        }
-
-        protocol = IForeProtocol(protocolAddress);
+        MarketLib.MarketCreationInitialData calldata payload
+    ) public initializer {
+        protocol = IForeProtocol(payload.protocolAddress);
         protocolConfig = IProtocolConfig(protocol.config());
+
+        require(
+            protocolConfig.isFactoryWhitelisted(msg.sender),
+            "BasicMarket: Only Factory"
+        );
+
         marketConfig = IMarketConfig(protocolConfig.marketConfig());
         foreToken = IERC20(protocol.foreToken());
         foreVerifiers = IForeVerifiers(protocol.foreVerifiers());
 
-        marketHash = mHash;
+        marketHash = payload.mHash;
         MarketLib.init(
             _market,
             predictionsA,
             predictionsB,
-            receiver,
-            amountA,
-            amountB,
-            endPredictionTimestamp,
-            startVerificationTimestamp,
-            tokenId
+            payload.receiver,
+            payload.amountA,
+            payload.amountB,
+            payload.endPredictionTimestamp,
+            payload.startVerificationTimestamp,
+            payload.tokenId
         );
-        marketId = tokenId;
+        marketId = payload.tokenId;
     }
 
     /// @notice Add new prediction
     /// @param amount Amount of ForeToken
-    /// @param side Predicition side (true - positive result, false - negative result)
+    /// @param side Prediction side (true - positive result, false - negative result)
     function predict(uint256 amount, bool side) external {
         foreToken.safeTransferFrom(msg.sender, address(this), amount);
         MarketLib.predict(
@@ -212,7 +195,7 @@ contract BasicMarket is ReentrancyGuard {
     }
 
     ///@notice Resolves Dispute
-    ///@param result Dipsute result type
+    ///@param result Dispute result type
     ///@dev Only HighGuard
     function resolveDispute(MarketLib.ResultType result) external {
         address highGuard = protocolConfig.highGuard();
@@ -228,7 +211,7 @@ contract BasicMarket is ReentrancyGuard {
 
     ///@dev Closes market
     ///@param result Market close result type
-    ///Is not best optimized becouse of deep stack
+    ///Is not best optimized because of deep stack
     function _closeMarket(MarketLib.ResultType result) private {
         (
             uint256 burnFee,
@@ -300,7 +283,7 @@ contract BasicMarket is ReentrancyGuard {
 
     ///@notice Returns prediction reward in ForeToken
     ///@dev Returns full available amount to withdraw(Deposited fund + reward of winnings - Protocol fees)
-    ///@param predictor Predictior address
+    ///@param predictor Predictor address
     ///@return 0 Amount to withdraw
     function calculatePredictionReward(
         address predictor
@@ -365,9 +348,9 @@ contract BasicMarket is ReentrancyGuard {
             );
     }
 
-    ///@notice Withdrawss Verification Reward
+    ///@notice Withdraws Verification Reward
     ///@param verificationId Id of verification
-    ///@param withdrawAsTokens If true witdraws tokens, false - withraws power
+    ///@param withdrawAsTokens If true withdraws tokens, false - withdraws power
     function withdrawVerificationReward(
         uint256 verificationId,
         bool withdrawAsTokens

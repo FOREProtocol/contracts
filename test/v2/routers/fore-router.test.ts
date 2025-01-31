@@ -5,7 +5,7 @@ import { BigNumber, Contract, ContractReceipt } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 
-import { BasicFactoryV2, PausedEvent, UnpausedEvent } from "@/BasicFactoryV2";
+import { BeaconFactory, PausedEvent, UnpausedEvent } from "@/BeaconFactory";
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { ForeVerifiers } from "@/ForeVerifiers";
@@ -14,19 +14,23 @@ import { ForeProtocol } from "@/ForeProtocol";
 import { MockERC20 } from "@/MockERC20";
 import { ManagedTokenEvent } from "@/ForeUniversalRouter";
 import {
-  BasicFactoryV2__factory,
+  BeaconFactory__factory,
   BasicMarketV2__factory,
   ForeAccessManager,
   ForeUniversalRouter__factory,
+  BasicMarket,
+  UpgradeableBeacon,
 } from "@/index";
 
 import {
   assertEvent,
   attachContract,
+  deployContract,
   deployLibrary,
   deployMockedContract,
   deployMockedContractAs,
   generateRandomHexString,
+  getBytecode,
   getPreviousBlock,
   toDeadline,
   txExec,
@@ -54,19 +58,21 @@ describe("Fore Universal Router", function () {
 
   let MarketFactory: BasicMarketV2__factory;
   let RouterFactory: ForeUniversalRouter__factory;
-  let BasicFactoryFactory: BasicFactoryV2__factory;
+  let BeaconFactory: BeaconFactory__factory;
 
   let protocolConfig: MockContract<ProtocolConfig>;
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
-  let basicFactory: MockContract<BasicFactoryV2>;
+  let beaconFactory: BeaconFactory;
   let usdcToken: MockERC20;
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let permit2: Contract;
   let contract: Contract;
   let foreAccessManager: MockContract<ForeAccessManager>;
+  let categoricalMarketBeacon: UpgradeableBeacon;
+  let classicMarketBeacon: UpgradeableBeacon;
 
   let blockTimestamp: number;
 
@@ -90,10 +96,8 @@ describe("Fore Universal Router", function () {
     ] = await ethers.getSigners();
 
     // deploy library
-    const marketlib = await deployLibrary("MarketLibV2", [
-      "BasicMarketV2",
-      "BasicFactoryV2",
-    ]);
+    const marketlib = await deployLibrary("MarketLibV2", ["BasicMarketV2"]);
+    await deployLibrary("MarketLib", ["BasicMarket"]);
 
     // preparing dependencies
     foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -181,9 +185,26 @@ describe("Fore Universal Router", function () {
     await contract.deployed();
 
     // preparing factory
-    basicFactory = await deployMockedContract<BasicFactoryV2>(
-      "BasicFactoryV2",
+    const categoricalMarketImpl = await deployContract<BasicMarketV2>(
+      "BasicMarketV2"
+    );
+    const classicMarketImpl = await deployContract<BasicMarket>("BasicMarket");
+
+    categoricalMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      categoricalMarketImpl.address,
+      owner.address
+    );
+    classicMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      classicMarketImpl.address,
+      owner.address
+    );
+    beaconFactory = await deployContract<BeaconFactory>(
+      "BeaconFactory",
       foreAccessManager.address,
+      categoricalMarketBeacon.address,
+      classicMarketBeacon.address,
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
@@ -194,7 +215,7 @@ describe("Fore Universal Router", function () {
     await txExec(
       protocolConfig
         .connect(owner)
-        .setFactoryStatus([basicFactory.address], [true])
+        .setFactoryStatus([beaconFactory.address], [true])
     );
 
     blockTimestamp = (await getPreviousBlock()).timestamp;
@@ -215,14 +236,13 @@ describe("Fore Universal Router", function () {
     await txExec(
       foreToken
         .connect(marketCreator)
-        .approve(basicFactory.address, ethers.utils.parseUnits("1000", "ether"))
+        .approve(
+          beaconFactory.address,
+          ethers.utils.parseUnits("1000", "ether")
+        )
     );
 
-    BasicFactoryFactory = await ethers.getContractFactory("BasicFactoryV2", {
-      libraries: {
-        MarketLibV2: marketlib.address,
-      },
-    });
+    BeaconFactory = await ethers.getContractFactory("BeaconFactory");
     MarketFactory = await ethers.getContractFactory("BasicMarketV2", {
       libraries: {
         MarketLibV2: marketlib.address,
@@ -231,11 +251,13 @@ describe("Fore Universal Router", function () {
 
     // Create markets
     for (let i = 0; i < 5; i++) {
-      const hash = generateRandomHexString(64);
+      const hash = ethers.utils.formatBytes32String(`test market ${String(i)}`);
       await txExec(
-        basicFactory
+        beaconFactory
           .connect(marketCreator)
-          .createMarket(
+          [
+            "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+          ](
             hash,
             marketCreator.address,
             [0, 0],
@@ -244,11 +266,14 @@ describe("Fore Universal Router", function () {
             foreToken.address
           )
       );
-      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
+      const bytecode = getBytecode(
+        await beaconFactory.CATEGORICAL_MARKET_BEACON()
+      );
+      const initCodeHash = ethers.utils.keccak256(bytecode);
       const newAddress = ethers.utils.getCreate2Address(
-        basicFactory.address,
+        beaconFactory.address,
         hash,
-        initCode
+        initCodeHash
       );
       markets[i] = await attachContract<BasicMarketV2>(
         "BasicMarketV2",
@@ -580,7 +605,7 @@ describe("Fore Universal Router", function () {
       describe("successfully", () => {
         beforeEach(async () => {
           const data = MarketFactory.interface.encodeFunctionData(
-            "predictFor",
+            "predict(address,uint256,uint8)",
             [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
           );
 
@@ -622,7 +647,7 @@ describe("Fore Universal Router", function () {
 
         it("should call function", async () => {
           const data = MarketFactory.interface.encodeFunctionData(
-            "predictFor",
+            "predict(address,uint256,uint8)",
             [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
           );
 
@@ -656,7 +681,7 @@ describe("Fore Universal Router", function () {
       describe("should predict multiple markets", () => {
         beforeEach(async () => {
           const data = MarketFactory.interface.encodeFunctionData(
-            "predictFor",
+            "predict(address,uint256,uint8)",
             [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
           );
 
@@ -738,11 +763,10 @@ describe("Fore Universal Router", function () {
         let data: string;
 
         before(() => {
-          data = MarketFactory.interface.encodeFunctionData("predictFor", [
-            alice.address,
-            ethers.utils.parseEther("2"),
-            SIDES.TRUE,
-          ]);
+          data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
         });
 
         it("should revert call function", async () => {
@@ -762,7 +786,7 @@ describe("Fore Universal Router", function () {
 
         it("should revert permit call function", async () => {
           const data = MarketFactory.interface.encodeFunctionData(
-            "predictFor",
+            "predict(address,uint256,uint8)",
             [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
           );
 
@@ -802,11 +826,10 @@ describe("Fore Universal Router", function () {
         let data: string;
 
         before(() => {
-          data = MarketFactory.interface.encodeFunctionData("predictFor", [
-            alice.address,
-            ethers.utils.parseEther("2"),
-            SIDES.TRUE,
-          ]);
+          data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
         });
 
         it("should revert permit call", async () => {
@@ -848,11 +871,10 @@ describe("Fore Universal Router", function () {
         let mockPermitSingle: typeof permitSingle | null = null;
 
         beforeEach(() => {
-          data = MarketFactory.interface.encodeFunctionData("predictFor", [
-            alice.address,
-            ethers.utils.parseEther("2"),
-            SIDES.TRUE,
-          ]);
+          data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
           mockPermitSingle = {
             details: {
               ...permitSingle.details,
@@ -910,8 +932,8 @@ describe("Fore Universal Router", function () {
           hash = generateRandomHexString(64);
           blockTimestamp = (await getPreviousBlock()).timestamp;
 
-          const data = BasicFactoryFactory.interface.encodeFunctionData(
-            "createMarketWithCreator",
+          const data = BeaconFactory.interface.encodeFunctionData(
+            "createCategoricalMarket(bytes32,address,address,uint256[],uint64,uint64,address)",
             [
               hash,
               alice.address,
@@ -929,7 +951,7 @@ describe("Fore Universal Router", function () {
               .permitCallFunction(
                 permitSingle,
                 signature,
-                basicFactory.address,
+                beaconFactory.address,
                 data,
                 foreToken.address,
                 ethers.utils.parseEther("10")
@@ -950,11 +972,10 @@ describe("Fore Universal Router", function () {
 
       describe("paused contract", () => {
         beforeEach(async () => {
-          data = MarketFactory.interface.encodeFunctionData("predictFor", [
-            alice.address,
-            ethers.utils.parseEther("2"),
-            SIDES.TRUE,
-          ]);
+          data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
           [, receipt] = await txExec(contract.connect(defaultAdmin).pause());
         });
 
@@ -1007,11 +1028,10 @@ describe("Fore Universal Router", function () {
         before(async () => {
           [, receipt] = await txExec(contract.connect(defaultAdmin).unpause());
 
-          data = MarketFactory.interface.encodeFunctionData("predictFor", [
-            alice.address,
-            ethers.utils.parseEther("2"),
-            SIDES.TRUE,
-          ]);
+          data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
         });
 
         it("should emit unpaused event", async () => {

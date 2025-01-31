@@ -6,27 +6,31 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
-import { BasicFactoryV2 } from "@/BasicFactoryV2";
+import { BeaconFactory } from "@/BeaconFactory";
 import { ForeToken } from "@/ForeToken";
 import { MarketLibV2 } from "@/MarketLibV2";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { ERC20 } from "@/ERC20";
+import { ForeAccessManager } from "@/ForeAccessManager";
+import { BasicMarket } from "@/BasicMarket";
+import { UpgradeableBeacon } from "@/UpgradeableBeacon";
 
 import {
   assertIsAvailableOnlyForOwner,
   attachContract,
+  deployContract,
   deployLibrary,
   deployMockedContract,
   deployUniversalRouter,
   executeInSingleBlock,
   generateRandomHexString,
+  getBytecode,
   sendERC20Tokens,
   timetravel,
   txExec,
 } from "../../helpers/utils";
 import { SIDES, defaultIncentives } from "../../helpers/constants";
-import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("BasicMarketV2 / Dispute", () => {
   let owner: SignerWithAddress;
@@ -44,12 +48,14 @@ describe("BasicMarketV2 / Dispute", () => {
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
-  let basicFactory: MockContract<BasicFactoryV2>;
+  let beaconFactory: BeaconFactory;
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
   let foreAccessManager: MockContract<ForeAccessManager>;
+  let categoricalMarketBeacon: UpgradeableBeacon;
+  let classicMarketBeacon: UpgradeableBeacon;
 
   let blockTimestamp: number;
 
@@ -67,10 +73,8 @@ describe("BasicMarketV2 / Dispute", () => {
     ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLibV2", [
-      "BasicMarketV2",
-      "BasicFactoryV2",
-    ]);
+    marketLib = await deployLibrary("MarketLibV2", ["BasicMarketV2"]);
+    await deployLibrary("MarketLib", ["BasicMarket"]);
 
     // preparing dependencies
     foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -136,9 +140,26 @@ describe("BasicMarketV2 / Dispute", () => {
     );
 
     // preparing factory
-    basicFactory = await deployMockedContract<BasicFactoryV2>(
-      "BasicFactoryV2",
+    const categoricalMarketImpl = await deployContract<BasicMarketV2>(
+      "BasicMarketV2"
+    );
+    const classicMarketImpl = await deployContract<BasicMarket>("BasicMarket");
+
+    categoricalMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      categoricalMarketImpl.address,
+      owner.address
+    );
+    classicMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      classicMarketImpl.address,
+      owner.address
+    );
+    beaconFactory = await deployContract<BeaconFactory>(
+      "BeaconFactory",
       foreAccessManager.address,
+      categoricalMarketBeacon.address,
+      classicMarketBeacon.address,
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
@@ -152,7 +173,7 @@ describe("BasicMarketV2 / Dispute", () => {
     await txExec(
       protocolConfig
         .connect(owner)
-        .setFactoryStatus([basicFactory.address], [true])
+        .setFactoryStatus([beaconFactory.address], [true])
     );
 
     // sending funds
@@ -169,15 +190,20 @@ describe("BasicMarketV2 / Dispute", () => {
     await txExec(
       foreToken
         .connect(alice)
-        .approve(basicFactory.address, ethers.utils.parseUnits("1000", "ether"))
+        .approve(
+          beaconFactory.address,
+          ethers.utils.parseUnits("1000", "ether")
+        )
     );
     // creating market
     const marketHash =
       "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
     await txExec(
-      basicFactory
+      beaconFactory
         .connect(alice)
-        .createMarket(
+        [
+          "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+        ](
           marketHash,
           alice.address,
           [ethers.utils.parseEther("50"), ethers.utils.parseEther("50")],
@@ -187,13 +213,14 @@ describe("BasicMarketV2 / Dispute", () => {
         )
     );
 
-    const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
-
-    const salt = marketHash;
+    const bytecode = getBytecode(
+      await beaconFactory.CATEGORICAL_MARKET_BEACON()
+    );
+    const initCodeHash = ethers.utils.keccak256(bytecode);
     const newAddress = ethers.utils.getCreate2Address(
-      basicFactory.address,
-      salt,
-      initCode
+      beaconFactory.address,
+      marketHash,
+      initCodeHash
     );
 
     contract = await attachContract<BasicMarketV2>("BasicMarketV2", newAddress);
@@ -248,7 +275,7 @@ describe("BasicMarketV2 / Dispute", () => {
       await expect(
         contract
           .connect(bob)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       ).to.revertedWith("DisputePeriodIsNotStartedYet");
@@ -274,7 +301,7 @@ describe("BasicMarketV2 / Dispute", () => {
         await expect(
           contract
             .connect(dave)
-            .openDispute(
+            ["openDispute(bytes32)"](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
             )
         ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
@@ -287,7 +314,7 @@ describe("BasicMarketV2 / Dispute", () => {
           [tx] = await txExec(
             contract
               .connect(alice)
-              .openDispute(
+              ["openDispute(bytes32)"](
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
               )
           );
@@ -329,7 +356,7 @@ describe("BasicMarketV2 / Dispute", () => {
           await expect(
             contract
               .connect(bob)
-              .openDispute(
+              ["openDispute(bytes32)"](
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
               )
           ).to.be.revertedWith("DisputeAlreadyExists");
@@ -341,7 +368,7 @@ describe("BasicMarketV2 / Dispute", () => {
       await txExec(
         contract
           .connect(alice)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       );
@@ -356,7 +383,7 @@ describe("BasicMarketV2 / Dispute", () => {
       [tx] = await txExec(
         contract
           .connect(bob)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       );
@@ -392,7 +419,7 @@ describe("BasicMarketV2 / Dispute", () => {
         await txExec(
           contract
             .connect(alice)
-            .openDispute(
+            ["openDispute(bytes32)"](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
             )
         );
@@ -708,7 +735,7 @@ describe("BasicMarketV2 / Dispute", () => {
         await txExec(
           contract
             .connect(alice)
-            .openDispute(
+            ["openDispute(bytes32)"](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
             )
         );
@@ -818,7 +845,7 @@ describe("BasicMarketV2 / Dispute", () => {
       await expect(
         contract
           .connect(alice)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       ).to.be.revertedWith("DisputePeriodIsEnded");
@@ -835,7 +862,7 @@ describe("BasicMarketV2 / Dispute", () => {
       await expect(
         contract
           .connect(alice)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       ).to.be.revertedWith("MarketIsClosed");
@@ -854,9 +881,11 @@ describe("BasicMarketV2 / Dispute", () => {
 
       const marketHash = generateRandomHexString(64);
       await txExec(
-        basicFactory
+        beaconFactory
           .connect(alice)
-          .createMarket(
+          [
+            "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+          ](
             marketHash,
             alice.address,
             [ethers.utils.parseEther("70"), 0],
@@ -866,13 +895,14 @@ describe("BasicMarketV2 / Dispute", () => {
           )
       );
 
-      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
-
-      const salt = marketHash;
+      const bytecode = getBytecode(
+        await beaconFactory.CATEGORICAL_MARKET_BEACON()
+      );
+      const initCodeHash = ethers.utils.keccak256(bytecode);
       const newAddress = ethers.utils.getCreate2Address(
-        basicFactory.address,
-        salt,
-        initCode
+        beaconFactory.address,
+        marketHash,
+        initCodeHash
       );
 
       contract = await attachContract<BasicMarketV2>(
@@ -899,7 +929,7 @@ describe("BasicMarketV2 / Dispute", () => {
     it("should open dispute", async () => {
       await contract
         .connect(dave)
-        .openDispute(
+        ["openDispute(bytes32)"](
           "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
         );
     });

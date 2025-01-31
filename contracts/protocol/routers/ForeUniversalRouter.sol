@@ -32,15 +32,15 @@ contract ForeUniversalRouter is
     error CallFunctionFailed();
 
     bytes4 private constant PREDICT_SELECTOR_HASH =
-        bytes4(keccak256("predictFor(address,uint256,uint8)"));
+        bytes4(keccak256("predict(address,uint256,uint8)"));
 
     bytes4 private constant OPEN_DISPUTE_SELECTOR_HASH =
-        bytes4(keccak256("openDisputeFor(address,bytes32)"));
+        bytes4(keccak256("openDispute(address,bytes32)"));
 
     bytes4 private constant CREATE_MARKET_SELECTOR_HASH =
         bytes4(
             keccak256(
-                "createMarketWithCreator(bytes32,address,address,uint256[],uint64,uint64,address)"
+                "createCategoricalMarket(bytes32,address,address,uint256[],uint64,uint64,address)"
             )
         );
 

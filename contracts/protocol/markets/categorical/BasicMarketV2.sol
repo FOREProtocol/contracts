@@ -2,6 +2,7 @@
 // Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -15,7 +16,7 @@ import "../../../token/ITokenIncentiveRegistry.sol";
 
 /// @custom:security-contact security@foreprotocol.io
 // solhint-disable-next-line max-states-count
-contract BasicMarketV2 is ReentrancyGuard {
+contract BasicMarketV2 is Initializable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @notice Market hash (ipfs hash without first 2 bytes)
@@ -35,10 +36,6 @@ contract BasicMarketV2 is ReentrancyGuard {
 
     /// @notice Foundation flat fee rate
     uint32 public foundationFlatFeeRate;
-
-    /// @notice Factory
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable factory;
 
     /// @notice Fee receiver
     address public feeReceiver;
@@ -96,10 +93,6 @@ contract BasicMarketV2 is ReentrancyGuard {
         uint256 amount
     );
 
-    constructor() {
-        factory = msg.sender;
-    }
-
     modifier onlyRouter() {
         if (msg.sender != router) {
             revert("OnlyAuthorizedRouter");
@@ -130,12 +123,15 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @dev Possible to call only via the factory
     function initialize(
         MarketLibV2.MarketCreationInitialData calldata payload
-    ) external {
-        if (msg.sender != address(factory)) {
-            revert("BasicMarket: Only Factory");
-        }
+    ) public initializer {
         protocol = IForeProtocol(payload.protocolAddress);
         protocolConfig = IProtocolConfig(protocol.config());
+
+        require(
+            protocolConfig.isFactoryWhitelisted(msg.sender),
+            "BasicMarketV2: Only Factory"
+        );
+
         marketConfig = IMarketConfig(protocolConfig.marketConfig());
         foreToken = IERC20(protocol.foreToken());
         token = IERC20(payload.token);
@@ -175,7 +171,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @param predictor Predictor
     /// @param amount Amount of token
     /// @param side Prediction side (index of the sides array)
-    function predictFor(
+    function predict(
         address predictor,
         uint256 amount,
         uint8 side
@@ -258,7 +254,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Opens dispute for account
     /// @param creator Dispute creator
     /// @param messageHash Message Hash
-    function openDisputeFor(
+    function openDispute(
         address creator,
         bytes32 messageHash
     ) external onlyRouter {
