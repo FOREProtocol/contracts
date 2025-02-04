@@ -37,10 +37,17 @@ contract ForeUniversalRouter is
     bytes4 private constant OPEN_DISPUTE_SELECTOR_HASH =
         bytes4(keccak256("openDispute(address,bytes32)"));
 
-    bytes4 private constant CREATE_MARKET_SELECTOR_HASH =
+    bytes4 private constant CREATE_CATEGORICAL_MARKET_SELECTOR_HASH =
         bytes4(
             keccak256(
                 "createCategoricalMarket(bytes32,address,address,uint256[],uint64,uint64,address)"
+            )
+        );
+
+    bytes4 private constant CREATE_CLASSIC_MARKET_SELECTOR_HASH =
+        bytes4(
+            keccak256(
+                "createClassicMarket(bytes32,address,address,uint256,uint256,uint64,uint64)"
             )
         );
 
@@ -115,10 +122,19 @@ contract ForeUniversalRouter is
                 revert InvalidMsgSender();
             }
         }
-        if (selector == CREATE_MARKET_SELECTOR_HASH) {
+        if (selector == CREATE_CATEGORICAL_MARKET_SELECTOR_HASH) {
             (, address extractedAddress, , , , , ) = abi.decode(
                 data[4:],
                 (bytes32, address, address, uint256[], uint64, uint64, address)
+            );
+            if (extractedAddress != msg.sender) {
+                revert InvalidMsgSender();
+            }
+        }
+        if (selector == CREATE_CLASSIC_MARKET_SELECTOR_HASH) {
+            (, address extractedAddress, , , , , ) = abi.decode(
+                data[4:],
+                (bytes32, address, address, uint256, uint256, uint64, uint64)
             );
             if (extractedAddress != msg.sender) {
                 revert InvalidMsgSender();
@@ -164,7 +180,8 @@ contract ForeUniversalRouter is
 
         allowedFunctions[PREDICT_SELECTOR_HASH] = true;
         allowedFunctions[OPEN_DISPUTE_SELECTOR_HASH] = true;
-        allowedFunctions[CREATE_MARKET_SELECTOR_HASH] = true;
+        allowedFunctions[CREATE_CATEGORICAL_MARKET_SELECTOR_HASH] = true;
+        allowedFunctions[CREATE_CLASSIC_MARKET_SELECTOR_HASH] = true;
     }
 
     /**

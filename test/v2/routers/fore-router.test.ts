@@ -12,7 +12,7 @@ import { ForeVerifiers } from "@/ForeVerifiers";
 import { ForeToken } from "@/ForeToken";
 import { ForeProtocol } from "@/ForeProtocol";
 import { MockERC20 } from "@/MockERC20";
-import { ManagedTokenEvent } from "@/ForeUniversalRouter";
+import { ForeUniversalRouter, ManagedTokenEvent } from "@/ForeUniversalRouter";
 import {
   BeaconFactory__factory,
   BasicMarketV2__factory,
@@ -29,9 +29,10 @@ import {
   deployLibrary,
   deployMockedContract,
   deployMockedContractAs,
-  generateRandomHexString,
   getBytecode,
   getPreviousBlock,
+  impersonateContract,
+  timetravel,
   toDeadline,
   txExec,
 } from "../../helpers/utils";
@@ -40,6 +41,7 @@ import {
   PERMIT_TYPES,
   PermitSingle,
   SIDES,
+  ZERO_ADDRESS,
   defaultIncentives,
 } from "../../helpers/constants";
 
@@ -53,6 +55,7 @@ describe("Fore Universal Router", function () {
   let marketCreator: SignerWithAddress;
   let usdcHolder: SignerWithAddress;
   let alice: SignerWithAddress;
+  let bob: SignerWithAddress;
   let defaultAdmin: SignerWithAddress;
   let sentinelWallet: SignerWithAddress;
 
@@ -69,12 +72,13 @@ describe("Fore Universal Router", function () {
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let permit2: Contract;
-  let contract: Contract;
+  let contract: ForeUniversalRouter;
   let foreAccessManager: MockContract<ForeAccessManager>;
   let categoricalMarketBeacon: UpgradeableBeacon;
   let classicMarketBeacon: UpgradeableBeacon;
 
   let blockTimestamp: number;
+  let domain: Record<string, any>;
 
   const markets: (BasicMarketV2 | null)[] = new Array(5).fill(null);
 
@@ -90,6 +94,7 @@ describe("Fore Universal Router", function () {
       marketplaceContract,
       marketCreator,
       alice,
+      bob,
       usdcHolder,
       defaultAdmin,
       sentinelWallet,
@@ -169,7 +174,7 @@ describe("Fore Universal Router", function () {
 
     // preparing universal router
     RouterFactory = await ethers.getContractFactory("ForeUniversalRouter");
-    contract = await upgrades.deployProxy(
+    contract = (await upgrades.deployProxy(
       RouterFactory,
       [
         foreAccessManager.address,
@@ -181,7 +186,7 @@ describe("Fore Universal Router", function () {
         kind: "uups",
         initializer: "initialize",
       }
-    );
+    )) as ForeUniversalRouter;
     await contract.deployed();
 
     // preparing factory
@@ -224,12 +229,17 @@ describe("Fore Universal Router", function () {
     await txExec(
       foreToken
         .connect(owner)
+        .transfer(alice.address, ethers.utils.parseEther("100000"))
+    );
+    await txExec(
+      foreToken
+        .connect(owner)
         .transfer(marketCreator.address, ethers.utils.parseEther("1000"))
     );
     await txExec(
       foreToken
         .connect(owner)
-        .transfer(alice.address, ethers.utils.parseEther("1000"))
+        .transfer(bob.address, ethers.utils.parseEther("1000"))
     );
 
     // Approve tokens
@@ -285,19 +295,56 @@ describe("Fore Universal Router", function () {
     await txExec(
       foreToken
         .connect(alice)
-        .approve(permit2.address, ethers.utils.parseEther("1000"))
+        .approve(permit2.address, ethers.utils.parseEther("100000"))
     );
+
+    domain = {
+      name: "Permit2",
+      chainId: 31337,
+      verifyingContract: permit2.address,
+    };
   });
 
-  it("should not allow re-initialization", async function () {
-    await expect(
-      contract.initialize(
-        foreAccessManager.address,
-        foreProtocol.address,
-        permit2.address,
-        [foreToken.address, usdcToken.address]
-      )
-    ).to.be.reverted;
+  describe("Initialization", async () => {
+    it("should not allow re-initialization", async function () {
+      await expect(
+        contract.initialize(
+          foreAccessManager.address,
+          foreProtocol.address,
+          permit2.address,
+          [foreToken.address, usdcToken.address]
+        )
+      ).to.be.reverted;
+    });
+
+    it("should revert invalid authority", async function () {
+      await expect(
+        upgrades.deployProxy(
+          RouterFactory,
+          [
+            ZERO_ADDRESS,
+            foreProtocol.address,
+            permit2.address,
+            [foreToken.address, usdcToken.address],
+          ],
+          {
+            kind: "uups",
+            initializer: "initialize",
+          }
+        )
+      ).to.be.reverted;
+    });
+
+    it("should fail router deployment", async () => {
+      await expect(
+        upgrades.deployProxy(RouterFactory, [
+          foreAccessManager.address,
+          foreProtocol.address,
+          permit2.address,
+          [foreToken.address, "0x0000000000000000000000000000000000000000"],
+        ])
+      ).to.be.reverted;
+    });
   });
 
   describe("Access control", () => {
@@ -561,17 +608,6 @@ describe("Fore Universal Router", function () {
     });
   });
 
-  it("should fail router deployment", async () => {
-    await expect(
-      upgrades.deployProxy(RouterFactory, [
-        foreAccessManager.address,
-        foreProtocol.address,
-        permit2.address,
-        [foreToken.address, "0x0000000000000000000000000000000000000000"],
-      ])
-    ).to.be.reverted;
-  });
-
   describe("permit2", () => {
     let permitSingle: PermitSingle;
     let signature: string;
@@ -586,12 +622,6 @@ describe("Fore Universal Router", function () {
         },
         spender: contract.address,
         sigDeadline: toDeadline(1000 * 60 * 60 * 30), // 30 minutes
-      };
-
-      const domain = {
-        name: "Permit2",
-        chainId: 31337,
-        verifyingContract: permit2.address,
       };
 
       signature = await alice._signTypedData(
@@ -675,6 +705,62 @@ describe("Fore Universal Router", function () {
             false, // confirmed
             false, // solved
           ]);
+        });
+
+        it("should revert callFunction if token is invalid", async () => {
+          const data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
+
+          await expect(
+            contract
+              .connect(alice)
+              .callFunction(
+                markets[0].address,
+                data,
+                ZERO_ADDRESS,
+                ethers.utils.parseEther("2")
+              )
+          ).to.be.reverted;
+        });
+
+        it("should revert callFunction if target is invalid", async () => {
+          const data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
+
+          await expect(
+            contract
+              .connect(alice)
+              .callFunction(
+                ZERO_ADDRESS,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("2")
+              )
+          ).to.be.reverted;
+        });
+
+        it("should still proceed if the router already has allowance to the market", async () => {
+          const impersonate = await impersonateContract(contract.address);
+          await foreToken
+            .connect(impersonate)
+            .approve(markets[0].address, ethers.utils.parseEther("2"));
+
+          const data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
+          await contract
+            .connect(alice)
+            .callFunction(
+              markets[0].address,
+              data,
+              foreToken.address,
+              ethers.utils.parseEther("2")
+            );
         });
       });
 
@@ -923,13 +1009,12 @@ describe("Fore Universal Router", function () {
       });
     });
 
-    describe("create market", async () => {
+    describe("create categorical market", async () => {
       let hash: string;
-      let receipt: ContractReceipt;
 
       describe("successfully", () => {
         beforeEach(async () => {
-          hash = generateRandomHexString(64);
+          hash = ethers.utils.formatBytes32String("test mHash");
           blockTimestamp = (await getPreviousBlock()).timestamp;
 
           const data = BeaconFactory.interface.encodeFunctionData(
@@ -945,7 +1030,49 @@ describe("Fore Universal Router", function () {
             ]
           );
 
-          [, receipt] = await txExec(
+          await txExec(
+            contract
+              .connect(alice)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                beaconFactory.address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("10")
+              )
+          );
+        });
+
+        it("should have market address", async () => {
+          const marketAddress = await foreProtocol.market(hash);
+          expect(await foreProtocol.isForeMarket(marketAddress)).to.be.true;
+        });
+      });
+    });
+
+    describe("create classic market", async () => {
+      let hash: string;
+
+      describe("successfully", () => {
+        beforeEach(async () => {
+          hash = ethers.utils.formatBytes32String("test mHash");
+          blockTimestamp = (await getPreviousBlock()).timestamp;
+
+          const data = BeaconFactory.interface.encodeFunctionData(
+            "createClassicMarket(bytes32,address,address,uint256,uint256,uint64,uint64)",
+            [
+              hash,
+              alice.address,
+              alice.address,
+              0n,
+              0n,
+              BigNumber.from(blockTimestamp + 200000),
+              BigNumber.from(blockTimestamp + 300000),
+            ]
+          );
+
+          await txExec(
             contract
               .connect(alice)
               .permitCallFunction(
@@ -1072,6 +1199,88 @@ describe("Fore Universal Router", function () {
         });
       });
     });
+
+    describe("open dispute", async () => {
+      let data: string;
+
+      beforeEach(async () => {
+        await txExec(
+          foreToken
+            .connect(bob)
+            .approve(
+              markets[0].address,
+              ethers.utils.parseUnits("1000", "ether")
+            )
+        );
+        await foreToken
+          .connect(owner)
+          .approve(
+            foreProtocol.address,
+            ethers.utils.parseUnits("1000", "ether")
+          );
+        await txExec(foreVerifiers.setProtocol(foreProtocol.address));
+        await foreProtocol.connect(owner).mintVerifier(bob.address);
+
+        await markets[0]
+          .connect(bob)
+          ["predict(uint256,uint8)"](ethers.utils.parseEther("5"), SIDES.TRUE);
+        await markets[0]
+          .connect(bob)
+          ["predict(uint256,uint8)"](ethers.utils.parseEther("2"), SIDES.FALSE);
+
+        await timetravel(blockTimestamp + 300000 + 1);
+        await markets[0].connect(bob).verify(0, SIDES.FALSE);
+
+        await timetravel(blockTimestamp + 300000 + 86400 + 1);
+        data = MarketFactory.interface.encodeFunctionData(
+          "openDispute(address,bytes32)",
+          [
+            alice.address,
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+          ]
+        );
+
+        permitSingle.sigDeadline = (await getPreviousBlock()).timestamp + 1800;
+        signature = await alice._signTypedData(
+          domain,
+          PERMIT_TYPES,
+          permitSingle
+        );
+      });
+
+      it("should successfully dispute", async () => {
+        await txExec(
+          contract
+            .connect(alice)
+            .permitCallFunction(
+              permitSingle,
+              signature,
+              markets[0].address,
+              data,
+              foreToken.address,
+              ethers.utils.parseEther("1000")
+            )
+        );
+        expect((await markets[0].marketInfo()).disputeCreator).to.be.eq(
+          alice.address
+        );
+      });
+
+      it("should revert invalid sender", async () => {
+        await expect(
+          contract
+            .connect(bob)
+            .permitCallFunction(
+              permitSingle,
+              signature,
+              markets[0].address,
+              data,
+              foreToken.address,
+              ethers.utils.parseEther("1000")
+            )
+        ).to.be.reverted;
+      });
+    });
   });
 
   describe("token management", () => {
@@ -1164,6 +1373,21 @@ describe("Fore Universal Router", function () {
           args: [],
         },
       });
+    });
+  });
+
+  describe("allowed selector management", async () => {
+    it("should allow to add selector", async () => {
+      const bytes4Value = ethers.utils.hexDataSlice(
+        ethers.utils.keccak256(
+          ethers.utils.toUtf8Bytes("transfer(address,uint256)")
+        ),
+        0,
+        4
+      );
+      await contract
+        .connect(defaultAdmin)
+        .manageAllowedFunctions(bytes4Value, true);
     });
   });
 });

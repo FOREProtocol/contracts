@@ -278,7 +278,7 @@ contract BeaconFactory is Pausable, AccessManaged {
         uint256 amountB,
         uint64 endPredictionTimestamp,
         uint64 startVerificationTimestamp
-    ) external returns (address createdMarket) {
+    ) external whenNotPaused returns (address createdMarket) {
         return
             _createClassicMarket(
                 marketHash,
@@ -308,7 +308,7 @@ contract BeaconFactory is Pausable, AccessManaged {
         uint256 amountB,
         uint64 endPredictionTimestamp,
         uint64 startVerificationTimestamp
-    ) external returns (address createdMarket) {
+    ) external onlyRouter whenNotPaused returns (address createdMarket) {
         return
             _createClassicMarket(
                 marketHash,
