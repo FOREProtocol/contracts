@@ -1,11 +1,15 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
-import { Contract } from "ethers";
+import { Contract, ContractReceipt } from "ethers";
 import { assertEvent, deployMockedContract, txExec } from "../../helpers/utils";
 import { ForeAccessManager } from "@/ForeAccessManager";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { MockContract } from "@defi-wonderland/smock";
-import { ManagedWhitelistEvent } from "@/AccountWhitelist";
+import {
+  ManagedWhitelistEvent,
+  PausedEvent,
+  UnpausedEvent,
+} from "@/AccountWhitelist";
 import { AccountWhitelist__factory } from "@/index";
 
 describe("Account Whitelist", function () {
@@ -133,7 +137,7 @@ describe("Account Whitelist", function () {
           .connect(defaultAdmin)
           .grantRole(FOUNDATION_ROLE, foundationWallet.address, 0);
 
-        // Functions that can only be called by the foundation multisign
+        // Functions that can only be called by the foundation multi sign
         await foreAccessManager
           .connect(defaultAdmin)
           .setTargetFunctionRole(
@@ -256,7 +260,7 @@ describe("Account Whitelist", function () {
         .connect(defaultAdmin)
         .grantRole(ADMIN_ROLE, deployerWallet.address, 0);
 
-      // Functions that can only be called by the foundation multisign
+      // Functions that can only be called by the foundation multi sign
       await foreAccessManager
         .connect(defaultAdmin)
         .setTargetFunctionRole(
@@ -341,6 +345,44 @@ describe("Account Whitelist", function () {
           fn: "isAccountWhitelisted",
           args: [defaultAdmin.address],
         },
+      });
+    });
+  });
+
+  describe("emergency stops", async () => {
+    let receipt: ContractReceipt;
+
+    describe("paused contract", () => {
+      beforeEach(async () => {
+        [, receipt] = await txExec(contract.connect(defaultAdmin).pause());
+      });
+
+      it("should emit pause event", async () => {
+        assertEvent<PausedEvent>(receipt, "Paused");
+      });
+
+      it("should revert with pause error (manageWhitelist)", async () => {
+        await expect(
+          contract.manageWhitelist(alice.address, true)
+        ).to.revertedWith("EnforcedPause()");
+      });
+    });
+
+    describe("unpaused contract", () => {
+      let receipt: ContractReceipt;
+
+      before(async () => {
+        [, receipt] = await txExec(contract.connect(defaultAdmin).unpause());
+      });
+
+      it("should emit unpaused event", async () => {
+        assertEvent<UnpausedEvent>(receipt, "Unpaused");
+      });
+
+      it("should allow to use function (manageWhitelist)", async () => {
+        await txExec(
+          contract.connect(defaultAdmin).manageWhitelist(alice.address, true)
+        );
       });
     });
   });

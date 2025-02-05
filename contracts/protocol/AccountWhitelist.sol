@@ -56,7 +56,7 @@ contract AccountWhitelist is
     function manageWhitelist(
         address account,
         bool shouldWhitelist
-    ) external restricted {
+    ) external whenNotPaused restricted {
         if (account == address(0)) {
             revert InvalidAccount();
         }

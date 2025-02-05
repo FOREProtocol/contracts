@@ -32,7 +32,8 @@ import {
   getBytecode,
   txExec,
 } from "../../helpers/utils";
-import { defaultIncentives } from "../../helpers/constants";
+import { defaultIncentives, ZERO_ADDRESS } from "../../helpers/constants";
+import { ForeUniversalRouter } from "@/ForeUniversalRouter";
 
 describe("BeaconFactory", () => {
   let owner: SignerWithAddress;
@@ -55,6 +56,7 @@ describe("BeaconFactory", () => {
   let foreAccessManager: MockContract<ForeAccessManager>;
   let categoricalMarketBeacon: UpgradeableBeacon;
   let classicMarketBeacon: UpgradeableBeacon;
+  let router: ForeUniversalRouter;
 
   beforeEach(async () => {
     [
@@ -126,11 +128,11 @@ describe("BeaconFactory", () => {
       [defaultAdmin.address],
     ]);
 
-    const router = await deployUniversalRouter(
+    router = (await deployUniversalRouter(
       foreAccessManager.address,
       protocol.address,
       [usdcToken.address, foreToken.address]
-    );
+    )) as ForeUniversalRouter;
 
     const categoricalMarketImpl = await deployContract<BasicMarketV2>(
       "BasicMarketV2"
@@ -197,6 +199,24 @@ describe("BeaconFactory", () => {
         .connect(bob)
         .approve(contract.address, ethers.utils.parseUnits("1000", "ether"))
     );
+  });
+
+  describe("Deployment", async () => {
+    it("should revert invalid authority", async () => {
+      await expect(
+        deployContract<BeaconFactory>(
+          "BeaconFactory",
+          ZERO_ADDRESS,
+          categoricalMarketBeacon.address,
+          classicMarketBeacon.address,
+          protocol.address,
+          tokenRegistry.address,
+          accountWhitelist.address,
+          foundationWallet.address,
+          router.address
+        )
+      ).to.be.reverted;
+    });
   });
 
   describe("Access control", () => {
@@ -846,6 +866,28 @@ describe("BeaconFactory", () => {
     });
 
     describe("Unpaused Contract", () => {
+      beforeEach(async () => {
+        await contract.connect(defaultAdmin).pause();
+        await contract.connect(defaultAdmin).unpause();
+      });
+
+      it("Should successful create classic market", async () => {
+        await contract
+          .connect(owner)
+          [
+            "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+          ](
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+            alice.address,
+            0n,
+            0n,
+            1653327334588,
+            1653357334588
+          );
+      });
+    });
+
+    describe("With invalid market", async () => {
       it("Should revert without funds for creation fee", async () => {
         await expect(
           contract
@@ -899,9 +941,7 @@ describe("BeaconFactory", () => {
           )
         ).to.reverted;
       });
-    });
 
-    describe("Invalid market", async () => {
       it("should revert token not enabled", async () => {
         await expect(
           txExec(
@@ -919,6 +959,48 @@ describe("BeaconFactory", () => {
               )
           )
         ).to.reverted;
+      });
+
+      it("should revert when insufficient amount", async () => {
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              [
+                "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+              ](
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                alice.address,
+                ethers.utils.parseEther("10000"),
+                ethers.utils.parseEther("10000"),
+                1653327334588,
+                1653357334588
+              )
+          )
+        ).to.reverted;
+      });
+    });
+
+    describe("With zero creation fee", async () => {
+      beforeEach(async () => {
+        await protocolConfig
+          .connect(owner)
+          .setMarketConfig(0n, 0n, 0n, 43200, 43200, 60, 70, 90, 100);
+      });
+
+      it("should still create market", async () => {
+        await contract
+          .connect(alice)
+          [
+            "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+          ](
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+            alice.address,
+            0,
+            0,
+            1653327334588,
+            1653357334588
+          );
       });
     });
   });

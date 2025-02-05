@@ -707,42 +707,6 @@ describe("Fore Universal Router", function () {
           ]);
         });
 
-        it("should revert callFunction if token is invalid", async () => {
-          const data = MarketFactory.interface.encodeFunctionData(
-            "predict(address,uint256,uint8)",
-            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
-          );
-
-          await expect(
-            contract
-              .connect(alice)
-              .callFunction(
-                markets[0].address,
-                data,
-                ZERO_ADDRESS,
-                ethers.utils.parseEther("2")
-              )
-          ).to.be.reverted;
-        });
-
-        it("should revert callFunction if target is invalid", async () => {
-          const data = MarketFactory.interface.encodeFunctionData(
-            "predict(address,uint256,uint8)",
-            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
-          );
-
-          await expect(
-            contract
-              .connect(alice)
-              .callFunction(
-                ZERO_ADDRESS,
-                data,
-                foreToken.address,
-                ethers.utils.parseEther("2")
-              )
-          ).to.be.reverted;
-        });
-
         it("should still proceed if the router already has allowance to the market", async () => {
           const impersonate = await impersonateContract(contract.address);
           await foreToken
@@ -764,7 +728,85 @@ describe("Fore Universal Router", function () {
         });
       });
 
-      describe("should predict multiple markets", () => {
+      describe("with invalid token or target", async () => {
+        it("should revert `callFunction` if token is invalid", async () => {
+          const data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
+
+          await expect(
+            contract
+              .connect(alice)
+              .callFunction(
+                markets[0].address,
+                data,
+                ZERO_ADDRESS,
+                ethers.utils.parseEther("2")
+              )
+          ).to.be.reverted;
+        });
+
+        it("should revert `callFunction` if target is invalid", async () => {
+          const data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
+
+          await expect(
+            contract
+              .connect(alice)
+              .callFunction(
+                ZERO_ADDRESS,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("2")
+              )
+          ).to.be.reverted;
+        });
+
+        it("should revert `permitCallFunction` if token is invalid", async () => {
+          const data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
+
+          await expect(
+            contract
+              .connect(alice)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                markets[0].address,
+                data,
+                ZERO_ADDRESS,
+                ethers.utils.parseEther("2")
+              )
+          ).to.be.reverted;
+        });
+
+        it("should revert `permitCallFunction` if target is invalid", async () => {
+          const data = MarketFactory.interface.encodeFunctionData(
+            "predict(address,uint256,uint8)",
+            [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
+          );
+
+          await expect(
+            contract
+              .connect(alice)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                ZERO_ADDRESS,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("2")
+              )
+          ).to.be.reverted;
+        });
+      });
+
+      describe("with predict multiple markets", () => {
         beforeEach(async () => {
           const data = MarketFactory.interface.encodeFunctionData(
             "predict(address,uint256,uint8)",
@@ -1006,18 +1048,34 @@ describe("Fore Universal Router", function () {
             )
           ).to.be.reverted;
         });
+
+        it("should revert invalid sender", async () => {
+          await expect(
+            contract
+              .connect(bob)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                markets[0].address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("2")
+              )
+          ).to.be.reverted;
+        });
       });
     });
 
     describe("create categorical market", async () => {
       let hash: string;
+      let data: string;
 
       describe("successfully", () => {
         beforeEach(async () => {
           hash = ethers.utils.formatBytes32String("test mHash");
           blockTimestamp = (await getPreviousBlock()).timestamp;
 
-          const data = BeaconFactory.interface.encodeFunctionData(
+          data = BeaconFactory.interface.encodeFunctionData(
             "createCategoricalMarket(bytes32,address,address,uint256[],uint64,uint64,address)",
             [
               hash,
@@ -1048,18 +1106,34 @@ describe("Fore Universal Router", function () {
           const marketAddress = await foreProtocol.market(hash);
           expect(await foreProtocol.isForeMarket(marketAddress)).to.be.true;
         });
+
+        it("should revert invalid sender", async () => {
+          await expect(
+            contract
+              .connect(bob)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                beaconFactory.address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("10")
+              )
+          ).to.be.reverted;
+        });
       });
     });
 
     describe("create classic market", async () => {
       let hash: string;
+      let data: string;
 
       describe("successfully", () => {
         beforeEach(async () => {
           hash = ethers.utils.formatBytes32String("test mHash");
           blockTimestamp = (await getPreviousBlock()).timestamp;
 
-          const data = BeaconFactory.interface.encodeFunctionData(
+          data = BeaconFactory.interface.encodeFunctionData(
             "createClassicMarket(bytes32,address,address,uint256,uint256,uint64,uint64)",
             [
               hash,
@@ -1089,6 +1163,21 @@ describe("Fore Universal Router", function () {
         it("should have market address", async () => {
           const marketAddress = await foreProtocol.market(hash);
           expect(await foreProtocol.isForeMarket(marketAddress)).to.be.true;
+        });
+
+        it("should revert invalid sender", async () => {
+          await expect(
+            contract
+              .connect(bob)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                beaconFactory.address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("10")
+              )
+          ).to.be.reverted;
         });
       });
     });
@@ -1281,6 +1370,54 @@ describe("Fore Universal Router", function () {
         ).to.be.reverted;
       });
     });
+
+    describe("allowed selector management", async () => {
+      it("should allow to add selector", async () => {
+        const bytes4Value = ethers.utils.hexDataSlice(
+          ethers.utils.keccak256(
+            ethers.utils.toUtf8Bytes("transfer(address,uint256)")
+          ),
+          0,
+          4
+        );
+        await contract
+          .connect(defaultAdmin)
+          .manageAllowedFunctions(bytes4Value, true);
+      });
+
+      it("should revert invalid selector", async () => {
+        const data = BeaconFactory.interface.encodeFunctionData(
+          "setPredictionFlatFeeRate(uint32 feeRate)",
+          [100]
+        );
+
+        await expect(
+          contract
+            .connect(alice)
+            .permitCallFunction(
+              permitSingle,
+              signature,
+              beaconFactory.address,
+              data,
+              foreToken.address,
+              ethers.utils.parseEther("10")
+            )
+        ).to.be.reverted;
+      });
+
+      it("should revert not admin", async () => {
+        const bytes4Value = ethers.utils.hexDataSlice(
+          ethers.utils.keccak256(
+            ethers.utils.toUtf8Bytes("transfer(address,uint256)")
+          ),
+          0,
+          4
+        );
+        await expect(
+          contract.connect(alice).manageAllowedFunctions(bytes4Value, true)
+        ).to.be.reverted;
+      });
+    });
   });
 
   describe("token management", () => {
@@ -1373,21 +1510,6 @@ describe("Fore Universal Router", function () {
           args: [],
         },
       });
-    });
-  });
-
-  describe("allowed selector management", async () => {
-    it("should allow to add selector", async () => {
-      const bytes4Value = ethers.utils.hexDataSlice(
-        ethers.utils.keccak256(
-          ethers.utils.toUtf8Bytes("transfer(address,uint256)")
-        ),
-        0,
-        4
-      );
-      await contract
-        .connect(defaultAdmin)
-        .manageAllowedFunctions(bytes4Value, true);
     });
   });
 });
