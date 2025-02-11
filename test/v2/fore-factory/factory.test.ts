@@ -842,6 +842,38 @@ describe("BeaconFactory", () => {
   });
 
   describe("Creating classic market", () => {
+    describe("successfully", async () => {
+      it("should create with liquidity", async () => {
+        await contract
+          .connect(owner)
+          [
+            "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+          ](
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+            alice.address,
+            ethers.utils.parseEther("2"),
+            ethers.utils.parseEther("1"),
+            1653327334588,
+            1653357334588
+          );
+      });
+
+      it("should create even without liquidity", async () => {
+        await contract
+          .connect(owner)
+          [
+            "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+          ](
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+            alice.address,
+            0n,
+            0n,
+            1653327334588,
+            1653357334588
+          );
+      });
+    });
+
     describe("Paused Contract", () => {
       beforeEach(async () => {
         await contract.connect(defaultAdmin).pause();

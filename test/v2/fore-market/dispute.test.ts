@@ -1,6 +1,6 @@
 import { ethers, upgrades } from "hardhat";
 import { expect } from "chai";
-import { BigNumber, Contract, ContractTransaction } from "ethers";
+import { BigNumber, Contract, ContractTransaction, Signer } from "ethers";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
@@ -15,6 +15,7 @@ import { ERC20 } from "@/ERC20";
 import { ForeAccessManager } from "@/ForeAccessManager";
 import { BasicMarket } from "@/BasicMarket";
 import { UpgradeableBeacon } from "@/UpgradeableBeacon";
+import { ForeUniversalRouter } from "@/ForeUniversalRouter";
 
 import {
   assertIsAvailableOnlyForOwner,
@@ -24,13 +25,17 @@ import {
   deployMockedContract,
   deployUniversalRouter,
   executeInSingleBlock,
-  generateRandomHexString,
   getBytecode,
+  impersonateContract,
   sendERC20Tokens,
   timetravel,
   txExec,
 } from "../../helpers/utils";
-import { SIDES, defaultIncentives } from "../../helpers/constants";
+import {
+  SIDES,
+  ZERO_ADDRESS,
+  defaultIncentives,
+} from "../../helpers/constants";
 
 describe("BasicMarketV2 / Dispute", () => {
   let owner: SignerWithAddress;
@@ -56,6 +61,7 @@ describe("BasicMarketV2 / Dispute", () => {
   let foreAccessManager: MockContract<ForeAccessManager>;
   let categoricalMarketBeacon: UpgradeableBeacon;
   let classicMarketBeacon: UpgradeableBeacon;
+  let router: ForeUniversalRouter;
 
   let blockTimestamp: number;
 
@@ -133,11 +139,11 @@ describe("BasicMarketV2 / Dispute", () => {
       [defaultAdmin.address],
     ]);
 
-    const router = await deployUniversalRouter(
+    router = (await deployUniversalRouter(
       foreAccessManager.address,
       foreProtocol.address,
       [usdcToken.address, foreToken.address]
-    );
+    )) as ForeUniversalRouter;
 
     // preparing factory
     const categoricalMarketImpl = await deployContract<BasicMarketV2>(
@@ -360,6 +366,51 @@ describe("BasicMarketV2 / Dispute", () => {
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
               )
           ).to.be.revertedWith("DisputeAlreadyExists");
+        });
+      });
+
+      describe("with invalid creator address", async () => {
+        let routerAccount: Signer;
+
+        beforeEach(async () => {
+          // Impersonate router
+          routerAccount = await impersonateContract(router.address);
+
+          await txExec(
+            foreToken
+              .connect(owner)
+              .transfer(
+                await routerAccount.getAddress(),
+                ethers.utils.parseEther("1000")
+              )
+          );
+          await txExec(
+            foreToken
+              .connect(routerAccount)
+              .approve(contract.address, ethers.utils.parseEther("1000"))
+          );
+        });
+
+        it("should revert invalid creator address", async () => {
+          await expect(
+            contract
+              .connect(routerAccount)
+              ["openDispute(address,bytes32)"](
+                ZERO_ADDRESS,
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+              )
+          ).to.revertedWith("InvalidCreatorAddress");
+        });
+
+        it("Should revert invalid router", async () => {
+          await expect(
+            contract
+              .connect(owner)
+              ["openDispute(address,bytes32)"](
+                ZERO_ADDRESS,
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+              )
+          ).to.revertedWith("OnlyAuthorizedRouter");
         });
       });
     });
@@ -717,6 +768,15 @@ describe("BasicMarketV2 / Dispute", () => {
           ]);
         });
       });
+
+      describe("with invalid parties addresses", async () => {
+        it("should revert invalid address", async () => {
+          const accountZero = await impersonateContract(ZERO_ADDRESS);
+          await expect(
+            contract.connect(accountZero).resolveDispute(3, 0)
+          ).to.be.revertedWith("InvalidRequesterAddress");
+        });
+      });
     });
   });
 
@@ -875,11 +935,9 @@ describe("BasicMarketV2 / Dispute", () => {
     beforeEach(async () => {
       await sendERC20Tokens(foreToken, {
         [alice.address]: ethers.utils.parseEther("10000"),
-        [bob.address]: ethers.utils.parseEther("10000"),
-        [dave.address]: ethers.utils.parseEther("10000"),
       });
 
-      const marketHash = generateRandomHexString(64);
+      const marketHash = ethers.utils.formatBytes32String("test market");
       await txExec(
         beaconFactory
           .connect(alice)
@@ -910,18 +968,9 @@ describe("BasicMarketV2 / Dispute", () => {
         newAddress
       );
 
-      await executeInSingleBlock(() => [
-        foreToken
-          .connect(alice)
-          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
-        foreToken
-          .connect(bob)
-          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
-        foreToken
-          .connect(dave)
-          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
-      ]);
-
+      await foreToken
+        .connect(dave)
+        .approve(contract.address, ethers.utils.parseUnits("1000", "ether"));
       await timetravel(blockTimestamp + 300001);
       await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
     });

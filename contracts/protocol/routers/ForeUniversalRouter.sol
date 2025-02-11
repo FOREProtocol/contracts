@@ -209,9 +209,6 @@ contract ForeUniversalRouter is
         if (token == address(0)) {
             revert InvalidToken();
         }
-        if (target == address(0)) {
-            revert InvalidTarget();
-        }
         _transferAndApprove(target, amount, token);
 
         (success, result) = target.call{value: msg.value}(data);
@@ -251,10 +248,6 @@ contract ForeUniversalRouter is
         if (token == address(0)) {
             revert InvalidToken();
         }
-        if (target == address(0)) {
-            revert InvalidTarget();
-        }
-
         _permit(permitSingle, signature);
         _transferAndApprove(target, amount, token);
 

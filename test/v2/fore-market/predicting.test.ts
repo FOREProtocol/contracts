@@ -1,5 +1,5 @@
 import { ethers, upgrades } from "hardhat";
-import { BigNumber, Contract, ContractTransaction } from "ethers";
+import { BigNumber, Contract, ContractTransaction, Signer } from "ethers";
 import { expect } from "chai";
 
 import { BasicMarketV2 } from "@/BasicMarketV2";
@@ -24,10 +24,16 @@ import {
   deployMockedContractAs,
   deployUniversalRouter,
   getBytecode,
+  impersonateContract,
   timetravel,
   txExec,
 } from "../../helpers/utils";
-import { SIDES, defaultIncentives } from "../../helpers/constants";
+import {
+  SIDES,
+  ZERO_ADDRESS,
+  defaultIncentives,
+} from "../../helpers/constants";
+import { ForeUniversalRouter } from "@/ForeUniversalRouter";
 
 const calculatePredictionFee = async (
   contract: BasicMarketV2,
@@ -62,6 +68,7 @@ describe("BasicMarketV2 / Predicting", () => {
   let foreAccessManager: MockContract<ForeAccessManager>;
   let categoricalMarketBeacon: UpgradeableBeacon;
   let classicMarketBeacon: UpgradeableBeacon;
+  let router: ForeUniversalRouter;
 
   let blockTimestamp: number;
 
@@ -145,11 +152,11 @@ describe("BasicMarketV2 / Predicting", () => {
       [defaultAdmin.address],
     ]);
 
-    const router = await deployUniversalRouter(
+    router = (await deployUniversalRouter(
       foreAccessManager.address,
       foreProtocol.address,
       [usdcToken.address, foreToken.address]
-    );
+    )) as ForeUniversalRouter;
 
     // preparing factory
     const categoricalMarketImpl = await deployContract<BasicMarketV2>(
@@ -481,6 +488,51 @@ describe("BasicMarketV2 / Predicting", () => {
           .connect(alice)
           ["predict(uint256,uint8)"](ethers.utils.parseEther("2"), SIDES.TRUE)
       ).to.revertedWith("PredictionPeriodIsAlreadyClosed");
+    });
+  });
+
+  describe("with invalid receiver and router", () => {
+    let routerAccount: Signer;
+
+    beforeEach(async () => {
+      routerAccount = await impersonateContract(router.address);
+      await txExec(
+        foreToken
+          .connect(owner)
+          .transfer(
+            await routerAccount.getAddress(),
+            ethers.utils.parseEther("100")
+          )
+      );
+      await txExec(
+        foreToken
+          .connect(routerAccount)
+          .approve(contract.address, ethers.utils.parseEther("100"))
+      );
+    });
+
+    it("Should revert invalid receiver address", async () => {
+      await expect(
+        contract
+          .connect(routerAccount)
+          ["predict(address,uint256,uint8)"](
+            ZERO_ADDRESS,
+            ethers.utils.parseEther("2"),
+            SIDES.TRUE
+          )
+      ).to.revertedWith("InvalidReceiverAddress");
+    });
+
+    it("Should revert invalid router", async () => {
+      await expect(
+        contract
+          .connect(owner)
+          ["predict(address,uint256,uint8)"](
+            ZERO_ADDRESS,
+            ethers.utils.parseEther("2"),
+            SIDES.TRUE
+          )
+      ).to.revertedWith("OnlyAuthorizedRouter");
     });
   });
 });

@@ -890,7 +890,7 @@ describe("Fore Universal Router", function () {
       describe("target contract is not a FORE operator", async () => {
         let data: string;
 
-        before(() => {
+        beforeEach(() => {
           data = MarketFactory.interface.encodeFunctionData(
             "predict(address,uint256,uint8)",
             [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
@@ -953,7 +953,7 @@ describe("Fore Universal Router", function () {
       describe("external call failed", () => {
         let data: string;
 
-        before(() => {
+        beforeEach(() => {
           data = MarketFactory.interface.encodeFunctionData(
             "predict(address,uint256,uint8)",
             [alice.address, ethers.utils.parseEther("2"), SIDES.TRUE]
@@ -1238,10 +1238,79 @@ describe("Fore Universal Router", function () {
         });
       });
 
+      describe("paused target contract", async () => {
+        beforeEach(async () => {
+          await beaconFactory.connect(defaultAdmin).pause();
+        });
+
+        it("should revert call function failed for categorical market", async () => {
+          const hash = ethers.utils.formatBytes32String("test mHash");
+          blockTimestamp = (await getPreviousBlock()).timestamp;
+
+          data = BeaconFactory.interface.encodeFunctionData(
+            "createCategoricalMarket(bytes32,address,address,uint256[],uint64,uint64,address)",
+            [
+              hash,
+              alice.address,
+              alice.address,
+              [0, 0],
+              BigNumber.from(blockTimestamp + 200000),
+              BigNumber.from(blockTimestamp + 300000),
+              foreToken.address,
+            ]
+          );
+
+          await expect(
+            contract
+              .connect(alice)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                beaconFactory.address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("10")
+              )
+          ).to.be.reverted;
+        });
+
+        it("should revert call function failed for classic market", async () => {
+          const hash = ethers.utils.formatBytes32String("test mHash");
+          blockTimestamp = (await getPreviousBlock()).timestamp;
+
+          data = BeaconFactory.interface.encodeFunctionData(
+            "createClassicMarket(bytes32,address,address,uint256,uint256,uint64,uint64)",
+            [
+              hash,
+              alice.address,
+              alice.address,
+              0n,
+              0n,
+              BigNumber.from(blockTimestamp + 200000),
+              BigNumber.from(blockTimestamp + 300000),
+            ]
+          );
+
+          await expect(
+            contract
+              .connect(alice)
+              .permitCallFunction(
+                permitSingle,
+                signature,
+                beaconFactory.address,
+                data,
+                foreToken.address,
+                ethers.utils.parseEther("10")
+              )
+          ).to.be.reverted;
+        });
+      });
+
       describe("unpaused contract", () => {
         let receipt: ContractReceipt;
 
-        before(async () => {
+        beforeEach(async () => {
+          await txExec(contract.connect(defaultAdmin).pause());
           [, receipt] = await txExec(contract.connect(defaultAdmin).unpause());
 
           data = MarketFactory.interface.encodeFunctionData(
@@ -1285,6 +1354,71 @@ describe("Fore Universal Router", function () {
                 ethers.utils.parseEther("2")
               )
           );
+        });
+      });
+
+      describe("unpaused target contract", async () => {
+        beforeEach(async () => {
+          await beaconFactory.connect(defaultAdmin).pause();
+          await beaconFactory.connect(defaultAdmin).unpause();
+        });
+
+        it("should create categorical market", async () => {
+          const hash = ethers.utils.formatBytes32String("test mHash");
+          blockTimestamp = (await getPreviousBlock()).timestamp;
+
+          data = BeaconFactory.interface.encodeFunctionData(
+            "createCategoricalMarket(bytes32,address,address,uint256[],uint64,uint64,address)",
+            [
+              hash,
+              alice.address,
+              alice.address,
+              [0, 0],
+              BigNumber.from(blockTimestamp + 200000),
+              BigNumber.from(blockTimestamp + 300000),
+              foreToken.address,
+            ]
+          );
+
+          await contract
+            .connect(alice)
+            .permitCallFunction(
+              permitSingle,
+              signature,
+              beaconFactory.address,
+              data,
+              foreToken.address,
+              ethers.utils.parseEther("10")
+            );
+        });
+
+        it("should create classic market", async () => {
+          const hash = ethers.utils.formatBytes32String("test mHash");
+          blockTimestamp = (await getPreviousBlock()).timestamp;
+
+          data = BeaconFactory.interface.encodeFunctionData(
+            "createClassicMarket(bytes32,address,address,uint256,uint256,uint64,uint64)",
+            [
+              hash,
+              alice.address,
+              alice.address,
+              0n,
+              0n,
+              BigNumber.from(blockTimestamp + 200000),
+              BigNumber.from(blockTimestamp + 300000),
+            ]
+          );
+
+          await contract
+            .connect(alice)
+            .permitCallFunction(
+              permitSingle,
+              signature,
+              beaconFactory.address,
+              data,
+              foreToken.address,
+              ethers.utils.parseEther("10")
+            );
         });
       });
     });
@@ -1424,7 +1558,7 @@ describe("Fore Universal Router", function () {
     let testToken: MockERC20;
     let receipt: ContractReceipt;
 
-    before(async () => {
+    beforeEach(async () => {
       testToken = await deployMockedContractAs<MockERC20>(
         owner,
         "MockERC20",

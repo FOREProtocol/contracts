@@ -27,7 +27,11 @@ import {
   timetravel,
   txExec,
 } from "../../helpers/utils";
-import { SIDES, defaultIncentives } from "../../helpers/constants";
+import {
+  SIDES,
+  ZERO_ADDRESS,
+  defaultIncentives,
+} from "../../helpers/constants";
 
 describe("BasicMarketV2 / Initialization", () => {
   let owner: SignerWithAddress;
@@ -417,5 +421,30 @@ describe("BasicMarketV2 / Initialization", () => {
         })
       )
     ).to.revertedWith("PredictionPeriodIsAlreadyClosed");
+  });
+
+  it("should revert when receiver is invalid", async () => {
+    await expect(
+      txExec(
+        contract.connect(basicFactoryAccount).initialize({
+          mHash:
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+          receiver: ZERO_ADDRESS,
+          amounts: [ethers.utils.parseEther("1"), ethers.utils.parseEther("2")],
+          protocolAddress: foreProtocol.address,
+          tokenRegistry: tokenRegistry.address,
+          feeReceiver: owner.address,
+          token: foreToken.address,
+          endPredictionTimestamp: blockTimestamp + 100000,
+          startVerificationTimestamp: blockTimestamp + 200000,
+          tokenId: 0,
+          predictionFlatFeeRate: 1000,
+          marketCreatorFlatFeeRate: 100,
+          verificationFlatFeeRate: 100,
+          foundationFlatFeeRate: 1800,
+          router: router.address,
+        })
+      )
+    ).to.revertedWith("InvalidReceiverAddress");
   });
 });

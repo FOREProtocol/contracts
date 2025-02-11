@@ -30,7 +30,11 @@ import {
   deployContract,
   getBytecode,
 } from "../../helpers/utils";
-import { SIDES, defaultIncentives } from "../../helpers/constants";
+import {
+  SIDES,
+  ZERO_ADDRESS,
+  defaultIncentives,
+} from "../../helpers/constants";
 
 const calculateMarketCreatorFeeRate = async (contract: BasicMarketV2) => {
   const flatRate = await contract.marketCreatorFlatFeeRate();
@@ -485,6 +489,14 @@ describe("BasicMarketV2 / Rewards", () => {
               .connect(predictorSideA1)
               .withdrawPredictionReward(verifierSideB2.address)
           ).to.be.revertedWith("NothingToWithdraw");
+        });
+
+        it("should revert when predictor address is invalid", async () => {
+          await expect(
+            contract
+              .connect(predictorSideA1)
+              .withdrawPredictionReward(ZERO_ADDRESS)
+          ).to.be.revertedWith("InvalidPredictorAddress");
         });
 
         describe("after withdrawn", () => {

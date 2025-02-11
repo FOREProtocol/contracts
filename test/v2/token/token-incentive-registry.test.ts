@@ -92,14 +92,45 @@ describe("Token Incentive Registry", function () {
     );
   });
 
-  it("should not allow re-initialization", async function () {
-    await expect(
-      contract.initialize(
-        foreAccessManager.address,
-        [usdcToken.address],
-        [defaultIncentives]
-      )
-    ).to.be.reverted;
+  describe("Deployment", async () => {
+    it("should not allow re-initialization", async function () {
+      await expect(
+        contract.initialize(
+          foreAccessManager.address,
+          [usdcToken.address],
+          [defaultIncentives]
+        )
+      ).to.be.reverted;
+    });
+
+    it("should revert invalid incentives rates", async () => {
+      const contractFactory = await ethers.getContractFactory(
+        "TokenIncentiveRegistry"
+      );
+      await expect(
+        upgrades.deployProxy(
+          contractFactory,
+          [
+            foreAccessManager.address,
+            [usdcToken.address],
+            [
+              {
+                predictionDiscountRate: 0,
+                marketCreatorDiscountRate: 0,
+                verificationDiscountRate: 0,
+                foundationDiscountRate: 0,
+                marketCreationFee: 0,
+                verifiersNFTMultiplier: 0,
+              },
+            ],
+          ],
+          {
+            kind: "uups",
+            initializer: "initialize",
+          }
+        )
+      ).to.be.reverted;
+    });
   });
 
   describe("Access control", () => {
@@ -229,7 +260,7 @@ describe("Token Incentive Registry", function () {
           .connect(defaultAdmin)
           .grantRole(FOUNDATION_ROLE, foundationWallet.address, 0);
 
-        // Functions that can only be called by the foundation multisign
+        // Functions that can only be called by the foundation multi-sign
         await foreAccessManager
           .connect(defaultAdmin)
           .setTargetFunctionRole(
@@ -419,7 +450,7 @@ describe("Token Incentive Registry", function () {
         .connect(defaultAdmin)
         .grantRole(ADMIN_ROLE, deployerWallet.address, 0);
 
-      // Functions that can only be called by the foundation multisign
+      // Functions that can only be called by the foundation multi-sign
       await foreAccessManager
         .connect(defaultAdmin)
         .setTargetFunctionRole(
