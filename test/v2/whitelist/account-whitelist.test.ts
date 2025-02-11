@@ -371,7 +371,8 @@ describe("Account Whitelist", function () {
     describe("unpaused contract", () => {
       let receipt: ContractReceipt;
 
-      before(async () => {
+      beforeEach(async () => {
+        await contract.connect(defaultAdmin).pause();
         [, receipt] = await txExec(contract.connect(defaultAdmin).unpause());
       });
 
@@ -384,6 +385,19 @@ describe("Account Whitelist", function () {
           contract.connect(defaultAdmin).manageWhitelist(alice.address, true)
         );
       });
+    });
+
+    it("should revert unauthorized when pausing", async () => {
+      await expect(contract.connect(alice).pause()).to.be.revertedWith(
+        `AccessManagedUnauthorized("${alice.address}")`
+      );
+    });
+
+    it("should revert unauthorized when unpausing", async () => {
+      await contract.connect(defaultAdmin).pause();
+      await expect(contract.connect(alice).unpause()).to.be.revertedWith(
+        `AccessManagedUnauthorized("${alice.address}")`
+      );
     });
   });
 });

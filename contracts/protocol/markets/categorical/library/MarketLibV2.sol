@@ -313,9 +313,6 @@ library MarketLibV2 {
         if (block.timestamp > verificationEndTime) {
             revert("VerificationAlreadyClosed");
         }
-        if (verifier == address(0)) {
-            revert("InvalidVerifierAddress");
-        }
 
         market.verifications[side] += power;
         market.totalVerificationsAmount += power;
@@ -412,9 +409,6 @@ library MarketLibV2 {
         address highGuard,
         address requester
     ) external returns (address receiverAddress) {
-        if (highGuard == address(0)) {
-            revert("InvalidHighGuardAddress");
-        }
         if (requester == address(0)) {
             revert("InvalidRequesterAddress");
         }
