@@ -7,12 +7,14 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ForeAccessManager } from "@/ForeAccessManager";
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
-import { BasicFactoryV2 } from "@/BasicFactoryV2";
+import { BeaconFactory } from "@/BeaconFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { MarketLibV2 } from "@/MarketLibV2";
 import { MockERC20 } from "@/MockERC20";
+import { BasicMarket } from "@/BasicMarket";
+import { UpgradeableBeacon } from "@/UpgradeableBeacon";
 
 import {
   attachContract,
@@ -23,8 +25,9 @@ import {
   timetravel,
   txExec,
   assertIsAvailableOnlyForOwner,
-  generateRandomHexString,
   deployUniversalRouter,
+  deployContract,
+  getBytecode,
 } from "../../../helpers/utils";
 import { defaultIncentives } from "../../../helpers/constants";
 
@@ -57,12 +60,14 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
-  let basicFactory: MockContract<BasicFactoryV2>;
+  let beaconFactory: BeaconFactory;
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let usdcToken: MockContract<MockERC20>;
   let contract: BasicMarketV2;
   let foreAccessManager: MockContract<ForeAccessManager>;
+  let categoricalMarketBeacon: UpgradeableBeacon;
+  let classicMarketBeacon: UpgradeableBeacon;
 
   let blockTimestamp: number;
 
@@ -86,10 +91,8 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
     ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLibV2", [
-      "BasicMarketV2",
-      "BasicFactoryV2",
-    ]);
+    marketLib = await deployLibrary("MarketLibV2", ["BasicMarketV2"]);
+    await deployLibrary("MarketLib", ["BasicMarket"]);
 
     // preparing dependencies
     foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -156,9 +159,26 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
     );
 
     // preparing factory
-    basicFactory = await deployMockedContract<BasicFactoryV2>(
-      "BasicFactoryV2",
+    const categoricalMarketImpl = await deployContract<BasicMarketV2>(
+      "BasicMarketV2"
+    );
+    const classicMarketImpl = await deployContract<BasicMarket>("BasicMarket");
+
+    categoricalMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      categoricalMarketImpl.address,
+      owner.address
+    );
+    classicMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      classicMarketImpl.address,
+      owner.address
+    );
+    beaconFactory = await deployContract<BeaconFactory>(
+      "BeaconFactory",
       foreAccessManager.address,
+      categoricalMarketBeacon.address,
+      classicMarketBeacon.address,
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
@@ -172,7 +192,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
     await txExec(
       protocolConfig
         .connect(owner)
-        .setFactoryStatus([basicFactory.address], [true])
+        .setFactoryStatus([beaconFactory.address], [true])
     );
 
     // sending funds
@@ -191,7 +211,10 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
     await txExec(
       foreToken
         .connect(marketCreator)
-        .approve(basicFactory.address, ethers.utils.parseUnits("2360", "ether"))
+        .approve(
+          beaconFactory.address,
+          ethers.utils.parseUnits("2360", "ether")
+        )
     );
 
     // creating market
@@ -199,9 +222,11 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
       "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
 
     await txExec(
-      basicFactory
+      beaconFactory
         .connect(marketCreator)
-        .createMarket(
+        [
+          "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+        ](
           marketHash,
           marketCreator.address,
           [
@@ -217,13 +242,14 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
         )
     );
 
-    const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
-
-    const salt = marketHash;
+    const bytecode = getBytecode(
+      await beaconFactory.CATEGORICAL_MARKET_BEACON()
+    );
+    const initCodeHash = ethers.utils.keccak256(bytecode);
     const newAddress = ethers.utils.getCreate2Address(
-      basicFactory.address,
-      salt,
-      initCode
+      beaconFactory.address,
+      marketHash,
+      initCodeHash
     );
 
     contract = await attachContract<BasicMarketV2>("BasicMarketV2", newAddress);
@@ -278,16 +304,16 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
       /// predictions
       await contract
         .connect(predictorSideA1)
-        .predict(ethers.utils.parseEther("500"), 0);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("500"), 0);
       await contract
         .connect(predictorSideA2)
-        .predict(ethers.utils.parseEther("500"), 0);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("500"), 0);
       await contract
         .connect(predictorSideB1)
-        .predict(ethers.utils.parseEther("1000"), 1);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("1000"), 1);
       await contract
         .connect(predictorSideB2)
-        .predict(ethers.utils.parseEther("2000"), 1);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("2000"), 1);
 
       await timetravel(blockTimestamp + 300005);
 
@@ -436,7 +462,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
       });
 
       describe("after closing", () => {
-        const estimatedRewardValue = BigNumber.from("1107579581151832460732");
+        const estimatedRewardValue = BigNumber.from("1379362500000000000000");
 
         beforeEach(async () => {
           await timetravel(blockTimestamp + 4000000);
@@ -555,7 +581,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
           );
           await contract
             .connect(disputeCreator)
-            .openDispute(
+            ["openDispute(bytes32)"](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
             );
 
@@ -563,7 +589,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
         });
 
         it("Should return proper calculated value after market closed", async () => {
-          const num = ethers.utils.parseEther("51.66");
+          const num = ethers.utils.parseEther("109.8");
           const num2 = ethers.utils
             .parseEther("750")
             .div(ethers.BigNumber.from(2));
@@ -597,7 +623,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
         describe("Increase NFT power (proper verification)", () => {
           let tx: ContractTransaction;
 
-          const num = ethers.utils.parseEther("51.66");
+          const num = ethers.utils.parseEther("109.8");
 
           beforeEach(async () => {
             [tx] = await txExec(
@@ -649,7 +675,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
         describe("Withdraw reward (proper verification)", () => {
           let tx: ContractTransaction;
 
-          const num = ethers.utils.parseEther("51.66");
+          const num = ethers.utils.parseEther("109.8");
 
           beforeEach(async () => {
             [tx] = await txExec(
@@ -746,7 +772,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
               .withArgs(
                 verifierSideB2.address,
                 2,
-                ethers.utils.parseEther("51.66")
+                ethers.utils.parseEther("109.8")
               );
           });
 
@@ -799,7 +825,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
 
         it("Should return proper calculated value after market closed", async () => {
           const num = ethers.utils
-            .parseEther("51.66")
+            .parseEther("109.8")
             .div(ethers.BigNumber.from("3"));
 
           expect(await contract.calculateVerificationReward(1)).to.be.eql([
@@ -832,7 +858,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
           let tx: ContractTransaction;
 
           const num = ethers.utils
-            .parseEther("51.66")
+            .parseEther("109.8")
             .div(ethers.BigNumber.from("3"));
 
           beforeEach(async () => {
@@ -901,16 +927,16 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
       /// predictions
       await contract
         .connect(predictorSideA1)
-        .predict(ethers.utils.parseEther("500"), 0);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("500"), 0);
       await contract
         .connect(predictorSideA2)
-        .predict(ethers.utils.parseEther("500"), 0);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("500"), 0);
       await contract
         .connect(predictorSideB1)
-        .predict(ethers.utils.parseEther("1000"), 1);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("1000"), 1);
       await contract
         .connect(predictorSideB2)
-        .predict(ethers.utils.parseEther("2000"), 1);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("2000"), 1);
 
       await timetravel(blockTimestamp + 300000 + 1);
       await executeInSingleBlock(() => [
@@ -930,7 +956,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
 
       describe("after closing", () => {
         const estimatedPredictionReward = BigNumber.from(
-          "3099600000000000000000"
+          "3678300000000000000000"
         );
 
         beforeEach(async () => {
@@ -1045,16 +1071,16 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
       /// predictions
       await contract
         .connect(predictorSideA1)
-        .predict(ethers.utils.parseEther("500"), 0);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("500"), 0);
       await contract
         .connect(predictorSideA2)
-        .predict(ethers.utils.parseEther("500"), 0);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("500"), 0);
       await contract
         .connect(predictorSideB1)
-        .predict(ethers.utils.parseEther("1000"), 1);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("1000"), 1);
       await contract
         .connect(predictorSideB2)
-        .predict(ethers.utils.parseEther("2000"), 1);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("2000"), 1);
 
       await timetravel(blockTimestamp + 300000 + 1);
       await executeInSingleBlock(() => [
@@ -1064,7 +1090,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
     });
 
     describe("Prediction reward", () => {
-      const estimatedPredictionReward = BigNumber.from("368550000000000000000");
+      const estimatedPredictionReward = BigNumber.from("452250000000000000000");
 
       it("Should revert when market not closed", async () => {
         await expect(
@@ -1179,7 +1205,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
     beforeEach(async () => {
       await contract
         .connect(predictorSideA1)
-        .predict(ethers.utils.parseEther("500"), 0);
+        ["predict(uint256,uint8)"](ethers.utils.parseEther("500"), 0);
 
       await timetravel(blockTimestamp + 300005);
       await contract.connect(verifierSideA1).verify(0, 0);
@@ -1199,7 +1225,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
           await contract
             .connect(predictorSideA1)
             .calculatePredictionReward(predictorSideA1.address)
-        ).to.be.equal(ethers.utils.parseEther("455"));
+        ).to.be.equal(ethers.utils.parseEther("500"));
       });
     });
   });
@@ -1222,16 +1248,18 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
         usdcToken
           .connect(marketCreator)
           .approve(
-            basicFactory.address,
+            beaconFactory.address,
             ethers.utils.parseUnits("2360", "ether")
           )
       );
 
-      const marketHash = generateRandomHexString(64);
+      const marketHash = ethers.utils.formatBytes32String("test usdc market");
       await txExec(
-        basicFactory
+        beaconFactory
           .connect(marketCreator)
-          .createMarket(
+          [
+            "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+          ](
             marketHash,
             marketCreator.address,
             [
@@ -1247,12 +1275,14 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
           )
       );
 
-      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
-      const salt = marketHash;
+      const bytecode = getBytecode(
+        await beaconFactory.CATEGORICAL_MARKET_BEACON()
+      );
+      const initCodeHash = ethers.utils.keccak256(bytecode);
       const newAddress = ethers.utils.getCreate2Address(
-        basicFactory.address,
-        salt,
-        initCode
+        beaconFactory.address,
+        marketHash,
+        initCodeHash
       );
 
       contract = await attachContract<BasicMarketV2>(
@@ -1308,16 +1338,16 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
       beforeEach(async () => {
         await contract
           .connect(predictorSideA1)
-          .predict(ethers.utils.parseEther("500"), 0);
+          ["predict(uint256,uint8)"](ethers.utils.parseEther("500"), 0);
         await contract
           .connect(predictorSideA2)
-          .predict(ethers.utils.parseEther("500"), 0);
+          ["predict(uint256,uint8)"](ethers.utils.parseEther("500"), 0);
         await contract
           .connect(predictorSideB1)
-          .predict(ethers.utils.parseEther("1000"), 1);
+          ["predict(uint256,uint8)"](ethers.utils.parseEther("1000"), 1);
         await contract
           .connect(predictorSideB2)
-          .predict(ethers.utils.parseEther("2000"), 1);
+          ["predict(uint256,uint8)"](ethers.utils.parseEther("2000"), 1);
 
         await timetravel(blockTimestamp + 300005);
         await contract.connect(verifierSideB2).verify(3, 1);
@@ -1362,7 +1392,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
 
           it("Should return proper calculated value after market closed", async () => {
             const num = ethers.utils
-              .parseEther("51.66")
+              .parseEther("109.8")
               .div(ethers.BigNumber.from("3"));
             expect(await contract.calculateVerificationReward(1)).to.be.eql([
               num,
@@ -1402,7 +1432,7 @@ describe("BasicMarketV2 / Categorical / Rewards", () => {
             let tx: ContractTransaction;
 
             const num = ethers.utils
-              .parseEther("51.66")
+              .parseEther("109.8")
               .div(ethers.BigNumber.from("3"));
 
             beforeEach(async () => {

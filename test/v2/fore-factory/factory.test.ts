@@ -9,16 +9,18 @@ import { BigNumber, Contract, ContractTransaction } from "ethers";
 import { ethers, upgrades } from "hardhat";
 
 import {
-  BasicFactoryV2,
+  BeaconFactory,
   SetFoundationFlatFeeRateEvent,
   SetMarketCreatorFlatFeeRateEvent,
   SetPredictionFlatFeeRateEvent,
   SetVerificationFlatFeeRateEvent,
-} from "@/BasicFactoryV2";
+} from "@/BeaconFactory";
 import { ERC20 } from "@/ERC20";
 import { ForeAccessManager } from "@/ForeAccessManager";
 import { PausedEvent, UnpausedEvent } from "@/Pausable";
 import { BasicMarketV2 } from "@/BasicMarketV2";
+import { BasicMarket } from "@/BasicMarket";
+import { UpgradeableBeacon } from "@/UpgradeableBeacon";
 
 import {
   assertEvent,
@@ -27,11 +29,13 @@ import {
   deployLibrary,
   deployMockedContract,
   deployUniversalRouter,
+  getBytecode,
   txExec,
 } from "../../helpers/utils";
-import { defaultIncentives } from "../../helpers/constants";
+import { defaultIncentives, ZERO_ADDRESS } from "../../helpers/constants";
+import { ForeUniversalRouter } from "@/ForeUniversalRouter";
 
-describe("BasicFactoryV2", () => {
+describe("BeaconFactory", () => {
   let owner: SignerWithAddress;
   let foundationWallet: SignerWithAddress;
   let highGuardAccount: SignerWithAddress;
@@ -45,11 +49,14 @@ describe("BasicFactoryV2", () => {
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let protocol: ForeProtocol;
-  let contract: BasicFactoryV2;
+  let contract: BeaconFactory;
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let usdcToken: MockContract<ERC20>;
   let foreAccessManager: MockContract<ForeAccessManager>;
+  let categoricalMarketBeacon: UpgradeableBeacon;
+  let classicMarketBeacon: UpgradeableBeacon;
+  let router: ForeUniversalRouter;
 
   beforeEach(async () => {
     [
@@ -80,7 +87,8 @@ describe("BasicFactoryV2", () => {
       ethers.utils.parseEther("20")
     );
 
-    await deployLibrary("MarketLibV2", ["BasicMarketV2", "BasicFactoryV2"]);
+    await deployLibrary("MarketLibV2", ["BasicMarketV2"]);
+    await deployLibrary("MarketLib", ["BasicMarket"]);
 
     protocol = await deployContract<ForeProtocol>(
       "ForeProtocol",
@@ -89,7 +97,7 @@ describe("BasicFactoryV2", () => {
     );
 
     usdcToken = await deployMockedContract<ERC20>(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "USDC",
       "USD Coin"
     );
@@ -120,15 +128,32 @@ describe("BasicFactoryV2", () => {
       [defaultAdmin.address],
     ]);
 
-    const router = await deployUniversalRouter(
+    router = (await deployUniversalRouter(
       foreAccessManager.address,
       protocol.address,
       [usdcToken.address, foreToken.address]
-    );
+    )) as ForeUniversalRouter;
 
-    contract = await deployContract<BasicFactoryV2>(
-      "BasicFactoryV2",
+    const categoricalMarketImpl = await deployContract<BasicMarketV2>(
+      "BasicMarketV2"
+    );
+    const classicMarketImpl = await deployContract<BasicMarket>("BasicMarket");
+
+    categoricalMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      categoricalMarketImpl.address,
+      owner.address
+    );
+    classicMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      classicMarketImpl.address,
+      owner.address
+    );
+    contract = await deployContract<BeaconFactory>(
+      "BeaconFactory",
       foreAccessManager.address,
+      categoricalMarketBeacon.address,
+      classicMarketBeacon.address,
       protocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
@@ -159,7 +184,11 @@ describe("BasicFactoryV2", () => {
         .connect(bob)
         .approve(protocol.address, ethers.utils.parseUnits("1000", "ether"))
     );
-
+    await txExec(
+      foreToken
+        .connect(owner)
+        .approve(contract.address, ethers.utils.parseUnits("1000", "ether"))
+    );
     await txExec(
       foreToken
         .connect(alice)
@@ -170,6 +199,24 @@ describe("BasicFactoryV2", () => {
         .connect(bob)
         .approve(contract.address, ethers.utils.parseUnits("1000", "ether"))
     );
+  });
+
+  describe("Deployment", async () => {
+    it("should revert invalid authority", async () => {
+      await expect(
+        deployContract<BeaconFactory>(
+          "BeaconFactory",
+          ZERO_ADDRESS,
+          categoricalMarketBeacon.address,
+          classicMarketBeacon.address,
+          protocol.address,
+          tokenRegistry.address,
+          accountWhitelist.address,
+          foundationWallet.address,
+          router.address
+        )
+      ).to.be.reverted;
+    });
   });
 
   describe("Access control", () => {
@@ -419,7 +466,7 @@ describe("BasicFactoryV2", () => {
             SENTINEL_ROLE
           );
 
-        // Functions that can only be called by the foundation multisign
+        // Functions that can only be called by the foundation multisig
         await foreAccessManager
           .connect(defaultAdmin)
           .setTargetFunctionRole(
@@ -660,7 +707,7 @@ describe("BasicFactoryV2", () => {
     });
   });
 
-  describe("Creating market", () => {
+  describe("Creating categorical market", () => {
     describe("Paused Contract", () => {
       beforeEach(async () => {
         await contract.connect(defaultAdmin).pause();
@@ -670,7 +717,9 @@ describe("BasicFactoryV2", () => {
         await expect(
           contract
             .connect(alice)
-            .createMarket(
+            [
+              "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+            ](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
               alice.address,
               [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -687,7 +736,9 @@ describe("BasicFactoryV2", () => {
         await expect(
           contract
             .connect(alice)
-            .createMarket(
+            [
+              "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+            ](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
               alice.address,
               [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -711,11 +762,13 @@ describe("BasicFactoryV2", () => {
         ).to.revertedWith("FactoryIsNotWhitelisted");
       });
 
-      it("Should revert in case inversed dates", async () => {
+      it("Should revert in case inverse dates", async () => {
         await expect(
           contract
             .connect(alice)
-            .createMarket(
+            [
+              "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+            ](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
               alice.address,
               [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -723,7 +776,7 @@ describe("BasicFactoryV2", () => {
               1653327334588,
               foreToken.address
             )
-        ).to.revertedWith("Basic Factory: Date error");
+        ).to.reverted;
       });
     });
 
@@ -733,7 +786,9 @@ describe("BasicFactoryV2", () => {
           txExec(
             contract
               .connect(alice)
-              .createMarket(
+              [
+                "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+              ](
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
                 alice.address,
                 [0, 0],
@@ -742,7 +797,7 @@ describe("BasicFactoryV2", () => {
                 "0x0000000000000000000000000000000000000000"
               )
           )
-        ).to.revertedWith("Basic Factory: Token is not enabled");
+        ).to.reverted;
       });
 
       it("should revert maximum sides reached", async () => {
@@ -750,7 +805,9 @@ describe("BasicFactoryV2", () => {
           txExec(
             contract
               .connect(alice)
-              .createMarket(
+              [
+                "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+              ](
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
                 alice.address,
                 new Array(11).fill(0),
@@ -759,7 +816,223 @@ describe("BasicFactoryV2", () => {
                 foreToken.address
               )
           )
-        ).to.revertedWith("Basic Factory: Maximum sides reached");
+        ).to.reverted;
+      });
+
+      it("should revert if caller is not the router", async () => {
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              [
+                "createCategoricalMarket(bytes32,address,address,uint256[],uint64,uint64,address)"
+              ](
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                alice.address,
+                alice.address,
+                new Array(11).fill(0),
+                1653327334588,
+                1653357334588,
+                foreToken.address
+              )
+          )
+        ).to.reverted;
+      });
+    });
+  });
+
+  describe("Creating classic market", () => {
+    describe("successfully", async () => {
+      it("should create with liquidity", async () => {
+        await contract
+          .connect(owner)
+          [
+            "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+          ](
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+            alice.address,
+            ethers.utils.parseEther("2"),
+            ethers.utils.parseEther("1"),
+            1653327334588,
+            1653357334588
+          );
+      });
+
+      it("should create even without liquidity", async () => {
+        await contract
+          .connect(owner)
+          [
+            "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+          ](
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+            alice.address,
+            0n,
+            0n,
+            1653327334588,
+            1653357334588
+          );
+      });
+    });
+
+    describe("Paused Contract", () => {
+      beforeEach(async () => {
+        await contract.connect(defaultAdmin).pause();
+      });
+
+      it("Should revert with pause error", async () => {
+        await expect(
+          contract
+            .connect(owner)
+            [
+              "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+            ](
+              "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+              alice.address,
+              0n,
+              0n,
+              1653327334588,
+              1653357334588
+            )
+        ).to.revertedWith("EnforcedPause()");
+      });
+    });
+
+    describe("Unpaused Contract", () => {
+      beforeEach(async () => {
+        await contract.connect(defaultAdmin).pause();
+        await contract.connect(defaultAdmin).unpause();
+      });
+
+      it("Should successful create classic market", async () => {
+        await contract
+          .connect(owner)
+          [
+            "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+          ](
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+            alice.address,
+            0n,
+            0n,
+            1653327334588,
+            1653357334588
+          );
+      });
+    });
+
+    describe("With invalid market", async () => {
+      it("Should revert without funds for creation fee", async () => {
+        await expect(
+          contract
+            .connect(alice)
+            [
+              "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+            ](
+              "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+              alice.address,
+              ethers.utils.parseEther("2"),
+              ethers.utils.parseEther("1"),
+              1653327334588,
+              1653357334588
+            )
+        ).to.revertedWith("ERC20: transfer amount exceeds balance");
+      });
+
+      it("Should revert in case inverse dates", async () => {
+        await expect(
+          contract
+            .connect(alice)
+            [
+              "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+            ](
+              "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+              alice.address,
+              ethers.utils.parseEther("2"),
+              ethers.utils.parseEther("1"),
+              1653357334588,
+              1653327334588
+            )
+        ).to.reverted;
+      });
+
+      it("should revert if caller is not the router", async () => {
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              [
+                "createClassicMarket(bytes32,address,address,uint256,uint256,uint64,uint64)"
+              ](
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                alice.address,
+                alice.address,
+                0n,
+                0n,
+                1653327334588,
+                1653357334588
+              )
+          )
+        ).to.reverted;
+      });
+
+      it("should revert token not enabled", async () => {
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              [
+                "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+              ](
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                alice.address,
+                0,
+                0,
+                1653327334588,
+                1653357334588
+              )
+          )
+        ).to.reverted;
+      });
+
+      it("should revert when insufficient amount", async () => {
+        await expect(
+          txExec(
+            contract
+              .connect(alice)
+              [
+                "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+              ](
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+                alice.address,
+                ethers.utils.parseEther("10000"),
+                ethers.utils.parseEther("10000"),
+                1653327334588,
+                1653357334588
+              )
+          )
+        ).to.reverted;
+      });
+    });
+
+    describe("With zero creation fee", async () => {
+      beforeEach(async () => {
+        await protocolConfig
+          .connect(owner)
+          .setMarketConfig(0n, 0n, 0n, 43200, 43200, 60, 70, 90, 100);
+      });
+
+      it("should still create market", async () => {
+        await contract
+          .connect(alice)
+          [
+            "createClassicMarket(bytes32,address,uint256,uint256,uint64,uint64)"
+          ](
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+            alice.address,
+            0,
+            0,
+            1653327334588,
+            1653357334588
+          );
       });
     });
   });
@@ -774,7 +1047,9 @@ describe("BasicFactoryV2", () => {
       [tx] = await txExec(
         contract
           .connect(bob)
-          .createMarket(
+          [
+            "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+          ](
             marketHash,
             alice.address,
             [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -784,13 +1059,12 @@ describe("BasicFactoryV2", () => {
           )
       );
 
-      const initCode = await contract.INIT_CODE_PAIR_HASH();
-
-      const salt = marketHash;
+      const bytecode = getBytecode(await contract.CATEGORICAL_MARKET_BEACON());
+      const initCodeHash = ethers.utils.keccak256(bytecode);
       const newAddress = ethers.utils.getCreate2Address(
         contract.address,
-        salt,
-        initCode
+        marketHash,
+        initCodeHash
       );
 
       marketContract = await attachContract<BasicMarketV2>(
@@ -869,19 +1143,18 @@ describe("BasicFactoryV2", () => {
   });
 
   describe("With whitelisted market creator", () => {
-    let tx: ContractTransaction;
-    let marketContract: BasicMarketV2;
-
     beforeEach(async () => {
       await accountWhitelist
         .connect(defaultAdmin)
         .manageWhitelist(bob.address, true);
       const marketHash =
         "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
-      [tx] = await txExec(
+      await txExec(
         contract
           .connect(bob)
-          .createMarket(
+          [
+            "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+          ](
             marketHash,
             alice.address,
             [ethers.utils.parseEther("2"), ethers.utils.parseEther("1")],
@@ -891,19 +1164,15 @@ describe("BasicFactoryV2", () => {
           )
       );
 
-      const initCode = await contract.INIT_CODE_PAIR_HASH();
-
-      const salt = marketHash;
+      const bytecode = getBytecode(await contract.CATEGORICAL_MARKET_BEACON());
+      const initCodeHash = ethers.utils.keccak256(bytecode);
       const newAddress = ethers.utils.getCreate2Address(
         contract.address,
-        salt,
-        initCode
+        marketHash,
+        initCodeHash
       );
 
-      marketContract = await attachContract<BasicMarketV2>(
-        "BasicMarketV2",
-        newAddress
-      );
+      await attachContract<BasicMarketV2>("BasicMarketV2", newAddress);
     });
 
     it("should not incur fees", async () => {

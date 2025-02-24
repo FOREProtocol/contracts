@@ -1,32 +1,41 @@
 import { ethers, upgrades } from "hardhat";
 import { expect } from "chai";
-import { BigNumber, Contract, ContractTransaction } from "ethers";
+import { BigNumber, Contract, ContractTransaction, Signer } from "ethers";
 import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
-import { BasicFactoryV2 } from "@/BasicFactoryV2";
+import { BeaconFactory } from "@/BeaconFactory";
 import { ForeToken } from "@/ForeToken";
 import { MarketLibV2 } from "@/MarketLibV2";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { ERC20 } from "@/ERC20";
+import { ForeAccessManager } from "@/ForeAccessManager";
+import { BasicMarket } from "@/BasicMarket";
+import { UpgradeableBeacon } from "@/UpgradeableBeacon";
+import { ForeUniversalRouter } from "@/ForeUniversalRouter";
 
 import {
   assertIsAvailableOnlyForOwner,
   attachContract,
+  deployContract,
   deployLibrary,
   deployMockedContract,
   deployUniversalRouter,
   executeInSingleBlock,
-  generateRandomHexString,
+  getBytecode,
+  impersonateContract,
   sendERC20Tokens,
   timetravel,
   txExec,
 } from "../../helpers/utils";
-import { SIDES, defaultIncentives } from "../../helpers/constants";
-import { ForeAccessManager } from "@/ForeAccessManager";
+import {
+  SIDES,
+  ZERO_ADDRESS,
+  defaultIncentives,
+} from "../../helpers/constants";
 
 describe("BasicMarketV2 / Dispute", () => {
   let owner: SignerWithAddress;
@@ -44,12 +53,15 @@ describe("BasicMarketV2 / Dispute", () => {
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
-  let basicFactory: MockContract<BasicFactoryV2>;
+  let beaconFactory: BeaconFactory;
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
   let foreAccessManager: MockContract<ForeAccessManager>;
+  let categoricalMarketBeacon: UpgradeableBeacon;
+  let classicMarketBeacon: UpgradeableBeacon;
+  let router: ForeUniversalRouter;
 
   let blockTimestamp: number;
 
@@ -67,10 +79,8 @@ describe("BasicMarketV2 / Dispute", () => {
     ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLibV2", [
-      "BasicMarketV2",
-      "BasicFactoryV2",
-    ]);
+    marketLib = await deployLibrary("MarketLibV2", ["BasicMarketV2"]);
+    await deployLibrary("MarketLib", ["BasicMarket"]);
 
     // preparing dependencies
     foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -98,7 +108,7 @@ describe("BasicMarketV2 / Dispute", () => {
     );
 
     usdcToken = await deployMockedContract<ERC20>(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "USDC",
       "USD Coin"
     );
@@ -129,16 +139,33 @@ describe("BasicMarketV2 / Dispute", () => {
       [defaultAdmin.address],
     ]);
 
-    const router = await deployUniversalRouter(
+    router = (await deployUniversalRouter(
       foreAccessManager.address,
       foreProtocol.address,
       [usdcToken.address, foreToken.address]
-    );
+    )) as ForeUniversalRouter;
 
     // preparing factory
-    basicFactory = await deployMockedContract<BasicFactoryV2>(
-      "BasicFactoryV2",
+    const categoricalMarketImpl = await deployContract<BasicMarketV2>(
+      "BasicMarketV2"
+    );
+    const classicMarketImpl = await deployContract<BasicMarket>("BasicMarket");
+
+    categoricalMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      categoricalMarketImpl.address,
+      owner.address
+    );
+    classicMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      classicMarketImpl.address,
+      owner.address
+    );
+    beaconFactory = await deployContract<BeaconFactory>(
+      "BeaconFactory",
       foreAccessManager.address,
+      categoricalMarketBeacon.address,
+      classicMarketBeacon.address,
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
@@ -152,7 +179,7 @@ describe("BasicMarketV2 / Dispute", () => {
     await txExec(
       protocolConfig
         .connect(owner)
-        .setFactoryStatus([basicFactory.address], [true])
+        .setFactoryStatus([beaconFactory.address], [true])
     );
 
     // sending funds
@@ -169,15 +196,20 @@ describe("BasicMarketV2 / Dispute", () => {
     await txExec(
       foreToken
         .connect(alice)
-        .approve(basicFactory.address, ethers.utils.parseUnits("1000", "ether"))
+        .approve(
+          beaconFactory.address,
+          ethers.utils.parseUnits("1000", "ether")
+        )
     );
     // creating market
     const marketHash =
       "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab";
     await txExec(
-      basicFactory
+      beaconFactory
         .connect(alice)
-        .createMarket(
+        [
+          "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+        ](
           marketHash,
           alice.address,
           [ethers.utils.parseEther("50"), ethers.utils.parseEther("50")],
@@ -187,13 +219,14 @@ describe("BasicMarketV2 / Dispute", () => {
         )
     );
 
-    const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
-
-    const salt = marketHash;
+    const bytecode = getBytecode(
+      await beaconFactory.CATEGORICAL_MARKET_BEACON()
+    );
+    const initCodeHash = ethers.utils.keccak256(bytecode);
     const newAddress = ethers.utils.getCreate2Address(
-      basicFactory.address,
-      salt,
-      initCode
+      beaconFactory.address,
+      marketHash,
+      initCodeHash
     );
 
     contract = await attachContract<BasicMarketV2>("BasicMarketV2", newAddress);
@@ -248,7 +281,7 @@ describe("BasicMarketV2 / Dispute", () => {
       await expect(
         contract
           .connect(bob)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       ).to.revertedWith("DisputePeriodIsNotStartedYet");
@@ -274,7 +307,7 @@ describe("BasicMarketV2 / Dispute", () => {
         await expect(
           contract
             .connect(dave)
-            .openDispute(
+            ["openDispute(bytes32)"](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
             )
         ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
@@ -287,7 +320,7 @@ describe("BasicMarketV2 / Dispute", () => {
           [tx] = await txExec(
             contract
               .connect(alice)
-              .openDispute(
+              ["openDispute(bytes32)"](
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
               )
           );
@@ -329,10 +362,55 @@ describe("BasicMarketV2 / Dispute", () => {
           await expect(
             contract
               .connect(bob)
-              .openDispute(
+              ["openDispute(bytes32)"](
                 "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
               )
           ).to.be.revertedWith("DisputeAlreadyExists");
+        });
+      });
+
+      describe("with invalid creator address", async () => {
+        let routerAccount: Signer;
+
+        beforeEach(async () => {
+          // Impersonate router
+          routerAccount = await impersonateContract(router.address);
+
+          await txExec(
+            foreToken
+              .connect(owner)
+              .transfer(
+                await routerAccount.getAddress(),
+                ethers.utils.parseEther("1000")
+              )
+          );
+          await txExec(
+            foreToken
+              .connect(routerAccount)
+              .approve(contract.address, ethers.utils.parseEther("1000"))
+          );
+        });
+
+        it("should revert invalid creator address", async () => {
+          await expect(
+            contract
+              .connect(routerAccount)
+              ["openDispute(address,bytes32)"](
+                ZERO_ADDRESS,
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+              )
+          ).to.revertedWith("InvalidCreatorAddress");
+        });
+
+        it("Should revert invalid router", async () => {
+          await expect(
+            contract
+              .connect(owner)
+              ["openDispute(address,bytes32)"](
+                ZERO_ADDRESS,
+                "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
+              )
+          ).to.revertedWith("OnlyAuthorizedRouter");
         });
       });
     });
@@ -341,7 +419,7 @@ describe("BasicMarketV2 / Dispute", () => {
       await txExec(
         contract
           .connect(alice)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       );
@@ -356,7 +434,7 @@ describe("BasicMarketV2 / Dispute", () => {
       [tx] = await txExec(
         contract
           .connect(bob)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       );
@@ -392,7 +470,7 @@ describe("BasicMarketV2 / Dispute", () => {
         await txExec(
           contract
             .connect(alice)
-            .openDispute(
+            ["openDispute(bytes32)"](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
             )
         );
@@ -434,7 +512,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               foundationWallet.address,
-              ethers.utils.parseEther("16.2")
+              ethers.utils.parseEther("5.85")
             );
         });
 
@@ -530,7 +608,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               foundationWallet.address,
-              ethers.utils.parseEther("16.2")
+              ethers.utils.parseEther("5.85")
             );
         });
 
@@ -540,7 +618,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               "0x000000000000000000000000000000000000dEaD",
-              ethers.utils.parseEther("1.9")
+              ethers.utils.parseEther("2.8")
             );
         });
 
@@ -608,7 +686,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               foundationWallet.address,
-              ethers.utils.parseEther("16.2")
+              ethers.utils.parseEther("5.85")
             );
         });
 
@@ -628,7 +706,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               highGuardAccount.address,
-              ethers.utils.parseEther("0.45")
+              ethers.utils.parseEther("0.9")
             );
         });
 
@@ -648,7 +726,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               alice.address,
-              ethers.utils.parseEther("0.45")
+              ethers.utils.parseEther("0.9")
             );
         });
 
@@ -690,6 +768,15 @@ describe("BasicMarketV2 / Dispute", () => {
           ]);
         });
       });
+
+      describe("with invalid parties addresses", async () => {
+        it("should revert invalid address", async () => {
+          const accountZero = await impersonateContract(ZERO_ADDRESS);
+          await expect(
+            contract.connect(accountZero).resolveDispute(3, 0)
+          ).to.be.revertedWith("InvalidRequesterAddress");
+        });
+      });
     });
   });
 
@@ -708,7 +795,7 @@ describe("BasicMarketV2 / Dispute", () => {
         await txExec(
           contract
             .connect(alice)
-            .openDispute(
+            ["openDispute(bytes32)"](
               "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
             )
         );
@@ -729,7 +816,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               foundationWallet.address,
-              ethers.utils.parseEther("16.2")
+              ethers.utils.parseEther("5.85")
             );
         });
 
@@ -739,7 +826,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               "0x000000000000000000000000000000000000dEaD",
-              ethers.utils.parseEther("1.45")
+              ethers.utils.parseEther("1.9")
             );
         });
 
@@ -759,7 +846,7 @@ describe("BasicMarketV2 / Dispute", () => {
             .withArgs(
               contract.address,
               highGuardAccount.address,
-              ethers.utils.parseEther("0.45")
+              ethers.utils.parseEther("0.9")
             );
         });
 
@@ -818,7 +905,7 @@ describe("BasicMarketV2 / Dispute", () => {
       await expect(
         contract
           .connect(alice)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       ).to.be.revertedWith("DisputePeriodIsEnded");
@@ -835,7 +922,7 @@ describe("BasicMarketV2 / Dispute", () => {
       await expect(
         contract
           .connect(alice)
-          .openDispute(
+          ["openDispute(bytes32)"](
             "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
           )
       ).to.be.revertedWith("MarketIsClosed");
@@ -848,15 +935,15 @@ describe("BasicMarketV2 / Dispute", () => {
     beforeEach(async () => {
       await sendERC20Tokens(foreToken, {
         [alice.address]: ethers.utils.parseEther("10000"),
-        [bob.address]: ethers.utils.parseEther("10000"),
-        [dave.address]: ethers.utils.parseEther("10000"),
       });
 
-      const marketHash = generateRandomHexString(64);
+      const marketHash = ethers.utils.formatBytes32String("test market");
       await txExec(
-        basicFactory
+        beaconFactory
           .connect(alice)
-          .createMarket(
+          [
+            "createCategoricalMarket(bytes32,address,uint256[],uint64,uint64,address)"
+          ](
             marketHash,
             alice.address,
             [ethers.utils.parseEther("70"), 0],
@@ -866,13 +953,14 @@ describe("BasicMarketV2 / Dispute", () => {
           )
       );
 
-      const initCode = await basicFactory.INIT_CODE_PAIR_HASH();
-
-      const salt = marketHash;
+      const bytecode = getBytecode(
+        await beaconFactory.CATEGORICAL_MARKET_BEACON()
+      );
+      const initCodeHash = ethers.utils.keccak256(bytecode);
       const newAddress = ethers.utils.getCreate2Address(
-        basicFactory.address,
-        salt,
-        initCode
+        beaconFactory.address,
+        marketHash,
+        initCodeHash
       );
 
       contract = await attachContract<BasicMarketV2>(
@@ -880,18 +968,9 @@ describe("BasicMarketV2 / Dispute", () => {
         newAddress
       );
 
-      await executeInSingleBlock(() => [
-        foreToken
-          .connect(alice)
-          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
-        foreToken
-          .connect(bob)
-          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
-        foreToken
-          .connect(dave)
-          .approve(contract.address, ethers.utils.parseUnits("1000", "ether")),
-      ]);
-
+      await foreToken
+        .connect(dave)
+        .approve(contract.address, ethers.utils.parseUnits("1000", "ether"));
       await timetravel(blockTimestamp + 300001);
       await timetravel(blockTimestamp + 300000 + 86400 + 86400 + 1);
     });
@@ -899,7 +978,7 @@ describe("BasicMarketV2 / Dispute", () => {
     it("should open dispute", async () => {
       await contract
         .connect(dave)
-        .openDispute(
+        ["openDispute(bytes32)"](
           "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab"
         );
     });

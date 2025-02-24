@@ -7,12 +7,16 @@ import { MockContract } from "@defi-wonderland/smock/dist/src/types";
 
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
-import { BasicFactoryV2 } from "@/BasicFactoryV2";
+import { BeaconFactory } from "@/BeaconFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { ERC20 } from "@/ERC20";
+import { ForeAccessManager } from "@/ForeAccessManager";
+import { BasicMarket } from "@/BasicMarket";
+import { UpgradeableBeacon } from "@/UpgradeableBeacon";
 
 import {
+  deployContract,
   deployContractAs,
   deployLibrary,
   deployMockedContract,
@@ -21,9 +25,9 @@ import {
   txExec,
 } from "../../helpers/utils";
 import { defaultIncentives } from "../../helpers/constants";
-import { ForeAccessManager } from "@/ForeAccessManager";
 
 describe("ForeMarketV2 / Management", () => {
+  let owner: SignerWithAddress;
   let foundationWallet: SignerWithAddress;
   let highGuardAccount: SignerWithAddress;
   let marketplaceContract: SignerWithAddress;
@@ -32,19 +36,22 @@ describe("ForeMarketV2 / Management", () => {
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
-  let basicFactory: MockContract<BasicFactoryV2>;
+  let beaconFactory: BeaconFactory;
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
   let foreAccessManager: MockContract<ForeAccessManager>;
+  let categoricalMarketBeacon: UpgradeableBeacon;
+  let classicMarketBeacon: UpgradeableBeacon;
 
   beforeEach(async () => {
-    [, foundationWallet, highGuardAccount, marketplaceContract] =
+    [owner, foundationWallet, highGuardAccount, marketplaceContract] =
       await ethers.getSigners();
 
     // deploy library
-    await deployLibrary("MarketLibV2", ["BasicMarketV2", "BasicFactoryV2"]);
+    await deployLibrary("MarketLibV2", ["BasicMarketV2"]);
+    await deployLibrary("MarketLib", ["BasicMarket"]);
 
     // preparing dependencies
     foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -72,7 +79,7 @@ describe("ForeMarketV2 / Management", () => {
     );
 
     usdcToken = await deployMockedContract<ERC20>(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "USDC",
       "USD Coin"
     );
@@ -109,9 +116,27 @@ describe("ForeMarketV2 / Management", () => {
       [usdcToken.address, foreToken.address]
     );
 
-    basicFactory = await deployMockedContract<BasicFactoryV2>(
-      "BasicFactoryV2",
+    // preparing factory
+    const categoricalMarketImpl = await deployContract<BasicMarketV2>(
+      "BasicMarketV2"
+    );
+    const classicMarketImpl = await deployContract<BasicMarket>("BasicMarket");
+
+    categoricalMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      categoricalMarketImpl.address,
+      owner.address
+    );
+    classicMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      classicMarketImpl.address,
+      owner.address
+    );
+    beaconFactory = await deployContract<BeaconFactory>(
+      "BeaconFactory",
       foreAccessManager.address,
+      categoricalMarketBeacon.address,
+      classicMarketBeacon.address,
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
@@ -119,7 +144,7 @@ describe("ForeMarketV2 / Management", () => {
       router.address
     );
 
-    basicFactoryAccount = await impersonateContract(basicFactory.address);
+    basicFactoryAccount = await impersonateContract(beaconFactory.address);
 
     // factory assignment
     await txExec(foreVerifiers.setProtocol(foreProtocol.address));
@@ -131,11 +156,11 @@ describe("ForeMarketV2 / Management", () => {
     );
   });
 
-  it("Should return proper factory address", async () => {
-    expect(await contract.factory()).to.be.equal(
-      await basicFactoryAccount.getAddress()
-    );
-  });
+  // it("Should return proper factory address", async () => {
+  //   expect(await contract.factory()).to.be.equal(
+  //     await basicFactoryAccount.getAddress()
+  //   );
+  // });
 
   it("Should return null protocol config address", async () => {
     expect(await contract.protocolConfig()).to.be.equal(

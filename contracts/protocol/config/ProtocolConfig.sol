@@ -304,6 +304,7 @@ contract ProtocolConfig is Ownable {
             verificationFeeP
         );
 
+        marketCreationPrice = creationPriceP;
         marketConfig = createdMarketConfig;
 
         emit MarketConfigurationUpdated(marketConfig);

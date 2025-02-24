@@ -42,7 +42,20 @@ export const defaultIncentives = {
   verificationDiscountRate: 1000,
   foundationDiscountRate: 1000,
   marketCreationFee: ethers.utils.parseEther("10"),
+  verifiersNFTMultiplier: 10000,
 } as const;
+
+export const TIME_LOCK_DELAY = 172800;
+export const VOTING_PERIOD = 86400;
+export const VOTING_DELAY = 86400;
+export const PROPOSAL_THRESHOLD = "1000000000000000000000";
+export const MORE_THAN_QUORUM_VOTES = BigNumber.from(
+  "120000000000000000000000000"
+);
+
+export const UINT_MAX = BigInt(Math.pow(2, 255) - 1);
+
+export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 /**
  * Arbitrum mainnet addresses

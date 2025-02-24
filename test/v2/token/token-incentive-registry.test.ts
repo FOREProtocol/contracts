@@ -26,6 +26,7 @@ const mockIncentives = {
   verificationDiscountRate: 100,
   foundationDiscountRate: 100,
   marketCreationFee: ethers.utils.parseEther("1"),
+  verifiersNFTMultiplier: 1000,
 };
 
 describe("Token Incentive Registry", function () {
@@ -41,27 +42,27 @@ describe("Token Incentive Registry", function () {
       await ethers.getSigners();
 
     usdcToken = await deployContract(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "USDC",
       "USDC"
     );
     token1 = await deployContract(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "Token1",
       "Token1"
     );
     token2 = await deployContract(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "Token2",
       "Token2"
     );
     token3 = await deployContract(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "Token3",
       "Token3"
     );
     token4 = await deployContract(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "Token4",
       "Token4"
     );
@@ -91,14 +92,45 @@ describe("Token Incentive Registry", function () {
     );
   });
 
-  it("should not allow re-initialization", async function () {
-    await expect(
-      contract.initialize(
-        foreAccessManager.address,
-        [usdcToken.address],
-        [defaultIncentives]
-      )
-    ).to.be.reverted;
+  describe("Deployment", async () => {
+    it("should not allow re-initialization", async function () {
+      await expect(
+        contract.initialize(
+          foreAccessManager.address,
+          [usdcToken.address],
+          [defaultIncentives]
+        )
+      ).to.be.reverted;
+    });
+
+    it("should revert invalid incentives rates", async () => {
+      const contractFactory = await ethers.getContractFactory(
+        "TokenIncentiveRegistry"
+      );
+      await expect(
+        upgrades.deployProxy(
+          contractFactory,
+          [
+            foreAccessManager.address,
+            [usdcToken.address],
+            [
+              {
+                predictionDiscountRate: 0,
+                marketCreatorDiscountRate: 0,
+                verificationDiscountRate: 0,
+                foundationDiscountRate: 0,
+                marketCreationFee: 0,
+                verifiersNFTMultiplier: 0,
+              },
+            ],
+          ],
+          {
+            kind: "uups",
+            initializer: "initialize",
+          }
+        )
+      ).to.be.reverted;
+    });
   });
 
   describe("Access control", () => {
@@ -228,7 +260,7 @@ describe("Token Incentive Registry", function () {
           .connect(defaultAdmin)
           .grantRole(FOUNDATION_ROLE, foundationWallet.address, 0);
 
-        // Functions that can only be called by the foundation multisign
+        // Functions that can only be called by the foundation multi-sign
         await foreAccessManager
           .connect(defaultAdmin)
           .setTargetFunctionRole(
@@ -368,6 +400,7 @@ describe("Token Incentive Registry", function () {
         BigNumber.from(1000),
         BigNumber.from(1000),
         ethers.utils.parseEther("10"),
+        BigNumber.from(10000),
       ]);
     });
   });
@@ -417,7 +450,7 @@ describe("Token Incentive Registry", function () {
         .connect(defaultAdmin)
         .grantRole(ADMIN_ROLE, deployerWallet.address, 0);
 
-      // Functions that can only be called by the foundation multisign
+      // Functions that can only be called by the foundation multi-sign
       await foreAccessManager
         .connect(defaultAdmin)
         .setTargetFunctionRole(
@@ -451,6 +484,7 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(1000),
           BigNumber.from(1000),
           ethers.utils.parseEther("10"),
+          BigNumber.from(10000),
         ]);
         expect(await contract.getTokenIncentives(token2.address)).to.eql([
           BigNumber.from(1000),
@@ -458,6 +492,7 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(1000),
           BigNumber.from(1000),
           ethers.utils.parseEther("10"),
+          BigNumber.from(10000),
         ]);
         expect(await contract.getTokenIncentives(token3.address)).to.eql([
           BigNumber.from(1000),
@@ -465,6 +500,7 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(1000),
           BigNumber.from(1000),
           ethers.utils.parseEther("10"),
+          BigNumber.from(10000),
         ]);
       });
 
@@ -482,6 +518,7 @@ describe("Token Incentive Registry", function () {
           verificationDiscountRate: 0,
           foundationDiscountRate: 0,
           marketCreationFee: 0,
+          verifiersNFTMultiplier: 0,
         };
         await expect(contract.addToken(token4.address, incentives)).to.be
           .reverted;
@@ -521,6 +558,7 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
+          BigNumber.from(0),
         ]);
         expect(await contract.getTokenIncentives(token2.address)).to.eql([
           BigNumber.from(0),
@@ -528,8 +566,10 @@ describe("Token Incentive Registry", function () {
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
+          BigNumber.from(0),
         ]);
         expect(await contract.getTokenIncentives(token3.address)).to.eql([
+          BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
           BigNumber.from(0),
@@ -566,6 +606,7 @@ describe("Token Incentive Registry", function () {
             BigNumber.from(100),
             BigNumber.from(100),
             ethers.utils.parseEther("1"),
+            BigNumber.from(1000),
           ]);
           expect(await contract.getTokenIncentives(token2.address)).to.be.eql([
             BigNumber.from(100),
@@ -573,6 +614,7 @@ describe("Token Incentive Registry", function () {
             BigNumber.from(100),
             BigNumber.from(100),
             ethers.utils.parseEther("1"),
+            BigNumber.from(1000),
           ]);
           expect(await contract.getTokenIncentives(token3.address)).to.be.eql([
             BigNumber.from(100),
@@ -580,6 +622,7 @@ describe("Token Incentive Registry", function () {
             BigNumber.from(100),
             BigNumber.from(100),
             ethers.utils.parseEther("1"),
+            BigNumber.from(1000),
           ]);
         });
       });
@@ -597,6 +640,7 @@ describe("Token Incentive Registry", function () {
               verificationDiscountRate: 0,
               foundationDiscountRate: 0,
               marketCreationFee: 0,
+              verifiersNFTMultiplier: 0,
             })
           ).to.be.reverted;
         });

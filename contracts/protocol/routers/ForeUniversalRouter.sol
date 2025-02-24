@@ -12,14 +12,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import "../IForeProtocol.sol";
 
-error InvalidToken();
-error InvalidSpender();
-error InvalidOperator();
-error InvalidTarget();
-error InvalidSelector();
-error InvalidMsgSender();
-error CallFunctionFailed();
-
 /// @custom:security-contact security@foreprotocol.io
 contract ForeUniversalRouter is
     Initializable,
@@ -30,16 +22,32 @@ contract ForeUniversalRouter is
 {
     using SafeERC20 for IERC20;
 
-    bytes4 constant PREDICT_SELECTOR_HASH =
-        bytes4(keccak256("predictFor(address,uint256,uint8)"));
+    error InvalidToken();
+    error InvalidSpender();
+    error InvalidOperator();
+    error InvalidTarget();
+    error InvalidSelector();
+    error InvalidMsgSender();
+    error InvalidAuthority();
+    error CallFunctionFailed();
 
-    bytes4 constant OPEN_DISPUTE_SELECTOR_HASH =
-        bytes4(keccak256("openDisputeFor(address,bytes32)"));
+    bytes4 private constant PREDICT_SELECTOR_HASH =
+        bytes4(keccak256("predict(address,uint256,uint8)"));
 
-    bytes4 constant CREATE_MARKET_SELECTOR_HASH =
+    bytes4 private constant OPEN_DISPUTE_SELECTOR_HASH =
+        bytes4(keccak256("openDispute(address,bytes32)"));
+
+    bytes4 private constant CREATE_CATEGORICAL_MARKET_SELECTOR_HASH =
         bytes4(
             keccak256(
-                "createMarketWithCreator(bytes32,address,address,uint256[],uint64,uint64,address)"
+                "createCategoricalMarket(bytes32,address,address,uint256[],uint64,uint64,address)"
+            )
+        );
+
+    bytes4 private constant CREATE_CLASSIC_MARKET_SELECTOR_HASH =
+        bytes4(
+            keccak256(
+                "createClassicMarket(bytes32,address,address,uint256,uint256,uint64,uint64)"
             )
         );
 
@@ -70,43 +78,6 @@ contract ForeUniversalRouter is
     );
     event ManagedToken(address indexed token, bool indexed shouldAdd);
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
-    /**
-     * @notice Initializes the contract
-     * @param protocolAddress The address of the ForeProtocol contract to be used by this contract.
-     * @param permit2Address The address of the Permit2 contract for handling allowances.
-     * @param tokenAddresses An array of token addresses to be marked as valid tokens within the contract
-     */
-    function initialize(
-        address initialAuthority,
-        IForeProtocol protocolAddress,
-        IAllowanceTransfer permit2Address,
-        address[] memory tokenAddresses
-    ) public initializer {
-        __Pausable_init();
-        __AccessManaged_init(initialAuthority);
-        __ReentrancyGuard_init();
-        __UUPSUpgradeable_init();
-
-        foreProtocol = protocolAddress;
-        permit2 = permit2Address;
-
-        for (uint i = 0; i < tokenAddresses.length; i++) {
-            if (tokenAddresses[i] == address(0)) {
-                revert InvalidToken();
-            }
-            tokens[tokenAddresses[i]] = true;
-        }
-
-        allowedFunctions[PREDICT_SELECTOR_HASH] = true;
-        allowedFunctions[OPEN_DISPUTE_SELECTOR_HASH] = true;
-        allowedFunctions[CREATE_MARKET_SELECTOR_HASH] = true;
-    }
-
     /**
      * @notice Verify the validity of a function call based on the target address, operator status, and function selector.
      * @param target The address that is being targeted for the function call
@@ -122,6 +93,7 @@ contract ForeUniversalRouter is
         }
 
         bytes4 selector;
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             selector := calldataload(data.offset)
         }
@@ -150,7 +122,7 @@ contract ForeUniversalRouter is
                 revert InvalidMsgSender();
             }
         }
-        if (selector == CREATE_MARKET_SELECTOR_HASH) {
+        if (selector == CREATE_CATEGORICAL_MARKET_SELECTOR_HASH) {
             (, address extractedAddress, , , , , ) = abi.decode(
                 data[4:],
                 (bytes32, address, address, uint256[], uint64, uint64, address)
@@ -159,7 +131,57 @@ contract ForeUniversalRouter is
                 revert InvalidMsgSender();
             }
         }
+        if (selector == CREATE_CLASSIC_MARKET_SELECTOR_HASH) {
+            (, address extractedAddress, , , , , ) = abi.decode(
+                data[4:],
+                (bytes32, address, address, uint256, uint256, uint64, uint64)
+            );
+            if (extractedAddress != msg.sender) {
+                revert InvalidMsgSender();
+            }
+        }
         _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * @notice Initializes the contract
+     * @param protocolAddress The address of the ForeProtocol contract to be used by this contract.
+     * @param permit2Address The address of the Permit2 contract for handling allowances.
+     * @param tokenAddresses An array of token addresses to be marked as valid tokens within the contract
+     */
+    function initialize(
+        address initialAuthority,
+        IForeProtocol protocolAddress,
+        IAllowanceTransfer permit2Address,
+        address[] memory tokenAddresses
+    ) public initializer {
+        if (initialAuthority == address(0)) {
+            revert InvalidAuthority();
+        }
+        __Pausable_init();
+        __AccessManaged_init(initialAuthority);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
+
+        foreProtocol = protocolAddress;
+        permit2 = permit2Address;
+
+        for (uint i = 0; i < tokenAddresses.length; i++) {
+            if (tokenAddresses[i] == address(0)) {
+                revert InvalidToken();
+            }
+            tokens[tokenAddresses[i]] = true;
+        }
+
+        allowedFunctions[PREDICT_SELECTOR_HASH] = true;
+        allowedFunctions[OPEN_DISPUTE_SELECTOR_HASH] = true;
+        allowedFunctions[CREATE_CATEGORICAL_MARKET_SELECTOR_HASH] = true;
+        allowedFunctions[CREATE_CLASSIC_MARKET_SELECTOR_HASH] = true;
     }
 
     /**
@@ -184,9 +206,12 @@ contract ForeUniversalRouter is
         nonReentrant
         returns (bool success, bytes memory result)
     {
+        if (token == address(0)) {
+            revert InvalidToken();
+        }
         _transferAndApprove(target, amount, token);
 
-        (success, result) = target.call(data);
+        (success, result) = target.call{value: msg.value}(data);
         if (!success) {
             revert CallFunctionFailed();
         }
@@ -220,10 +245,13 @@ contract ForeUniversalRouter is
         nonReentrant
         returns (bool success, bytes memory result)
     {
+        if (token == address(0)) {
+            revert InvalidToken();
+        }
         _permit(permitSingle, signature);
         _transferAndApprove(target, amount, token);
 
-        (success, result) = target.call(data);
+        (success, result) = target.call{value: msg.value}(data);
         if (!success) {
             revert CallFunctionFailed();
         }
@@ -273,7 +301,7 @@ contract ForeUniversalRouter is
 
     /**
      * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
-     * @dev Only the owner can call this function.
+     * @dev Only the authorized account can call this function
      */
     function pause() external restricted {
         _pause();
@@ -281,7 +309,7 @@ contract ForeUniversalRouter is
 
     /**
      * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
-     * @dev Only the owner can call this function.
+     * @dev Only the authorized account can call this function
      */
     function unpause() external restricted {
         _unpause();
@@ -325,9 +353,17 @@ contract ForeUniversalRouter is
         address token
     ) internal {
         permit2.transferFrom(msg.sender, address(this), amount, address(token));
-        IERC20(token).forceApprove(spender, amount);
+        uint256 currentAllowance = IERC20(token).allowance(
+            address(this),
+            spender
+        );
+        if (currentAllowance != 0) {
+            IERC20(token).approve(spender, 0);
+        }
+        IERC20(token).approve(spender, amount);
     }
 
     /// @notice Ensure only the owner can upgrade the contract
+    // solhint-disable-next-line no-empty-blocks
     function _authorizeUpgrade(address) internal override restricted {}
 }

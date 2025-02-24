@@ -1,29 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "./BasicMarket.sol";
-import "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../../../verifiers/IForeVerifiers.sol";
-import "../../config/IProtocolConfig.sol";
+import "./basic/BasicMarket.sol";
+import "../config/IProtocolConfig.sol";
+import "../../verifiers/IForeVerifiers.sol";
 
 contract BasicFactory {
     using SafeERC20 for IERC20;
 
-    /// @notice Init creatin code
+    /// @notice Init creation code
     /// @dev Needed to calculate market address
     bytes32 public constant INIT_CODE_PAIR_HASH =
         keccak256(abi.encodePacked(type(BasicMarket).creationCode));
 
     /// @notice Protocol Contract
+    // solhint-disable-next-line immutable-vars-naming
     IForeProtocol public immutable foreProtocol;
 
     /// @notice ForeToken
+    // solhint-disable-next-line immutable-vars-naming
     IERC20 public immutable foreToken;
 
     /// @notice Protocol Config
+    // solhint-disable-next-line immutable-vars-naming
     IProtocolConfig public immutable config;
 
     /// @notice ForeVerifiers
+    // solhint-disable-next-line immutable-vars-naming
     IForeVerifiers public immutable foreVerifiers;
 
     /// @param protocolAddress Protocol Contract address
@@ -79,15 +82,18 @@ contract BasicFactory {
             createdMarket
         );
 
-        createdMarketContract.initialize(
-            marketHash,
-            receiver,
-            amountA,
-            amountB,
-            address(foreProtocol),
-            endPredictionTimestamp,
-            startVerificationTimestamp,
-            uint64(marketIdx)
-        );
+        MarketLib.MarketCreationInitialData memory payload = MarketLib
+            .MarketCreationInitialData(
+                marketHash,
+                receiver,
+                amountA,
+                amountB,
+                address(foreProtocol),
+                endPredictionTimestamp,
+                startVerificationTimestamp,
+                uint64(marketIdx)
+            );
+
+        createdMarketContract.initialize(payload);
     }
 }

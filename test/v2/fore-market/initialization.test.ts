@@ -6,16 +6,19 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 import { BasicMarketV2 } from "@/BasicMarketV2";
 import { ForeProtocol } from "@/ForeProtocol";
-import { BasicFactoryV2 } from "@/BasicFactoryV2";
+import { BeaconFactory } from "@/BeaconFactory";
 import { ForeToken } from "@/ForeToken";
 import { ForeVerifiers } from "@/ForeVerifiers";
 import { MarketLibV2 } from "@/MarketLibV2";
 import { ProtocolConfig } from "@/ProtocolConfig";
 import { ERC20 } from "@/ERC20";
 import { ForeAccessManager } from "@/ForeAccessManager";
+import { BasicMarket } from "@/BasicMarket";
+import { UpgradeableBeacon } from "@/UpgradeableBeacon";
 
 import {
   assertIsAvailableOnlyForOwner,
+  deployContract,
   deployContractAs,
   deployLibrary,
   deployMockedContract,
@@ -24,7 +27,11 @@ import {
   timetravel,
   txExec,
 } from "../../helpers/utils";
-import { SIDES, defaultIncentives } from "../../helpers/constants";
+import {
+  SIDES,
+  ZERO_ADDRESS,
+  defaultIncentives,
+} from "../../helpers/constants";
 
 describe("BasicMarketV2 / Initialization", () => {
   let owner: SignerWithAddress;
@@ -39,13 +46,15 @@ describe("BasicMarketV2 / Initialization", () => {
   let foreToken: MockContract<ForeToken>;
   let foreVerifiers: MockContract<ForeVerifiers>;
   let foreProtocol: MockContract<ForeProtocol>;
-  let basicFactory: MockContract<BasicFactoryV2>;
+  let beaconFactory: BeaconFactory;
   let tokenRegistry: Contract;
   let accountWhitelist: Contract;
   let router: Contract;
   let usdcToken: MockContract<ERC20>;
   let contract: BasicMarketV2;
   let foreAccessManager: MockContract<ForeAccessManager>;
+  let categoricalMarketBeacon: UpgradeableBeacon;
+  let classicMarketBeacon: UpgradeableBeacon;
 
   let blockTimestamp: number;
 
@@ -61,10 +70,8 @@ describe("BasicMarketV2 / Initialization", () => {
     ] = await ethers.getSigners();
 
     // deploy library
-    marketLib = await deployLibrary("MarketLibV2", [
-      "BasicMarketV2",
-      "BasicFactoryV2",
-    ]);
+    marketLib = await deployLibrary("MarketLibV2", ["BasicMarketV2"]);
+    await deployLibrary("MarketLib", ["BasicMarket"]);
 
     // preparing dependencies
     foreToken = await deployMockedContract<ForeToken>("ForeToken");
@@ -92,7 +99,7 @@ describe("BasicMarketV2 / Initialization", () => {
     );
 
     usdcToken = await deployMockedContract<ERC20>(
-      "@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20",
+      "openzeppelin-v4/contracts/token/ERC20/ERC20.sol:ERC20",
       "USDC",
       "USD Coin"
     );
@@ -130,19 +137,42 @@ describe("BasicMarketV2 / Initialization", () => {
     );
 
     // preparing factory
-    basicFactory = await deployMockedContract<BasicFactoryV2>(
-      "BasicFactoryV2",
+    const categoricalMarketImpl = await deployContract<BasicMarketV2>(
+      "BasicMarketV2"
+    );
+    const classicMarketImpl = await deployContract<BasicMarket>("BasicMarket");
+
+    categoricalMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      categoricalMarketImpl.address,
+      owner.address
+    );
+    classicMarketBeacon = await deployContract<UpgradeableBeacon>(
+      "UpgradeableBeacon",
+      classicMarketImpl.address,
+      owner.address
+    );
+    beaconFactory = await deployContract<BeaconFactory>(
+      "BeaconFactory",
       foreAccessManager.address,
+      categoricalMarketBeacon.address,
+      classicMarketBeacon.address,
       foreProtocol.address,
       tokenRegistry.address,
       accountWhitelist.address,
       foundationWallet.address,
       router.address
     );
-    basicFactoryAccount = await impersonateContract(basicFactory.address);
+    basicFactoryAccount = await impersonateContract(beaconFactory.address);
 
     // factory assignment
     await txExec(foreVerifiers.setProtocol(foreProtocol.address));
+
+    await txExec(
+      protocolConfig
+        .connect(owner)
+        .setFactoryStatus([beaconFactory.address], [true])
+    );
 
     // deployment of market using factory account
     contract = await deployContractAs<BasicMarketV2>(
@@ -169,15 +199,15 @@ describe("BasicMarketV2 / Initialization", () => {
           endPredictionTimestamp: blockTimestamp + 100000,
           startVerificationTimestamp: blockTimestamp + 200000,
           tokenId: 0,
-          predictionFlatFeeRate: 1000,
+          predictionFlatFeeRate: 0,
           marketCreatorFlatFeeRate: 100,
-          verificationFlatFeeRate: 100,
-          foundationFlatFeeRate: 1800,
+          verificationFlatFeeRate: 200,
+          foundationFlatFeeRate: 650,
           router: router.address,
         });
       },
       basicFactoryAccount,
-      "BasicMarket: Only Factory"
+      "BasicMarketV2: Only Factory"
     );
   });
 
@@ -198,10 +228,10 @@ describe("BasicMarketV2 / Initialization", () => {
           endPredictionTimestamp: blockTimestamp + 100000,
           startVerificationTimestamp: blockTimestamp + 200000,
           tokenId: 0,
-          predictionFlatFeeRate: 1000,
+          predictionFlatFeeRate: 0,
           marketCreatorFlatFeeRate: 100,
-          verificationFlatFeeRate: 100,
-          foundationFlatFeeRate: 1800,
+          verificationFlatFeeRate: 200,
+          foundationFlatFeeRate: 650,
           router: router.address,
         })
       );
@@ -391,5 +421,30 @@ describe("BasicMarketV2 / Initialization", () => {
         })
       )
     ).to.revertedWith("PredictionPeriodIsAlreadyClosed");
+  });
+
+  it("should revert when receiver is invalid", async () => {
+    await expect(
+      txExec(
+        contract.connect(basicFactoryAccount).initialize({
+          mHash:
+            "0x3fd54831f488a22b28398de0c567a3b064b937f54f81739ae9bd545967f3abab",
+          receiver: ZERO_ADDRESS,
+          amounts: [ethers.utils.parseEther("1"), ethers.utils.parseEther("2")],
+          protocolAddress: foreProtocol.address,
+          tokenRegistry: tokenRegistry.address,
+          feeReceiver: owner.address,
+          token: foreToken.address,
+          endPredictionTimestamp: blockTimestamp + 100000,
+          startVerificationTimestamp: blockTimestamp + 200000,
+          tokenId: 0,
+          predictionFlatFeeRate: 1000,
+          marketCreatorFlatFeeRate: 100,
+          verificationFlatFeeRate: 100,
+          foundationFlatFeeRate: 1800,
+          router: router.address,
+        })
+      )
+    ).to.revertedWith("InvalidReceiverAddress");
   });
 });

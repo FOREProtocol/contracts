@@ -2,6 +2,7 @@
 // Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity 0.8.20;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -14,41 +15,9 @@ import "../../config/IMarketConfig.sol";
 import "../../../token/ITokenIncentiveRegistry.sol";
 
 /// @custom:security-contact security@foreprotocol.io
-contract BasicMarketV2 is ReentrancyGuard {
+// solhint-disable-next-line max-states-count
+contract BasicMarketV2 is Initializable, ReentrancyGuard {
     using SafeERC20 for IERC20;
-
-    struct MarketCreationInitialData {
-        /// @notice Market hash
-        bytes32 mHash;
-        /// @notice Market creator nft receiver
-        address receiver;
-        /// @notice Initial prediction for all sides
-        uint256[] amounts;
-        /// @notice FORE protocol address
-        address protocolAddress;
-        /// @notice Token registry address
-        address tokenRegistry;
-        /// @notice Fee receiver address
-        address feeReceiver;
-        /// @notice Currency token address
-        address token;
-        /// @notice Universal router
-        address router;
-        /// @notice End prediction Timestamp
-        uint64 endPredictionTimestamp;
-        /// @notice Start verification Timestamp
-        uint64 startVerificationTimestamp;
-        /// @notice Market token Id
-        uint64 tokenId;
-        /// @notice Prediction flat fee rate
-        uint32 predictionFlatFeeRate;
-        /// @notice Market creator flat fee rate
-        uint32 marketCreatorFlatFeeRate;
-        /// @notice Verification flat fee rate
-        uint32 verificationFlatFeeRate;
-        /// @notice Foundation flat fee rate
-        uint32 foundationFlatFeeRate;
-    }
 
     /// @notice Market hash (ipfs hash without first 2 bytes)
     bytes32 public marketHash;
@@ -67,9 +36,6 @@ contract BasicMarketV2 is ReentrancyGuard {
 
     /// @notice Foundation flat fee rate
     uint32 public foundationFlatFeeRate;
-
-    /// @notice Factory
-    address public immutable factory;
 
     /// @notice Fee receiver
     address public feeReceiver;
@@ -102,10 +68,10 @@ contract BasicMarketV2 is ReentrancyGuard {
     MarketLibV2.Market internal _market;
 
     /// @notice Predictions (address => side => amount)
-    mapping(address => mapping(uint8 => uint256)) predictions;
+    mapping(address => mapping(uint8 => uint256)) private predictions;
 
     /// @notice Total predictions
-    mapping(address => uint256) totalPredictions;
+    mapping(address => uint256) private totalPredictions;
 
     /// @notice Is prediction reward withdrawn for address
     mapping(address => bool) public predictionWithdrawn;
@@ -113,12 +79,12 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Prediction fees sent by every address
     mapping(address => uint256) public predictionFeesSpent;
 
-    /// @notice Verification info for verificatioon id
+    /// @notice Verification info for verification id
     MarketLibV2.Verification[] public verifications;
 
     bytes32 public disputeMessage;
 
-    uint256 constant DIVIDER = 10000;
+    uint256 private constant DIVIDER = 10000;
 
     /// EVENTS
     event WithdrawReward(
@@ -126,10 +92,6 @@ contract BasicMarketV2 is ReentrancyGuard {
         uint256 indexed rewardType,
         uint256 amount
     );
-
-    constructor() {
-        factory = msg.sender;
-    }
 
     modifier onlyRouter() {
         if (msg.sender != router) {
@@ -159,12 +121,17 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Initialization function
     /// @param payload Market initial payload data
     /// @dev Possible to call only via the factory
-    function initialize(MarketCreationInitialData calldata payload) external {
-        if (msg.sender != address(factory)) {
-            revert("BasicMarket: Only Factory");
-        }
+    function initialize(
+        MarketLibV2.MarketCreationInitialData calldata payload
+    ) public initializer {
         protocol = IForeProtocol(payload.protocolAddress);
         protocolConfig = IProtocolConfig(protocol.config());
+
+        require(
+            protocolConfig.isFactoryWhitelisted(msg.sender),
+            "BasicMarketV2: Only Factory"
+        );
+
         marketConfig = IMarketConfig(protocolConfig.marketConfig());
         foreToken = IERC20(protocol.foreToken());
         token = IERC20(payload.token);
@@ -194,7 +161,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     }
 
     /// @notice Add new prediction
-    /// @param amount Amount of ForeToken
+    /// @param amount Amount of token
     /// @param side Prediction side (index of the sides array)
     function predict(uint256 amount, uint8 side) external {
         _predict(msg.sender, amount, side);
@@ -204,7 +171,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @param predictor Predictor
     /// @param amount Amount of token
     /// @param side Prediction side (index of the sides array)
-    function predictFor(
+    function predict(
         address predictor,
         uint256 amount,
         uint8 side
@@ -261,13 +228,18 @@ contract BasicMarketV2 is ReentrancyGuard {
         foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
 
         uint256 multipliedPower = foreVerifiers.multipliedPowerOf(tokenId);
+        (, , , , , uint256 verifiersNFTMultiplier) = tokenRegistry
+            .getTokenIncentives(address(token));
+
+        uint256 finalPower = (multipliedPower * verifiersNFTMultiplier) /
+            DIVIDER;
 
         MarketLibV2.verify(
             _market,
             verifications,
             msg.sender,
             verificationPeriod,
-            multipliedPower,
+            finalPower,
             tokenId,
             side
         );
@@ -282,7 +254,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Opens dispute for account
     /// @param creator Dispute creator
     /// @param messageHash Message Hash
-    function openDisputeFor(
+    function openDispute(
         address creator,
         bytes32 messageHash
     ) external onlyRouter {
@@ -323,7 +295,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     }
 
     /// @notice Resolves Dispute
-    /// @param result Dipsute result type
+    /// @param result Dispute result type
     /// @dev Only HighGuard
     function resolveDispute(
         MarketLibV2.ResultType result,
@@ -360,7 +332,7 @@ contract BasicMarketV2 is ReentrancyGuard {
 
     /// @notice Returns prediction reward in ForeToken
     /// @dev Returns full available amount to withdraw(Deposited fund + reward of winnings - Protocol fees)
-    /// @param predictor Predictior address
+    /// @param predictor Predictor address
     /// @return 0 Amount to withdraw
     function calculatePredictionReward(
         address predictor
@@ -427,9 +399,9 @@ contract BasicMarketV2 is ReentrancyGuard {
             .calculateVerificationReward(m, v, power, verificationFee);
     }
 
-    /// @notice Withdrawss Verification Reward
+    /// @notice Withdraws Verification Reward
     /// @param verificationId Id of verification
-    /// @param withdrawAsTokens If true witdraws tokens, false - withraws power
+    /// @param withdrawAsTokens If true withdraws tokens, false - withdraws power
     function withdrawVerificationReward(
         uint256 verificationId,
         bool withdrawAsTokens
@@ -525,7 +497,7 @@ contract BasicMarketV2 is ReentrancyGuard {
 
     /// @dev Closes market
     /// @param result Market close result type
-    /// @dev Is not best optimized becouse of deep stack
+    /// @dev Is not best optimized because of deep stack
     function _closeMarket(MarketLibV2.ResultType result) private {
         (uint256 burnFee, , , ) = marketConfig.fees();
         uint256 foundationFee = _calculateFoundationFeeRate();
@@ -579,7 +551,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the prediction fee rate
     /// @return The calculated fee rate
     function _calculatePredictionFeeRate() private view returns (uint256) {
-        (uint256 discountRate, , , , ) = tokenRegistry.getTokenIncentives(
+        (uint256 discountRate, , , , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (predictionFlatFeeRate * discountRate) / DIVIDER;
@@ -589,7 +561,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the verification fee rate
     /// @return The calculated fee rate
     function _calculateVerificationFeeRate() private view returns (uint256) {
-        (, , uint256 discountRate, , ) = tokenRegistry.getTokenIncentives(
+        (, , uint256 discountRate, , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (verificationFlatFeeRate * discountRate) / DIVIDER;
@@ -599,7 +571,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the foundation fee rate
     /// @return The calculated fee rate
     function _calculateFoundationFeeRate() private view returns (uint256) {
-        (, , , uint256 discountRate, ) = tokenRegistry.getTokenIncentives(
+        (, , , uint256 discountRate, , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (foundationFlatFeeRate * discountRate) / DIVIDER;
@@ -609,7 +581,7 @@ contract BasicMarketV2 is ReentrancyGuard {
     /// @notice Calculates the market creator fee rate
     /// @return The calculated fee rate
     function _calculateMarketCreatorFeeRate() private view returns (uint256) {
-        (, uint256 discountRate, , , ) = tokenRegistry.getTokenIncentives(
+        (, uint256 discountRate, , , , ) = tokenRegistry.getTokenIncentives(
             address(token)
         );
         uint256 totalFee = (marketCreatorFlatFeeRate * discountRate) / DIVIDER;

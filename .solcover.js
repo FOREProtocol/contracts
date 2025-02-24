@@ -1,4 +1,9 @@
 module.exports = {
     modifierWhitelist: ["nonReentrant"],
-    skipFiles: ["external"],
+    skipFiles: [
+        "external",
+        "mocks",
+        "verifiers/VerifierNFTHelper",
+        "proxy/UpgradeableBeaconWrapper.sol",
+    ],
 };
