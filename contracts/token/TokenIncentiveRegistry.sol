@@ -5,6 +5,7 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 error TokenAlreadyRegistered();
 error TokenNotRegistered();
@@ -67,7 +68,7 @@ contract TokenIncentiveRegistry is
         __UUPSUpgradeable_init();
 
         for (uint i = 0; i < tokenAddresses.length; i++) {
-            if (tokenAddresses[i] == address(0)) {
+            if (!_isValidToken(tokenAddresses[i])) {
                 revert InvalidToken();
             }
             if (_isZeroIncentive(incentives[i])) {
@@ -120,7 +121,7 @@ contract TokenIncentiveRegistry is
         address tokenAddress,
         TokenIncentives memory incentives
     ) external restricted {
-        if (tokenAddress == address(0)) {
+        if (!_isValidToken(tokenAddress)) {
             revert InvalidToken();
         }
         if (_isZeroIncentive(incentives)) {
@@ -186,6 +187,13 @@ contract TokenIncentiveRegistry is
             incentives.foundationDiscountRate == 0 &&
             incentives.marketCreationFee == 0 &&
             incentives.verifiersNFTMultiplier == 0;
+    }
+
+    function _isValidToken(address token) internal view returns (bool) {
+        return
+            token != address(0) &&
+            token.code.length > 0 &&
+            IERC20(token).totalSupply() < 2 ** 200;
     }
 
     /// @notice Ensure only the owner can upgrade the contract

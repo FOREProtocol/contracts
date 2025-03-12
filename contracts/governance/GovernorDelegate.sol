@@ -51,9 +51,18 @@ contract GovernorDelegate is GovernorInterface {
                 proposalThreshold_ <= MAX_PROPOSAL_THRESHOLD,
             "Governor::initialize: invalid proposal threshold"
         );
+        require(
+            fore_.code.length > 0,
+            "Governor::initialize: Fore is not a contract"
+        );
+
+        ForeToken = IERC20(fore_);
+        require(
+            ForeToken.totalSupply() < 2 ** 200,
+            "Governor::initialize: Suspiciously large total supply"
+        );
 
         timelock = TimelockInterface(timelock_);
-        ForeToken = IERC20(fore_);
         votingPeriod = votingPeriod_;
         votingDelay = votingDelay_;
         proposalThreshold = proposalThreshold_;
@@ -433,10 +442,7 @@ contract GovernorDelegate is GovernorInterface {
             state(proposalId) == ProposalState.Succeeded,
             "Governor::queue: proposal can only be queued if it is succeeded"
         );
-        require(
-            moderator == address(0) || msg.sender == moderator,
-            "Governor::queue: moderator only"
-        );
+        require(msg.sender == moderator, "Governor::queue: moderator only");
 
         Proposal storage proposal = proposals[proposalId];
         uint eta = getBlockTimestamp() + timelock.delay();

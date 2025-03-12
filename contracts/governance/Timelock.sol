@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./GovernorInterfaces.sol";
 
 // Timelock == admin of the protocol contracts
-contract Timelock is TimelockInterface {
+contract Timelock is ReentrancyGuard, TimelockInterface {
     // admin of this contract == Governor
     event NewAdmin(address indexed newAdmin);
     event NewPendingAdmin(address indexed newPendingAdmin);
@@ -165,7 +166,7 @@ contract Timelock is TimelockInterface {
         string memory signature,
         bytes memory data,
         uint eta
-    ) public payable returns (bytes memory) {
+    ) public payable nonReentrant returns (bytes memory) {
         require(
             msg.sender == admin,
             "Timelock::executeTransaction: Call must come from admin"

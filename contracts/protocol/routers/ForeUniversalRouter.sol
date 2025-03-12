@@ -281,6 +281,12 @@ contract ForeUniversalRouter is
         if (token == address(0)) {
             revert InvalidToken();
         }
+        if (token.code.length == 0) {
+            revert InvalidToken();
+        }
+        if (IERC20(token).totalSupply() > 2 ** 200) {
+            revert InvalidToken();
+        }
         tokens[token] = shouldAdd;
 
         emit ManagedToken(token, shouldAdd);

@@ -210,6 +210,14 @@ contract BeaconFactory is Pausable, AccessManaged {
         }
 
         bytes memory bytecode = _getMarketBytecode(CATEGORICAL_MARKET_BEACON);
+        if (
+            Create2
+                .computeAddress(marketHash, keccak256(bytecode))
+                .code
+                .length > 0
+        ) {
+            revert InvalidCall();
+        }
         createdMarket = Create2.deploy(0, marketHash, bytecode);
 
         uint256 creationFee = 0;
@@ -339,10 +347,18 @@ contract BeaconFactory is Pausable, AccessManaged {
         uint64 startVerificationTimestamp
     ) internal returns (address createdMarket) {
         if (endPredictionTimestamp > startVerificationTimestamp) {
-            revert("BasicFactory: Date error");
+            revert InvalidCall();
         }
 
         bytes memory bytecode = _getMarketBytecode(CLASSIC_MARKET_BEACON);
+        if (
+            Create2
+                .computeAddress(marketHash, keccak256(bytecode))
+                .code
+                .length > 0
+        ) {
+            revert InvalidCall();
+        }
         createdMarket = Create2.deploy(0, marketHash, bytecode);
 
         uint256 creationFee = config.marketCreationPrice();
