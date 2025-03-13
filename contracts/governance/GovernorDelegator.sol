@@ -30,8 +30,8 @@ contract GovernorDelegator is GovernorDelegatorInterface {
                 proposalThreshold_
             )
         );
-        _setImplementation(implementation_);
         admin = admin_;
+        _setImplementation(implementation_);
     }
 
     /**
