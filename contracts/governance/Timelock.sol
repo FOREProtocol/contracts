@@ -34,6 +34,7 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
         bytes data,
         uint eta
     );
+    event AllowedFunction(string indexed selector, bool indexed shouldAdd);
 
     uint public constant GRACE_PERIOD = 14 days;
     uint public constant MINIMUM_DELAY = 2 days;
@@ -44,6 +45,8 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
     uint public delay;
 
     mapping(bytes32 => bool) public queuedTransactions;
+
+    mapping(string => bool) private allowedFunctions;
 
     constructor(address admin_, uint delay_) {
         require(
@@ -171,6 +174,10 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
             msg.sender == admin,
             "Timelock::executeTransaction: Call must come from admin"
         );
+        require(
+            allowedFunctions[signature],
+            "Timelock::executeTransaction: Signature is not whitelisted"
+        );
 
         bytes32 txHash = keccak256(
             abi.encode(target, value, signature, data, eta)
@@ -205,7 +212,7 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
             );
         }
 
-        // solium-disable-next-line security/no-call-value
+        // solhint-disable-next-line security/no-call-value
         (bool success, bytes memory returnData) = target.call{value: value}(
             callData
         );
@@ -219,8 +226,20 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
         return returnData;
     }
 
+    function manageAllowedSignatures(
+        string memory signature,
+        bool shouldAdd
+    ) external {
+        require(
+            msg.sender == admin,
+            "Timelock::manageAllowedSignatures: Call must come from admin"
+        );
+        allowedFunctions[signature] = shouldAdd;
+        emit AllowedFunction(signature, shouldAdd);
+    }
+
     function getBlockTimestamp() public view virtual returns (uint) {
-        // solium-disable-next-line security/no-block-members
+        // solhint-disable-next-line security/no-block-members
         return block.timestamp;
     }
 }

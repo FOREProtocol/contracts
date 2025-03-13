@@ -37,6 +37,7 @@ import {
   encodeParameters,
   expectFractionalAmount,
   getEvent,
+  impersonateContract,
   sendERC20Tokens,
   timetravel,
   txExec,
@@ -142,6 +143,9 @@ describe("FORE Governance", function () {
       defaultAdmin.address,
       UINT_MAX
     );
+    await timelock
+      .connect(await impersonateContract(governor.address))
+      .manageAllowedSignatures("setFoundationWallet(address)", true);
 
     const previousBlock = await ethers.provider.getBlock("latest");
     blockTimestamp = previousBlock.timestamp;
@@ -151,6 +155,12 @@ describe("FORE Governance", function () {
 
   const createProposal = async (user = defaultAdmin) => {
     await governor._setWhitelistAccountExpiration(user.address, UINT_MAX);
+    await timelock
+      .connect(await impersonateContract(governor.address))
+      .manageAllowedSignatures(
+        "setMarketConfig(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
+        true
+      );
     await governor.connect(user).propose(
       [protocolConfig.address],
       [0],
