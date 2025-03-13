@@ -4,6 +4,9 @@ pragma solidity 0.8.20;
 import "./GovernorInterfaces.sol";
 
 contract GovernorDelegator is GovernorDelegatorInterface {
+    bytes32 internal constant _IMPLEMENTATION_SLOT =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+
     constructor(
         address timelock_,
         address comp_,
@@ -13,9 +16,9 @@ contract GovernorDelegator is GovernorDelegatorInterface {
         uint votingDelay_,
         uint proposalThreshold_
     ) {
-        // Admin set to msg.sender for initialization
-        admin = msg.sender;
+        require(admin_ != address(0), "invalid admin address");
 
+        admin = msg.sender;
         delegateTo(
             implementation_,
             abi.encodeWithSignature(
@@ -27,15 +30,12 @@ contract GovernorDelegator is GovernorDelegatorInterface {
                 proposalThreshold_
             )
         );
-
         _setImplementation(implementation_);
-
-        require(admin_ != address(0), "invalid argument");
         admin = admin_;
     }
 
     /**
-     * @notice Called by the admin to update the implementation of the delegator
+     * @notice Updates the implementation of the delegator (only callable by admin)
      * @param implementation_ The address of the new implementation for delegation
      */
     function _setImplementation(address implementation_) public {
@@ -48,9 +48,22 @@ contract GovernorDelegator is GovernorDelegatorInterface {
             "GovernorDelegator::_setImplementation: invalid implementation address"
         );
 
-        emit NewImplementation(implementation, implementation_);
+        emit NewImplementation(_getImplementation(), implementation_);
 
-        implementation = implementation_;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            sstore(_IMPLEMENTATION_SLOT, implementation_)
+        }
+    }
+
+    /**
+     * @notice Retrieves the current implementation contract address
+     */
+    function _getImplementation() public view returns (address implementation) {
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            implementation := sload(_IMPLEMENTATION_SLOT)
+        }
     }
 
     /**
@@ -60,7 +73,10 @@ contract GovernorDelegator is GovernorDelegatorInterface {
      * @param data The raw data to delegatecall
      */
     function delegateTo(address callee, bytes memory data) internal {
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory returnData) = callee.delegatecall(data);
+
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             if eq(success, 0) {
                 revert(add(returnData, 0x20), returndatasize())
@@ -75,6 +91,9 @@ contract GovernorDelegator is GovernorDelegatorInterface {
         );
     }
 
+    /**
+     * @notice Transfers contract funds (Only admin)
+     */
     function _forwardFunds(address payable recipient, uint256 amount) external {
         require(
             msg.sender == admin,
@@ -85,7 +104,6 @@ contract GovernorDelegator is GovernorDelegatorInterface {
             "GovernorDelegator::_forwardFunds: insufficient balance"
         );
 
-        // solhint-disable-next-line avoid-low-level-calls, avoid-call-value
         (bool success, ) = recipient.call{value: amount}("");
         require(success, "GovernorDelegator::_forwardFunds: transfer failed");
     }
@@ -95,10 +113,18 @@ contract GovernorDelegator is GovernorDelegatorInterface {
      * It returns to the external caller whatever the implementation returns
      * or forwards reverts.
      */
+    // solhint-disable-next-line no-complex-fallback
     fallback() external payable {
-        // delegate all other functions to current implementation
-        (bool success, ) = implementation.delegatecall(msg.data);
+        address impl = _getImplementation();
+        require(
+            impl != address(0),
+            "GovernorDelegator::fallback: no implementation set"
+        );
 
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, ) = impl.delegatecall(msg.data);
+
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             let free_mem_ptr := mload(0x40)
             returndatacopy(free_mem_ptr, 0, returndatasize())

@@ -919,6 +919,7 @@ describe("FORE Governance", function () {
       previousBlock = await ethers.provider.getBlock("latest");
       previousBlock = await timetravel(previousBlock.timestamp + VOTING_PERIOD);
 
+      await governor._setModerator(defaultAdmin.address);
       let [, receipt] = await txExec(governor.queue(1));
 
       assertEvent<ProposalQueuedEvent>(receipt, "ProposalQueued");
@@ -1423,6 +1424,7 @@ describe("FORE Governance", function () {
 
     previousBlock = await timetravel(previousBlock.timestamp + VOTING_PERIOD);
 
+    await governor._setModerator(defaultAdmin.address);
     [, receipt] = await txExec(governor.queue(1));
 
     assertEvent<ProposalQueuedEvent>(receipt, "ProposalQueued");
@@ -1515,7 +1517,7 @@ describe("FORE Governance", function () {
 
     await newGovernor.setFoo(42);
     expect(await newGovernor.getFoo()).to.equal(42);
-    expect(await newGovernor.implementation()).to.equal(
+    expect(await governorDelegator._getImplementation()).to.equal(
       newGovernorDelegate.address
     );
   });

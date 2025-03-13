@@ -9,9 +9,6 @@ contract GovernorDelegationStorage {
 
     /// @notice Pending administrator for this contract
     address public pendingAdmin;
-
-    /// @notice Active brain of Governor
-    address public implementation;
 }
 
 contract GovernorDelegatorInterface is GovernorDelegationStorage {
