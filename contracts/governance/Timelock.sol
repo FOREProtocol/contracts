@@ -89,6 +89,10 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
             msg.sender == admin,
             "Timelock::setPendingAdmin: Call must come from admin"
         );
+        require(
+            addr != address(0),
+            "Timelock::setPendingAdmin: Invalid address"
+        );
         AcceptAdminInterface(addr)._acceptAdmin();
     }
 
