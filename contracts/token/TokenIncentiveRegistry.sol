@@ -5,6 +5,7 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 error TokenAlreadyRegistered();
@@ -15,6 +16,7 @@ error InvalidIncentiveRates();
 /// @custom:security-contact security@foreprotocol.io
 contract TokenIncentiveRegistry is
     Initializable,
+    PausableUpgradeable,
     AccessManagedUpgradeable,
     UUPSUpgradeable
 {
@@ -120,7 +122,7 @@ contract TokenIncentiveRegistry is
     function addToken(
         address tokenAddress,
         TokenIncentives memory incentives
-    ) external restricted {
+    ) external whenNotPaused restricted {
         if (!_isValidToken(tokenAddress)) {
             revert InvalidToken();
         }
@@ -141,7 +143,9 @@ contract TokenIncentiveRegistry is
      * @dev This function deletes the token's entry from the `tokenIncentives` mapping.
      * It emits a `TokenRemoved` event upon successful removal.
      */
-    function removeToken(address tokenAddress) external restricted {
+    function removeToken(
+        address tokenAddress
+    ) external whenNotPaused restricted {
         if (_isZeroIncentive(tokenIncentives[tokenAddress])) {
             revert TokenNotRegistered();
         }
@@ -160,7 +164,7 @@ contract TokenIncentiveRegistry is
     function setTokenIncentives(
         address tokenAddress,
         TokenIncentives memory newIncentives
-    ) external restricted {
+    ) external whenNotPaused restricted {
         if (_isZeroIncentive(newIncentives)) {
             revert InvalidIncentiveRates();
         }
@@ -187,6 +191,22 @@ contract TokenIncentiveRegistry is
             incentives.foundationDiscountRate == 0 &&
             incentives.marketCreationFee == 0 &&
             incentives.verifiersNFTMultiplier == 0;
+    }
+
+    /**
+     * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the authorized account can call this function
+     */
+    function pause() external restricted {
+        _pause();
+    }
+
+    /**
+     * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the authorized account can call this function
+     */
+    function unpause() external restricted {
+        _unpause();
     }
 
     function _isValidToken(address token) internal view returns (bool) {

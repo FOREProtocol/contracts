@@ -33,6 +33,11 @@ contract GovernorDelegate is GovernorInterface {
             "Governor::initialize: invalid timelock address"
         );
         require(
+            address(timelock_).code.length > 0,
+            "Governor::initialize: Timelock is not a contract"
+        );
+
+        require(
             fore_ != address(0),
             "Governor::initialize: invalid Fore address"
         );

@@ -16,8 +16,10 @@ contract GovernorDelegator is GovernorDelegatorInterface {
         uint votingDelay_,
         uint proposalThreshold_
     ) {
-        require(admin_ != address(0), "invalid admin address");
-
+        require(
+            admin_ != address(0),
+            "GovernorDelegator:constructor: Invalid admin address"
+        );
         admin = msg.sender;
         delegateTo(
             implementation_,

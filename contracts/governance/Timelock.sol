@@ -154,6 +154,10 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
             msg.sender == admin,
             "Timelock::cancelTransaction: Call must come from admin"
         );
+        require(
+            target != address(0),
+            "Timelock::cancelTransaction: Invalid target address"
+        );
 
         bytes32 txHash = keccak256(
             abi.encode(target, value, signature, data, eta)
@@ -197,6 +201,10 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
         require(
             value == msg.value,
             "Timelock::executeTransaction: Transaction ETH value mismatch"
+        );
+        require(
+            target != address(0),
+            "Timelock::executeTransaction: Invalid target address"
         );
 
         queuedTransactions[txHash] = false;

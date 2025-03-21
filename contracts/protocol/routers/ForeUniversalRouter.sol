@@ -29,6 +29,8 @@ contract ForeUniversalRouter is
     error InvalidSelector();
     error InvalidMsgSender();
     error InvalidAuthority();
+    error InvalidAddress();
+    error InvalidContract();
     error CallFunctionFailed();
 
     bytes4 private constant PREDICT_SELECTOR_HASH =
@@ -163,6 +165,18 @@ contract ForeUniversalRouter is
     ) public initializer {
         if (initialAuthority == address(0)) {
             revert InvalidAuthority();
+        }
+        if (address(protocolAddress) == address(0)) {
+            revert InvalidAddress();
+        }
+        if (address(protocolAddress).code.length == 0) {
+            revert InvalidContract();
+        }
+        if (address(permit2Address) == address(0)) {
+            revert InvalidAddress();
+        }
+        if (address(permit2Address).code.length == 0) {
+            revert InvalidContract();
         }
         __Pausable_init();
         __AccessManaged_init(initialAuthority);

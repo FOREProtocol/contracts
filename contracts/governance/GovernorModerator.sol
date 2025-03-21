@@ -9,6 +9,14 @@ contract GovernorModerator {
     address public moderator;
 
     constructor(address governorAddress, address moderatorAddress) {
+        require(
+            governorAddress != address(0),
+            "GovernorModerator::constructor: Invalid governor address"
+        );
+        require(
+            moderatorAddress != address(0),
+            "GovernorModerator::constructor: Invalid moderator address"
+        );
         governor = GovernorInterface(governorAddress);
         moderator = moderatorAddress;
     }
