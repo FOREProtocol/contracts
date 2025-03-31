@@ -52,6 +52,16 @@ contract GovernorStorage is GovernorDelegationStorage {
     /// @notice The latest proposal for each proposer
     mapping(address => uint) public latestProposalIds;
 
+    /// @notice Checkpoints
+    mapping(address => Checkpoint[]) public checkpoints;
+
+    struct Checkpoint {
+        /// @notice From block
+        uint32 fromBlock;
+        /// @notice Recorded votes
+        uint256 votes;
+    }
+
     struct Proposal {
         /// @notice Unique id for looking up a proposal
         uint id;
@@ -75,6 +85,8 @@ contract GovernorStorage is GovernorDelegationStorage {
         uint forVotes;
         /// @notice Current number of votes in opposition to this proposal
         uint againstVotes;
+        /// @notice Vote start block
+        uint voteStartBlock;
         /// @notice Flag marking whether the proposal has been canceled
         bool canceled;
         /// @notice Flag marking whether the proposal has been executed
@@ -150,6 +162,8 @@ contract GovernorStorage is GovernorDelegationStorage {
 }
 
 abstract contract GovernorInterface is GovernorStorage {
+    error GovernorInterface__AdminOnly();
+
     /// @notice The name of this contract
     string public constant name = "Fore Governor";
 
@@ -163,13 +177,16 @@ abstract contract GovernorInterface is GovernorStorage {
     uint public constant MIN_VOTING_PERIOD = 86400; // 1 day, in seconds
 
     /// @notice The max setable voting period
-    uint public constant MAX_VOTING_PERIOD = 7 * 86400; // 7 days, in seconds
+    uint public constant MAX_VOTING_PERIOD = 7 days; // 7 days, in seconds
 
     /// @notice The min setable voting delay
     uint public constant MIN_VOTING_DELAY = 86400; // 1 day, in seconds
 
     /// @notice The max setable voting delay
     uint public constant MAX_VOTING_DELAY = 10 * 86400; // 10 days, in seconds
+
+    /// @notice Holding period
+    uint256 public constant MIN_HOLD_PERIOD = 3 days;
 
     /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
     uint public constant quorumVotes = 100000000e18; // 100,000,000 votes
@@ -184,7 +201,7 @@ abstract contract GovernorInterface is GovernorStorage {
     uint public constant weeks104 = 62899200;
 
     /// @notice Divider
-    uint constant DIVIDER = 10000;
+    uint public constant DIVIDER = 10000;
 
     /// @notice A governor is initialized
     event GovernorInitialized(

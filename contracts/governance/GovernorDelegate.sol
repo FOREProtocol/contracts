@@ -4,6 +4,13 @@ pragma solidity 0.8.20;
 import "./GovernorInterfaces.sol";
 
 contract GovernorDelegate is GovernorInterface {
+    modifier adminOnly() {
+        if (msg.sender != admin) {
+            revert GovernorInterface__AdminOnly();
+        }
+        _;
+    }
+
     /**
      * @notice Used to initialize the contract during delegator constructor
      * @param timelock_ The address of the Timelock
@@ -18,7 +25,7 @@ contract GovernorDelegate is GovernorInterface {
         uint votingPeriod_,
         uint votingDelay_,
         uint proposalThreshold_
-    ) external override {
+    ) external override adminOnly {
         require(
             address(timelock) == address(0),
             "Governor::initialize: can only initialize once"
@@ -27,7 +34,6 @@ contract GovernorDelegate is GovernorInterface {
             admin != address(0),
             "Governor::initialize: admin cannot be zero address"
         );
-        require(msg.sender == admin, "Governor::initialize: admin only");
         require(
             timelock_ != address(0),
             "Governor::initialize: invalid timelock address"
@@ -93,11 +99,7 @@ contract GovernorDelegate is GovernorInterface {
     function startForeRewardsCampaign(
         uint endsAtTimestamp,
         uint ForeRewardsAmount
-    ) external override nonReentrant {
-        require(
-            msg.sender == admin,
-            "Governor::startForeRewardsCampaign: admin only"
-        );
+    ) external override nonReentrant adminOnly {
         require(
             endsAtTimestamp < 100000000000,
             "Governor::startForeRewardsCampaign: invalid argument"
@@ -202,6 +204,8 @@ contract GovernorDelegate is GovernorInterface {
             ForeStakes[msg.sender].endsAtTimestamp -
                 ForeStakes[msg.sender].startsAtTimestamp
         );
+        uint votes = getVotes(msg.sender);
+        _writeCheckpoint(msg.sender, votes);
 
         emit NewForeStake(
             msg.sender,
@@ -242,6 +246,9 @@ contract GovernorDelegate is GovernorInterface {
         }
 
         ForeStakes[msg.sender].ForeAmount = 0;
+        ForeStakes[msg.sender].startsAtTimestamp = 0;
+        ForeStakes[msg.sender].endsAtTimestamp = 0;
+        _writeCheckpoint(msg.sender, 0);
 
         require(
             ForeToken.transfer(msg.sender, amount),
@@ -285,8 +292,9 @@ contract GovernorDelegate is GovernorInterface {
             }
         } else {
             // new stake starting from now
-            if (newStakePeriodLenSecs == 0 || addForeAmount == 0)
+            if (newStakePeriodLenSecs == 0 || addForeAmount == 0) {
                 return ForeStake(0, 0, 0); // no previous stake and no new votes
+            }
             require(
                 newStakePeriodLenSecs >= _tiers[0].lockedWeeks,
                 "Governor::getNewStakeData: stakePeriodLen too low"
@@ -368,9 +376,13 @@ contract GovernorDelegate is GovernorInterface {
         string memory title,
         string memory description
     ) external override nonReentrant returns (uint) {
-        // Allow addresses above proposal threshold and whitelisted addresses to propose
         require(
-            getVotes(msg.sender) >= proposalThreshold ||
+            getBlockTimestamp() - ForeStakes[msg.sender].startsAtTimestamp >=
+                MIN_HOLD_PERIOD,
+            "Governor::propose: holding period not met"
+        );
+        require(
+            getPriorVotes(msg.sender, block.number) >= proposalThreshold ||
                 isWhitelisted(msg.sender),
             "Governor::propose: proposer votes below proposal threshold"
         );
@@ -420,6 +432,7 @@ contract GovernorDelegate is GovernorInterface {
         newProposal.againstVotes = 0;
         newProposal.canceled = false;
         newProposal.executed = false;
+        newProposal.voteStartBlock = block.number;
 
         latestProposalIds[newProposal.proposer] = newProposal.id;
 
@@ -673,6 +686,11 @@ contract GovernorDelegate is GovernorInterface {
         uint proposalId,
         uint8 support
     ) internal nonReentrant returns (uint) {
+        require(
+            getBlockTimestamp() - ForeStakes[msg.sender].startsAtTimestamp >=
+                MIN_HOLD_PERIOD,
+            "Governor::propose: holding period not met"
+        );
         ProposalState proposalState = state(proposalId);
         require(
             proposalState != ProposalState.Pending,
@@ -689,7 +707,7 @@ contract GovernorDelegate is GovernorInterface {
             receipt.hasVoted == false,
             "Governor::castVoteInternal: voter already voted"
         );
-        uint votes = getVotes(voter);
+        uint votes = getPriorVotes(voter, proposal.voteStartBlock);
         require(votes > 0, "Governor::castVoteInternal: no votes available");
 
         if (support == 0) {
@@ -737,8 +755,7 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Admin function for setting the voting delay
      * @param newVotingDelay new voting delay, in seconds
      */
-    function _setVotingDelay(uint newVotingDelay) external override {
-        require(msg.sender == admin, "Governor::_setVotingDelay: admin only");
+    function _setVotingDelay(uint newVotingDelay) external override adminOnly {
         require(
             newVotingDelay >= MIN_VOTING_DELAY &&
                 newVotingDelay <= MAX_VOTING_DELAY,
@@ -753,8 +770,9 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Admin function for setting the voting period
      * @param newVotingPeriod new voting period, in seconds
      */
-    function _setVotingPeriod(uint newVotingPeriod) external override {
-        require(msg.sender == admin, "Governor::_setVotingPeriod: admin only");
+    function _setVotingPeriod(
+        uint newVotingPeriod
+    ) external override adminOnly {
         require(
             newVotingPeriod >= MIN_VOTING_PERIOD &&
                 newVotingPeriod <= MAX_VOTING_PERIOD,
@@ -769,9 +787,7 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Admin function for setting the moderator address which has the ability to queue the proposals
      * @param newModerator new moderator address
      */
-    function _setModerator(address newModerator) external override {
-        require(msg.sender == admin, "Governor::_setModerator: admin only");
-
+    function _setModerator(address newModerator) external override adminOnly {
         emit ModeratorSet(moderator, newModerator);
         moderator = newModerator;
     }
@@ -783,11 +799,7 @@ contract GovernorDelegate is GovernorInterface {
      */
     function _setProposalThreshold(
         uint newProposalThreshold
-    ) external override {
-        require(
-            msg.sender == admin,
-            "Governor::_setProposalThreshold: admin only"
-        );
+    ) external override adminOnly {
         require(
             newProposalThreshold >= MIN_PROPOSAL_THRESHOLD &&
                 newProposalThreshold <= MAX_PROPOSAL_THRESHOLD,
@@ -811,7 +823,6 @@ contract GovernorDelegate is GovernorInterface {
             msg.sender == admin || msg.sender == whitelistGuardian,
             "Governor::_setWhitelistAccountExpiration: admin only"
         );
-
         whitelistAccountExpirations[account] = expiration;
         emit WhitelistAccountExpirationSet(account, expiration);
     }
@@ -820,12 +831,9 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Admin function for setting the whitelistGuardian. WhitelistGuardian can cancel proposals from whitelisted addresses
      * @param account Account to set whitelistGuardian to (0x0 to remove whitelistGuardian)
      */
-    function _setWhitelistGuardian(address account) external override {
-        require(
-            msg.sender == admin,
-            "Governor::_setWhitelistGuardian: admin only"
-        );
-
+    function _setWhitelistGuardian(
+        address account
+    ) external override adminOnly {
         emit WhitelistGuardianSet(whitelistGuardian, account);
         whitelistGuardian = account;
     }
@@ -834,18 +842,11 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Initiate the Governor contract
      * @dev Admin only
      */
-    function _initiate() external override {
-        require(msg.sender == admin, "Governor::_initiate: admin only");
-
+    function _initiate() external override adminOnly {
         timelock._acceptAdmin();
     }
 
-    function _timelockAcceptAdminOf(address addr) external override {
-        require(
-            msg.sender == admin,
-            "Governor::_timelockAcceptAdminOf: Call must come from admin"
-        );
-
+    function _timelockAcceptAdminOf(address addr) external override adminOnly {
         timelock._acceptAdminOf(addr);
     }
 
@@ -854,11 +855,12 @@ contract GovernorDelegate is GovernorInterface {
      * @dev Admin function to begin change of admin. The newPendingAdmin must call `_acceptAdmin` to finalize the transfer.
      * @param newPendingAdmin New pending admin.
      */
-    function _setPendingAdmin(address newPendingAdmin) external override {
-        require(msg.sender == admin, "Governor::_setPendingAdmin: admin only");
+    function _setPendingAdmin(
+        address newPendingAdmin
+    ) external override adminOnly {
         require(
             newPendingAdmin != address(0),
-            "Governor::_setPendingAdmin: admin cannot be zero address"
+            "Governor::_setPendingAdmin: invalid admin"
         );
 
         emit NewPendingAdmin(pendingAdmin, newPendingAdmin);
@@ -888,8 +890,7 @@ contract GovernorDelegate is GovernorInterface {
         uint lockedWeeks,
         uint slashPercentage,
         uint votingPowerCoefficient
-    ) external override {
-        require(msg.sender == admin, "Governor::_manageTier: admin only");
+    ) external override adminOnly {
         require(tierIndex < 4, "Governor::_manageTier: invalid tier index");
         require(
             lockedWeeks > 0,
@@ -970,8 +971,44 @@ contract GovernorDelegate is GovernorInterface {
         pendingAdmin = address(0);
     }
 
+    function _writeCheckpoint(address user, uint newVotes) internal {
+        checkpoints[user].push(
+            Checkpoint({fromBlock: uint32(block.number), votes: newVotes})
+        );
+    }
+
     function getBlockTimestamp() public view virtual returns (uint) {
         return block.timestamp;
+    }
+
+    function getPriorVotes(
+        address account,
+        uint blockNumber
+    ) public view returns (uint256) {
+        Checkpoint[] storage checkpoint = checkpoints[account];
+        if (checkpoint.length == 0) {
+            return 0;
+        }
+        if (checkpoint.length == 1) {
+            return checkpoint[0].votes;
+        }
+
+        uint low = 0;
+        uint high = checkpoint.length - 1;
+
+        while (low <= high) {
+            uint mid = (low + high) / 2;
+
+            if (checkpoint[mid].fromBlock == blockNumber) {
+                return checkpoint[mid].votes;
+            } else if (checkpoint[mid].fromBlock < blockNumber) {
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        return high >= 0 ? checkpoint[high].votes : 0;
     }
 
     modifier nonReentrant() {
