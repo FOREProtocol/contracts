@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 import "./GovernorInterfaces.sol";
 
 contract GovernorDelegate is GovernorInterface {
+    using SafeERC20 for IERC20;
+
     modifier adminOnly() {
         if (msg.sender != admin) {
-            revert GovernorInterface__AdminOnly();
+            revert GovernorDelegate__AdminOnly();
         }
         _;
     }
@@ -26,52 +30,46 @@ contract GovernorDelegate is GovernorInterface {
         uint votingDelay_,
         uint proposalThreshold_
     ) external override adminOnly {
-        require(
-            address(timelock) == address(0),
-            "Governor::initialize: can only initialize once"
-        );
-        require(
-            admin != address(0),
-            "Governor::initialize: admin cannot be zero address"
-        );
-        require(
-            timelock_ != address(0),
-            "Governor::initialize: invalid timelock address"
-        );
-        require(
-            address(timelock_).code.length > 0,
-            "Governor::initialize: Timelock is not a contract"
-        );
+        if (address(timelock) != address(0)) {
+            revert GovernorDelegate__AlreadyInitialized();
+        }
+        if (admin == address(0)) {
+            revert GovernorDelegate__InvalidInitializationParameters();
+        }
+        if (timelock_ == address(0)) {
+            revert GovernorDelegate__InvalidInitializationParameters();
+        }
+        if (address(timelock_).code.length == 0) {
+            revert GovernorDelegate__InvalidInitializationParameters();
+        }
 
-        require(
-            fore_ != address(0),
-            "Governor::initialize: invalid Fore address"
-        );
-        require(
-            votingPeriod_ >= MIN_VOTING_PERIOD &&
-                votingPeriod_ <= MAX_VOTING_PERIOD,
-            "Governor::initialize: invalid voting period"
-        );
-        require(
-            votingDelay_ >= MIN_VOTING_DELAY &&
-                votingDelay_ <= MAX_VOTING_DELAY,
-            "Governor::initialize: invalid voting delay"
-        );
-        require(
-            proposalThreshold_ >= MIN_PROPOSAL_THRESHOLD &&
-                proposalThreshold_ <= MAX_PROPOSAL_THRESHOLD,
-            "Governor::initialize: invalid proposal threshold"
-        );
-        require(
-            fore_.code.length > 0,
-            "Governor::initialize: Fore is not a contract"
-        );
-
+        if (fore_ == address(0)) {
+            revert GovernorDelegate__InvalidInitializationParameters();
+        }
+        if (
+            votingPeriod_ < MIN_VOTING_PERIOD ||
+            votingPeriod_ > MAX_VOTING_PERIOD
+        ) {
+            revert GovernorDelegate__InvalidInitializationParameters();
+        }
+        if (
+            votingDelay_ < MIN_VOTING_DELAY || votingDelay_ > MAX_VOTING_DELAY
+        ) {
+            revert GovernorDelegate__InvalidInitializationParameters();
+        }
+        if (
+            proposalThreshold_ < MIN_PROPOSAL_THRESHOLD ||
+            proposalThreshold_ > MAX_PROPOSAL_THRESHOLD
+        ) {
+            revert GovernorDelegate__InvalidInitializationParameters();
+        }
+        if (fore_.code.length == 0) {
+            revert GovernorDelegate__InvalidInitializationParameters();
+        }
         ForeToken = IERC20(fore_);
-        require(
-            ForeToken.totalSupply() < 2 ** 200,
-            "Governor::initialize: Suspiciously large total supply"
-        );
+        if (ForeToken.totalSupply() >= 2 ** 200) {
+            revert GovernorDelegate__InvalidInitializationParameters();
+        }
 
         timelock = TimelockInterface(timelock_);
         votingPeriod = votingPeriod_;
@@ -100,35 +98,30 @@ contract GovernorDelegate is GovernorInterface {
         uint endsAtTimestamp,
         uint ForeRewardsAmount
     ) external override nonReentrant adminOnly {
-        require(
-            endsAtTimestamp < 100000000000,
-            "Governor::startForeRewardsCampaign: invalid argument"
-        );
-        require(
-            endsAtTimestamp > getBlockTimestamp(),
-            "Governor::startForeRewardsCampaign: invalid argument"
-        );
-        require(
-            ForeRewardsAmount > 0,
-            "Governor::startForeRewardsCampaign: invalid argument"
-        );
-        require(
-            getBlockTimestamp() >= ForeRewardsCampaignEndsAtTimestamp,
-            "Governor::startForeRewardsCampaign: previous campaign not ended"
-        );
-        // subtract amount left from previous campaigns
-        require(
-            ForeRewardsAmountLeft <= ForeRewardsAmount,
-            "Governor::startForeRewardsCampaign: ForeRewardsAmount is less than ForeRewardsAmountLeft"
-        );
-        require(
-            ForeToken.transferFrom(
-                msg.sender,
-                address(this),
-                ForeRewardsAmount - ForeRewardsAmountLeft
-            ),
-            "Governor::startForeRewardsCampaign: transferFrom failed"
-        );
+        if (endsAtTimestamp >= 100000000000) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (endsAtTimestamp <= getBlockTimestamp()) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (ForeRewardsAmount == 0) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (getBlockTimestamp() < ForeRewardsCampaignEndsAtTimestamp) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (ForeRewardsAmountLeft > ForeRewardsAmount) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        uint256 rewardsAmount = ForeRewardsAmount - ForeRewardsAmountLeft;
+        if (rewardsAmount == 0) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (ForeToken.allowance(msg.sender, address(this)) < rewardsAmount) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        ForeToken.safeTransferFrom(msg.sender, address(this), rewardsAmount);
+
         ForeRewardsAmountLeft = ForeRewardsAmount;
         ForeRewardsCampaignEndsAtTimestamp = endsAtTimestamp;
         emit ForeRewardCampaignStarted(
@@ -170,10 +163,13 @@ contract GovernorDelegate is GovernorInterface {
         ];
         votedDuringForeRewardsCampaign[msg.sender] = 0;
         ForeRewardsAmountLeft -= amount;
+
         require(
-            ForeToken.transfer(msg.sender, amount),
-            "Governor::withdrawForeReward: transfer failed"
+            ForeToken.balanceOf(address(this)) >= amount,
+            "GovernorDelegate::withdrawForeReward: insufficient balance"
         );
+        ForeToken.safeTransfer(msg.sender, amount);
+
         emit ForeRewardWithdrawal(msg.sender, amount);
     }
 
@@ -186,6 +182,10 @@ contract GovernorDelegate is GovernorInterface {
         uint addForeAmount,
         uint newStakePeriodLenSecs
     ) external override nonReentrant {
+        require(
+            addForeAmount > 0,
+            "Governor::stakeForeForVotes: invalid argument"
+        );
         ForeStakes[msg.sender] = getNewStakeData(
             msg.sender,
             addForeAmount,
@@ -196,9 +196,10 @@ contract GovernorDelegate is GovernorInterface {
             "Governor::stakeForeForVotes: invalid argument"
         );
         require(
-            ForeToken.transferFrom(msg.sender, address(this), addForeAmount),
-            "Governor::stakeForeForVotes: transferFrom failed"
+            ForeToken.allowance(msg.sender, address(this)) >= addForeAmount,
+            "GovernorDelegate::startForeRewardsCampaign: insufficient allowance"
         );
+        ForeToken.safeTransferFrom(msg.sender, address(this), addForeAmount);
 
         uint8 tierIndex = getRewardTierIndexFromStakeLength(
             ForeStakes[msg.sender].endsAtTimestamp -
@@ -235,13 +236,9 @@ contract GovernorDelegate is GovernorInterface {
             uint256 toBurn = (amount * tier.earlyWithdrawalSlashPercentage) /
                 DIVIDER;
             amount = amount - toBurn;
-
-            require(
-                ForeToken.transfer(
-                    address(0x000000000000000000000000000000000000dEaD),
-                    toBurn
-                ),
-                "Governor::withdrawForeStake: transfer failed"
+            ForeToken.safeTransfer(
+                address(0x000000000000000000000000000000000000dEaD),
+                toBurn
             );
         }
 
@@ -251,9 +248,11 @@ contract GovernorDelegate is GovernorInterface {
         _writeCheckpoint(msg.sender, 0);
 
         require(
-            ForeToken.transfer(msg.sender, amount),
-            "Governor::withdrawForeStake: transfer failed"
+            ForeToken.balanceOf(address(this)) >= amount,
+            "GovernorDelegate::withdrawForeStake: insufficient balance"
         );
+        ForeToken.safeTransfer(msg.sender, amount);
+
         emit ForeWithdrawal(msg.sender, amount);
     }
 
@@ -271,14 +270,16 @@ contract GovernorDelegate is GovernorInterface {
             newStakePeriodLenSecs < 100000000,
             "Governor::getNewStakeData: invalid argument"
         );
+        require(
+            addForeAmount <= MAX_STAKE_AMOUNT,
+            "Governor::getNewStakeData: stake amount too high"
+        );
 
         if (account != address(0) && ForeStakes[account].ForeAmount > 0) {
-            // stake exists
             result.startsAtTimestamp = ForeStakes[account].startsAtTimestamp;
             result.ForeAmount = ForeStakes[account].ForeAmount + addForeAmount;
 
             if (newStakePeriodLenSecs > 0) {
-                // set new stakePeriodLen
                 result.endsAtTimestamp =
                     result.startsAtTimestamp +
                     newStakePeriodLenSecs;
@@ -291,7 +292,6 @@ contract GovernorDelegate is GovernorInterface {
                 result.endsAtTimestamp = ForeStakes[account].endsAtTimestamp;
             }
         } else {
-            // new stake starting from now
             if (newStakePeriodLenSecs == 0 || addForeAmount == 0) {
                 return ForeStake(0, 0, 0); // no previous stake and no new votes
             }
@@ -405,20 +405,26 @@ contract GovernorDelegate is GovernorInterface {
             );
             require(
                 proposersLatestProposalState != ProposalState.Active,
-                "Governor::propose: one live proposal per proposer, found an already active proposal"
+                "Governor::propose: proposal already in active state"
             );
             require(
                 proposersLatestProposalState != ProposalState.Pending,
-                "Governor::propose: one live proposal per proposer, found an already pending proposal"
+                "Governor::propose: proposal already in pending state"
             );
         }
+        require(
+            !proposalHashExists[
+                keccak256(abi.encode(targets, values, calldatas))
+            ],
+            "Governor::propose: duplicate proposal"
+        );
 
         uint startTime = getBlockTimestamp() + votingDelay;
         uint endTime = startTime + votingPeriod;
 
         proposalCount++;
         Proposal storage newProposal = proposals[proposalCount];
-        require(newProposal.id == 0, "Governor::propose: ProposalID collision"); // This should never happen but add a check in case
+        require(newProposal.id == 0, "Governor::propose: id collision"); // This should never happen but add a check in case
         newProposal.id = proposalCount;
         newProposal.proposer = msg.sender;
         newProposal.eta = 0;
@@ -456,27 +462,29 @@ contract GovernorDelegate is GovernorInterface {
      * @param proposalId The id of the proposal to queue
      */
     function queue(uint proposalId) external override {
-        require(
-            state(proposalId) == ProposalState.Succeeded,
-            "Governor::queue: proposal can only be queued if it is succeeded"
-        );
         require(msg.sender == moderator, "Governor::queue: moderator only");
 
-        Proposal storage proposal = proposals[proposalId];
-        uint eta = getBlockTimestamp() + timelock.delay();
+        if (state(proposalId) == ProposalState.Succeeded) {
+            Proposal storage proposal = proposals[proposalId];
+            uint eta = getBlockTimestamp() + timelock.delay();
 
-        for (uint i = 0; i < proposal.targets.length; i++) {
-            queueOrRevertInternal(
-                proposal.targets[i],
-                proposal.values[i],
-                proposal.signatures[i],
-                proposal.calldatas[i],
-                eta
-            );
+            for (uint i = 0; i < proposal.targets.length; i++) {
+                queueOrRevertInternal(
+                    proposal.targets[i],
+                    proposal.values[i],
+                    proposal.signatures[i],
+                    proposal.calldatas[i],
+                    eta
+                );
+            }
+
+            proposal.eta = eta;
+            emit ProposalQueued(proposalId, eta);
+        } else if (state(proposalId) == ProposalState.Defeated) {
+            cancel(proposalId);
+        } else {
+            revert("Governor::queue: invalid state");
         }
-
-        proposal.eta = eta;
-        emit ProposalQueued(proposalId, eta);
     }
 
     function queueOrRevertInternal(
@@ -502,7 +510,7 @@ contract GovernorDelegate is GovernorInterface {
     function execute(uint proposalId) external payable override {
         require(
             state(proposalId) == ProposalState.Queued,
-            "Governor::execute: proposal can only be executed if it is queued"
+            "Governor::execute: proposal not queued"
         );
         Proposal storage proposal = proposals[proposalId];
         proposal.executed = true;
@@ -524,7 +532,7 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Cancels a proposal only if sender is the proposer, or proposer delegates dropped below proposal threshold
      * @param proposalId The id of the proposal to cancel
      */
-    function cancel(uint proposalId) external override {
+    function cancel(uint proposalId) public override {
         require(
             state(proposalId) != ProposalState.Executed,
             "Governor::cancel: cannot cancel executed proposal"
@@ -532,9 +540,7 @@ contract GovernorDelegate is GovernorInterface {
 
         Proposal storage proposal = proposals[proposalId];
 
-        // Proposer can cancel
         if (msg.sender != proposal.proposer) {
-            // Whitelisted proposers can't be canceled for falling below proposal threshold
             if (isWhitelisted(proposal.proposer)) {
                 require(
                     (getVotes(proposal.proposer) < proposalThreshold) &&
@@ -550,6 +556,11 @@ contract GovernorDelegate is GovernorInterface {
         }
 
         proposal.canceled = true;
+        bytes32 proposalHash = keccak256(
+            abi.encode(proposal.targets, proposal.values, proposal.calldatas)
+        );
+        proposalHashExists[proposalHash] = false;
+
         for (uint i = 0; i < proposal.targets.length; i++) {
             timelock.cancelTransaction(
                 proposal.targets[i],
@@ -720,7 +731,6 @@ contract GovernorDelegate is GovernorInterface {
         receipt.support = support;
         receipt.votes = votes;
 
-        // if campaign has started and user vote not yet registered in current campaign
         if (
             getBlockTimestamp() < ForeRewardsCampaignEndsAtTimestamp &&
             votedDuringForeRewardsCampaign[voter] == 0
@@ -803,7 +813,7 @@ contract GovernorDelegate is GovernorInterface {
         require(
             newProposalThreshold >= MIN_PROPOSAL_THRESHOLD &&
                 newProposalThreshold <= MAX_PROPOSAL_THRESHOLD,
-            "Governor::_setProposalThreshold: invalid proposal threshold"
+            "Governor::_setProposalThreshold: invalid threshold"
         );
 
         emit ProposalThresholdSet(proposalThreshold, newProposalThreshold);
@@ -819,10 +829,9 @@ contract GovernorDelegate is GovernorInterface {
         address account,
         uint expiration
     ) external override {
-        require(
-            msg.sender == admin || msg.sender == whitelistGuardian,
-            "Governor::_setWhitelistAccountExpiration: admin only"
-        );
+        if (msg.sender != admin && msg.sender != whitelistGuardian) {
+            revert GovernorDelegate__AdminOnly();
+        }
         whitelistAccountExpirations[account] = expiration;
         emit WhitelistAccountExpirationSet(account, expiration);
     }

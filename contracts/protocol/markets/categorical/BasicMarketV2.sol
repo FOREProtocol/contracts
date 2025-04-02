@@ -225,7 +225,14 @@ contract BasicMarketV2 is Initializable, ReentrancyGuard {
 
         (, uint256 verificationPeriod) = marketConfig.periods();
 
-        foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
+        try
+            foreVerifiers.transferFrom(msg.sender, address(this), tokenId)
+        // solhint-disable-next-line no-empty-blocks
+        {
+
+        } catch Error(string memory reason) {
+            revert(string(abi.encodePacked("External call failed: ", reason)));
+        }
 
         uint256 multipliedPower = foreVerifiers.multipliedPowerOf(tokenId);
         (, , , , , uint256 verifiersNFTMultiplier) = tokenRegistry
@@ -440,27 +447,96 @@ contract BasicMarketV2 is Initializable, ReentrancyGuard {
             }
             if (withdrawAsTokens) {
                 token.safeTransfer(v.verifier, toVerifier);
-                foreVerifiers.increaseValidation(v.tokenId);
+                try
+                    foreVerifiers.increaseValidation(v.tokenId)
+                // solhint-disable-next-line no-empty-blocks
+                {
+
+                } catch Error(string memory reason) {
+                    revert(
+                        string(
+                            abi.encodePacked("External call failed: ", reason)
+                        )
+                    );
+                }
             } else {
                 if (address(token) != address(foreToken)) {
                     revert("OnlyForFOREDenominatedMarkets");
                 }
-                foreVerifiers.increasePower(v.tokenId, toVerifier, true);
+                try
+                    foreVerifiers.increasePower(v.tokenId, toVerifier, true)
+                // solhint-disable-next-line no-empty-blocks
+                {
+
+                } catch Error(string memory reason) {
+                    revert(
+                        string(
+                            abi.encodePacked("External call failed: ", reason)
+                        )
+                    );
+                }
+
                 token.safeTransfer(address(foreVerifiers), toVerifier);
             }
         }
         if (toDisputeCreator != 0) {
-            foreVerifiers.marketTransfer(m.disputeCreator, toDisputeCreator);
-            foreVerifiers.marketTransfer(
-                protocolConfig.highGuard(),
-                toHighGuard
-            );
+            try
+                foreVerifiers.marketTransfer(m.disputeCreator, toDisputeCreator)
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
+
+            try
+                foreVerifiers.marketTransfer(
+                    protocolConfig.highGuard(),
+                    toHighGuard
+                )
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
         }
         if (vNftBurn) {
-            foreVerifiers.marketBurn(power - toDisputeCreator - toHighGuard);
-            foreVerifiers.burn(v.tokenId);
+            try
+                foreVerifiers.marketBurn(power - toDisputeCreator - toHighGuard)
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
+            try
+                foreVerifiers.burn(v.tokenId)
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
         } else {
-            foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
+            try
+                foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId)
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
         }
     }
 

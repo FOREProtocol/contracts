@@ -22,6 +22,7 @@ import "../IForeProtocol.sol";
 error InvalidAuthority();
 error UnauthorizedCall();
 error InvalidCall();
+error FeeRateTooHigh();
 
 /// @custom:security-contact security@foreprotocol.io
 contract BeaconFactory is Pausable, AccessManaged {
@@ -30,6 +31,12 @@ contract BeaconFactory is Pausable, AccessManaged {
     address public immutable CLASSIC_MARKET_BEACON;
 
     address public immutable CATEGORICAL_MARKET_BEACON;
+
+    // @notice Maximum allowable prediction amount
+    uint256 public constant MAX_PREDICTION_AMOUNT = 1000000 ether;
+
+    // @notice Maximum allowable fee rate
+    uint32 public constant MAX_ALLOWABLE_FEE_RATE = 1000; // 10%
 
     /// @notice Maximum sides allowed
     uint32 public constant MAX_SIDES = 10;
@@ -117,6 +124,13 @@ contract BeaconFactory is Pausable, AccessManaged {
         _;
     }
 
+    modifier validateFeeRate(uint32 feeRate) {
+        if (feeRate > MAX_ALLOWABLE_FEE_RATE) {
+            revert FeeRateTooHigh();
+        }
+        _;
+    }
+
     /**
      * @notice Creates a market with specified creator
      * @param marketHash market hash
@@ -199,7 +213,10 @@ contract BeaconFactory is Pausable, AccessManaged {
         uint64 startVerificationTimestamp,
         IERC20 token
     ) internal returns (address createdMarket) {
-        if (endPredictionTimestamp > startVerificationTimestamp) {
+        if (
+            endPredictionTimestamp > startVerificationTimestamp ||
+            startVerificationTimestamp < block.timestamp
+        ) {
             revert InvalidCall();
         }
         if (!tokenRegistry.isTokenEnabled(address(token))) {
@@ -207,6 +224,11 @@ contract BeaconFactory is Pausable, AccessManaged {
         }
         if (amounts.length > MAX_SIDES) {
             revert InvalidCall();
+        }
+        for (uint256 i = 0; i < amounts.length; i++) {
+            if (amounts[i] > MAX_PREDICTION_AMOUNT) {
+                revert InvalidCall();
+            }
         }
 
         bytes memory bytecode = _getMarketBytecode(CATEGORICAL_MARKET_BEACON);
@@ -346,7 +368,16 @@ contract BeaconFactory is Pausable, AccessManaged {
         uint64 endPredictionTimestamp,
         uint64 startVerificationTimestamp
     ) internal returns (address createdMarket) {
+        if (startVerificationTimestamp < block.timestamp) {
+            revert InvalidCall();
+        }
         if (endPredictionTimestamp > startVerificationTimestamp) {
+            revert InvalidCall();
+        }
+        if (amountA > MAX_PREDICTION_AMOUNT) {
+            revert InvalidCall();
+        }
+        if (amountB > MAX_PREDICTION_AMOUNT) {
             revert InvalidCall();
         }
 
@@ -410,7 +441,9 @@ contract BeaconFactory is Pausable, AccessManaged {
      * @dev Can only be called by the contract owner. Emits a SetPredictionFlatFeeRate event
      * @param feeRate The new flat fee rate for predictions
      */
-    function setPredictionFlatFeeRate(uint32 feeRate) external restricted {
+    function setPredictionFlatFeeRate(
+        uint32 feeRate
+    ) external restricted validateFeeRate(feeRate) {
         predictionFlatFeeRate = feeRate;
         emit SetPredictionFlatFeeRate(feeRate);
     }
@@ -420,7 +453,9 @@ contract BeaconFactory is Pausable, AccessManaged {
      * @dev Can only be called by the contract owner. Emits a SetMarketCreatorFlatFeeRate event
      * @param feeRate The new flat fee rate for market creator
      */
-    function setMarketCreatorFlatFeeRate(uint32 feeRate) external restricted {
+    function setMarketCreatorFlatFeeRate(
+        uint32 feeRate
+    ) external restricted validateFeeRate(feeRate) {
         marketCreatorFlatFeeRate = feeRate;
         emit SetMarketCreatorFlatFeeRate(feeRate);
     }
@@ -430,7 +465,9 @@ contract BeaconFactory is Pausable, AccessManaged {
      * @dev Can only be called by the contract owner. Emits a SetVerificationFlatFeeRate event
      * @param feeRate The new flat fee rate for verifications
      */
-    function setVerificationFlatFeeRate(uint32 feeRate) external restricted {
+    function setVerificationFlatFeeRate(
+        uint32 feeRate
+    ) external restricted validateFeeRate(feeRate) {
         verificationFlatFeeRate = feeRate;
         emit SetVerificationFlatFeeRate(feeRate);
     }
@@ -440,7 +477,9 @@ contract BeaconFactory is Pausable, AccessManaged {
      * @dev Can only be called by the contract owner. Emits a SetFoundationFlatFeeRate event
      * @param feeRate The new flat fee rate for foundation operations
      */
-    function setFoundationFlatFeeRate(uint32 feeRate) external restricted {
+    function setFoundationFlatFeeRate(
+        uint32 feeRate
+    ) external restricted validateFeeRate(feeRate) {
         foundationFlatFeeRate = feeRate;
         emit SetFoundationFlatFeeRate(feeRate);
     }

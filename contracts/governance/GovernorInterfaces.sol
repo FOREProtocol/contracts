@@ -55,6 +55,9 @@ contract GovernorStorage is GovernorDelegationStorage {
     /// @notice Checkpoints
     mapping(address => Checkpoint[]) public checkpoints;
 
+    /// @notice Proposal hash mapper
+    mapping(bytes32 => bool) public proposalHashExists;
+
     struct Checkpoint {
         /// @notice From block
         uint32 fromBlock;
@@ -162,7 +165,13 @@ contract GovernorStorage is GovernorDelegationStorage {
 }
 
 abstract contract GovernorInterface is GovernorStorage {
-    error GovernorInterface__AdminOnly();
+    error GovernorDelegate__AdminOnly();
+
+    error GovernorDelegate__AlreadyInitialized();
+
+    error GovernorDelegate__InvalidInitializationParameters();
+
+    error GovernorDelegate__InvalidArgument();
 
     /// @notice The name of this contract
     string public constant name = "Fore Governor";
@@ -187,6 +196,9 @@ abstract contract GovernorInterface is GovernorStorage {
 
     /// @notice Holding period
     uint256 public constant MIN_HOLD_PERIOD = 3 days;
+
+    /// @notice Max stake amount
+    uint256 public constant MAX_STAKE_AMOUNT = 120000000 ether;
 
     /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
     uint public constant quorumVotes = 100000000e18; // 100,000,000 votes

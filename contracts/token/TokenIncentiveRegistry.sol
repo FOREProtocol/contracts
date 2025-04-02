@@ -20,6 +20,10 @@ contract TokenIncentiveRegistry is
     AccessManagedUpgradeable,
     UUPSUpgradeable
 {
+    uint256 public constant MAX_ALLOWABLE_MARKET_CREATION_FEE = 10 ether;
+
+    uint32 public constant MAX_ALLOWABLE_DISCOUNT_RATE = 5000; // 50%
+
     struct TokenIncentives {
         /// @notice Prediction discount rate
         uint256 predictionDiscountRate;
@@ -191,6 +195,19 @@ contract TokenIncentiveRegistry is
             incentives.foundationDiscountRate == 0 &&
             incentives.marketCreationFee == 0 &&
             incentives.verifiersNFTMultiplier == 0;
+    }
+
+    function _isIncentivesInRange(
+        TokenIncentives memory incentives
+    ) internal pure returns (bool) {
+        return
+            incentives.predictionDiscountRate == MAX_ALLOWABLE_DISCOUNT_RATE &&
+            incentives.marketCreatorDiscountRate ==
+            MAX_ALLOWABLE_DISCOUNT_RATE &&
+            incentives.verificationDiscountRate ==
+            MAX_ALLOWABLE_DISCOUNT_RATE &&
+            incentives.foundationDiscountRate <= MAX_ALLOWABLE_DISCOUNT_RATE &&
+            incentives.marketCreationFee <= MAX_ALLOWABLE_MARKET_CREATION_FEE;
     }
 
     /**

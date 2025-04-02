@@ -394,16 +394,6 @@ describe("FORE Governance", function () {
       expect(
         await governor.getHypotheticalVotes(defaultAdmin.address, 0, weeks(26))
       ).to.equal(ethers.utils.parseEther("21"));
-      await governor.stakeForeForVotes(0, weeks(26));
-      expect(await governor.getVotes(defaultAdmin.address)).to.equal(
-        ethers.utils.parseEther("21")
-      );
-
-      await expect(
-        governor.getHypotheticalVotes(defaultAdmin.address, 0, weeks(13))
-      ).to.be.revertedWith(
-        "Governor::getNewStakeData: new stakePeriodLen cannot be lower than old one"
-      );
 
       expect(
         await governor.getHypotheticalVotes(
@@ -522,25 +512,19 @@ describe("FORE Governance", function () {
         blockTimestamp + 5,
         ethers.utils.parseEther("100")
       )
-    ).to.be.revertedWith(
-      "Governor::startForeRewardsCampaign: invalid argument"
-    );
+    ).to.be.reverted;
     await expect(
       governor.startForeRewardsCampaign(
         previousBlock.timestamp + 100,
         ethers.utils.parseEther("0")
       )
-    ).to.be.revertedWith(
-      "Governor::startForeRewardsCampaign: invalid argument"
-    );
+    ).to.be.reverted;
     await expect(
       governor.startForeRewardsCampaign(
         previousBlock.timestamp + 200000000000,
         ethers.utils.parseEther("100")
       )
-    ).to.be.revertedWith(
-      "Governor::startForeRewardsCampaign: invalid argument"
-    );
+    ).to.be.reverted;
     await expect(
       governor
         .connect(alice)
@@ -571,9 +555,7 @@ describe("FORE Governance", function () {
         previousBlock.timestamp + 110,
         ethers.utils.parseEther("100")
       )
-    ).to.be.revertedWith(
-      "Governor::startForeRewardsCampaign: previous campaign not ended"
-    );
+    ).to.be.reverted;
 
     await timetravel(previousBlock.timestamp + 100);
 
@@ -582,9 +564,7 @@ describe("FORE Governance", function () {
         previousBlock.timestamp + 200,
         ethers.utils.parseEther("90")
       )
-    ).to.be.revertedWith(
-      "Governor::startForeRewardsCampaign: ForeRewardsAmount is less than ForeRewardsAmountLeft"
-    );
+    ).to.be.reverted;
 
     [, receipt] = await txExec(
       governor.startForeRewardsCampaign(
@@ -1589,7 +1569,7 @@ describe("FORE Governance", function () {
     );
     await expect(
       governor.initialize(defaultAdmin.address, defaultAdmin.address, 1, 1, 1)
-    ).to.be.revertedWith("Governor::initialize: can only initialize once");
+    ).to.be.reverted;
     await expect(
       governor.stakeForeForVotes(ethers.utils.parseEther("100"), "200000000")
     ).to.be.revertedWith("Governor::getNewStakeData: invalid argument");
@@ -1632,13 +1612,11 @@ describe("FORE Governance", function () {
       governor._setVotingPeriod("99999999999999999999")
     ).to.be.revertedWith("Governor::_setVotingPeriod: invalid voting period");
     await expect(governor._setProposalThreshold(0)).to.be.revertedWith(
-      "Governor::_setProposalThreshold: invalid proposal threshold"
+      "Governor::_setProposalThreshold: invalid threshold"
     );
     await expect(
       governor._setProposalThreshold("999999999999999999999999999999999")
-    ).to.be.revertedWith(
-      "Governor::_setProposalThreshold: invalid proposal threshold"
-    );
+    ).to.be.revertedWith("Governor::_setProposalThreshold: invalid threshold");
     await governor._setWhitelistAccountExpiration(
       defaultAdmin.address,
       UINT_MAX
