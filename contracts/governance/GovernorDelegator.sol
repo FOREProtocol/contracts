@@ -12,9 +12,9 @@ contract GovernorDelegator is GovernorDelegatorInterface {
         address comp_,
         address admin_,
         address implementation_,
-        uint votingPeriod_,
-        uint votingDelay_,
-        uint proposalThreshold_
+        uint32 votingPeriod_,
+        uint32 votingDelay_,
+        uint256 proposalThreshold_
     ) {
         require(
             admin_ != address(0),
@@ -24,7 +24,7 @@ contract GovernorDelegator is GovernorDelegatorInterface {
         delegateTo(
             implementation_,
             abi.encodeWithSignature(
-                "initialize(address,address,uint256,uint256,uint256)",
+                "initialize(address,address,uint32,uint32,uint256)",
                 timelock_,
                 comp_,
                 votingPeriod_,

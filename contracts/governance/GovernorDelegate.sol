@@ -26,9 +26,9 @@ contract GovernorDelegate is GovernorInterface {
     function initialize(
         address timelock_,
         address fore_,
-        uint votingPeriod_,
-        uint votingDelay_,
-        uint proposalThreshold_
+        uint32 votingPeriod_,
+        uint32 votingDelay_,
+        uint256 proposalThreshold_
     ) external override adminOnly {
         if (address(timelock) != address(0)) {
             revert GovernorDelegate__AlreadyInitialized();
@@ -95,8 +95,8 @@ contract GovernorDelegate is GovernorInterface {
      * @param ForeRewardsAmount Total Fore amount to be distributed
      */
     function startForeRewardsCampaign(
-        uint endsAtTimestamp,
-        uint ForeRewardsAmount
+        uint256 endsAtTimestamp,
+        uint256 ForeRewardsAmount
     ) external override nonReentrant adminOnly {
         if (endsAtTimestamp >= 100000000000) {
             revert GovernorDelegate__InvalidArgument();
@@ -118,7 +118,10 @@ contract GovernorDelegate is GovernorInterface {
             revert GovernorDelegate__InvalidArgument();
         }
         if (ForeToken.allowance(msg.sender, address(this)) < rewardsAmount) {
-            revert GovernorDelegate__InvalidArgument();
+            revert GovernorDelegate__InsufficientBalance();
+        }
+        if (ForeToken.balanceOf(msg.sender) < rewardsAmount) {
+            revert GovernorDelegate__InsufficientBalance();
         }
         ForeToken.safeTransferFrom(msg.sender, address(this), rewardsAmount);
 
@@ -134,7 +137,7 @@ contract GovernorDelegate is GovernorInterface {
     /// @notice Calculate Fore Reward for a given account
     function calculateForeReward(
         address account
-    ) public view override returns (uint) {
+    ) public view override returns (uint256) {
         return
             totalVotedDuringForeRewardsCampaignLeft == 0
                 ? 0
@@ -151,7 +154,7 @@ contract GovernorDelegate is GovernorInterface {
             "Governor::withdrawForeReward: campaign not ended"
         );
 
-        uint amount = calculateForeReward(msg.sender);
+        uint256 amount = calculateForeReward(msg.sender);
         require(
             amount > 0,
             "Governor::withdrawForeReward: nothing to withdraw"
@@ -179,59 +182,59 @@ contract GovernorDelegate is GovernorInterface {
      * @param newStakePeriodLenSecs Stake period length in seconds. Use 0 when updating existing stake without changing existing stakePeriodLen
      */
     function stakeForeForVotes(
-        uint addForeAmount,
-        uint newStakePeriodLenSecs
+        uint256 addForeAmount,
+        uint256 newStakePeriodLenSecs
     ) external override nonReentrant {
-        require(
-            addForeAmount > 0,
-            "Governor::stakeForeForVotes: invalid argument"
-        );
-        ForeStakes[msg.sender] = getNewStakeData(
+        if (addForeAmount == 0) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        ForeStake memory foreStake = getNewStakeData(
             msg.sender,
             addForeAmount,
             newStakePeriodLenSecs
         );
-        require(
-            ForeStakes[msg.sender].ForeAmount > 0,
-            "Governor::stakeForeForVotes: invalid argument"
-        );
-        require(
-            ForeToken.allowance(msg.sender, address(this)) >= addForeAmount,
-            "GovernorDelegate::startForeRewardsCampaign: insufficient allowance"
-        );
+        ForeStakes[msg.sender] = foreStake;
+
+        if (foreStake.ForeAmount == 0) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (ForeToken.allowance(msg.sender, address(this)) < addForeAmount) {
+            revert GovernorDelegate__InsufficientBalance();
+        }
+        if (ForeToken.balanceOf(msg.sender) < addForeAmount) {
+            revert GovernorDelegate__InsufficientBalance();
+        }
         ForeToken.safeTransferFrom(msg.sender, address(this), addForeAmount);
 
         uint8 tierIndex = getRewardTierIndexFromStakeLength(
-            ForeStakes[msg.sender].endsAtTimestamp -
-                ForeStakes[msg.sender].startsAtTimestamp
+            foreStake.endsAtTimestamp - foreStake.startsAtTimestamp
         );
-        uint votes = getVotes(msg.sender);
+        uint256 votes = getVotes(msg.sender);
         _writeCheckpoint(msg.sender, votes);
 
         emit NewForeStake(
             msg.sender,
             tierIndex,
             addForeAmount,
-            ForeStakes[msg.sender].ForeAmount,
-            ForeStakes[msg.sender].startsAtTimestamp,
-            ForeStakes[msg.sender].endsAtTimestamp
+            foreStake.ForeAmount,
+            foreStake.startsAtTimestamp,
+            foreStake.endsAtTimestamp
         );
     }
 
     /// @notice Withdraw staked Fore tokens when stake period ends
     function withdrawForeStake() external override nonReentrant {
-        require(
-            ForeStakes[msg.sender].ForeAmount > 0,
-            "Governor::withdrawForeStake: nothing to withdraw"
-        );
+        ForeStake memory foreStake = ForeStakes[msg.sender];
 
-        uint amount = ForeStakes[msg.sender].ForeAmount;
+        if (foreStake.ForeAmount == 0) {
+            revert GovernorDelegate__NothingToWithdraw();
+        }
+        uint256 amount = foreStake.ForeAmount;
 
         // Early withdrawal
-        if (getBlockTimestamp() < ForeStakes[msg.sender].endsAtTimestamp) {
+        if (getBlockTimestamp() < foreStake.endsAtTimestamp) {
             Tier memory tier = getRewardTierFromStakeLength(
-                ForeStakes[msg.sender].endsAtTimestamp -
-                    ForeStakes[msg.sender].startsAtTimestamp
+                foreStake.endsAtTimestamp - foreStake.startsAtTimestamp
             );
             uint256 toBurn = (amount * tier.earlyWithdrawalSlashPercentage) /
                 DIVIDER;
@@ -242,38 +245,35 @@ contract GovernorDelegate is GovernorInterface {
             );
         }
 
-        ForeStakes[msg.sender].ForeAmount = 0;
-        ForeStakes[msg.sender].startsAtTimestamp = 0;
-        ForeStakes[msg.sender].endsAtTimestamp = 0;
+        foreStake.ForeAmount = 0;
+        foreStake.startsAtTimestamp = 0;
+        foreStake.endsAtTimestamp = 0;
         _writeCheckpoint(msg.sender, 0);
 
-        require(
-            ForeToken.balanceOf(address(this)) >= amount,
-            "GovernorDelegate::withdrawForeStake: insufficient balance"
-        );
+        if (ForeToken.balanceOf(address(this)) < amount) {
+            revert GovernorDelegate__InsufficientBalance();
+        }
         ForeToken.safeTransfer(msg.sender, amount);
 
         emit ForeWithdrawal(msg.sender, amount);
     }
 
     /// @notice Get current number of votes for a given account
-    function getVotes(address account) public view override returns (uint) {
+    function getVotes(address account) public view override returns (uint256) {
         return getHypotheticalVotes(account, 0, 0);
     }
 
     function getNewStakeData(
         address account,
-        uint addForeAmount,
-        uint newStakePeriodLenSecs
+        uint256 addForeAmount,
+        uint256 newStakePeriodLenSecs
     ) internal view returns (ForeStake memory result) {
-        require(
-            newStakePeriodLenSecs < 100000000,
-            "Governor::getNewStakeData: invalid argument"
-        );
-        require(
-            addForeAmount <= MAX_STAKE_AMOUNT,
-            "Governor::getNewStakeData: stake amount too high"
-        );
+        if (newStakePeriodLenSecs >= 100000000) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (addForeAmount > MAX_STAKE_AMOUNT) {
+            revert GovernorDelegate__InvalidArgument();
+        }
 
         if (account != address(0) && ForeStakes[account].ForeAmount > 0) {
             result.startsAtTimestamp = ForeStakes[account].startsAtTimestamp;
@@ -283,11 +283,11 @@ contract GovernorDelegate is GovernorInterface {
                 result.endsAtTimestamp =
                     result.startsAtTimestamp +
                     newStakePeriodLenSecs;
-                require(
-                    result.endsAtTimestamp >=
-                        ForeStakes[account].endsAtTimestamp,
-                    "Governor::getNewStakeData: new stakePeriodLen cannot be lower than old one"
-                );
+                if (
+                    result.endsAtTimestamp < ForeStakes[account].endsAtTimestamp
+                ) {
+                    revert GovernorDelegate__InvalidArgument();
+                }
             } else {
                 result.endsAtTimestamp = ForeStakes[account].endsAtTimestamp;
             }
@@ -295,10 +295,10 @@ contract GovernorDelegate is GovernorInterface {
             if (newStakePeriodLenSecs == 0 || addForeAmount == 0) {
                 return ForeStake(0, 0, 0); // no previous stake and no new votes
             }
-            require(
-                newStakePeriodLenSecs >= _tiers[0].lockedWeeks,
-                "Governor::getNewStakeData: stakePeriodLen too low"
-            );
+            if (newStakePeriodLenSecs < _tiers[0].lockedWeeks) {
+                revert GovernorDelegate__InvalidArgument();
+            }
+
             result.startsAtTimestamp = getBlockTimestamp();
             result.endsAtTimestamp =
                 result.startsAtTimestamp +
@@ -310,19 +310,18 @@ contract GovernorDelegate is GovernorInterface {
     }
 
     function getRewardTierFromStakeLength(
-        uint stakeLength
+        uint256 stakeLength
     ) internal view returns (Tier memory) {
         uint8 tierIndex = getRewardTierIndexFromStakeLength(stakeLength);
         return _tiers[tierIndex];
     }
 
     function getRewardTierIndexFromStakeLength(
-        uint stakeLength
+        uint256 stakeLength
     ) internal view returns (uint8) {
-        require(
-            stakeLength >= _tiers[0].lockedWeeks,
-            "getRewardTierIndexFromStakeLength: stakeLength too low"
-        );
+        if (stakeLength < _tiers[0].lockedWeeks) {
+            revert GovernorDelegate__StakeLengthTooLow();
+        }
         for (uint8 i = 3; i >= 0; --i) {
             if (stakeLength >= _tiers[i].lockedWeeks) {
                 return i;
@@ -339,9 +338,9 @@ contract GovernorDelegate is GovernorInterface {
      */
     function getHypotheticalVotes(
         address account,
-        uint addForeAmount,
-        uint newStakePeriodLenSecs
-    ) public view override returns (uint votes) {
+        uint256 addForeAmount,
+        uint256 newStakePeriodLenSecs
+    ) public view override returns (uint256 votes) {
         ForeStake memory newStake = getNewStakeData(
             account,
             addForeAmount,
@@ -370,61 +369,68 @@ contract GovernorDelegate is GovernorInterface {
      */
     function propose(
         address[] memory targets,
-        uint[] memory values,
+        uint256[] memory values,
         string[] memory signatures,
         bytes[] memory calldatas,
         string memory title,
         string memory description
-    ) external override nonReentrant returns (uint) {
-        require(
-            getBlockTimestamp() - ForeStakes[msg.sender].startsAtTimestamp >=
-                MIN_HOLD_PERIOD,
-            "Governor::propose: holding period not met"
-        );
-        require(
-            getPriorVotes(msg.sender, block.number) >= proposalThreshold ||
-                isWhitelisted(msg.sender),
-            "Governor::propose: proposer votes below proposal threshold"
-        );
-        require(
-            targets.length == values.length &&
-                targets.length == signatures.length &&
-                targets.length == calldatas.length,
-            "Governor::propose: proposal function information arity mismatch"
-        );
-        require(targets.length != 0, "Governor::propose: must provide actions");
-        require(
-            targets.length <= proposalMaxOperations,
-            "Governor::propose: too many actions"
-        );
-
-        uint latestProposalId = latestProposalIds[msg.sender];
-        if (latestProposalId != 0) {
-            ProposalState proposersLatestProposalState = state(
-                latestProposalId
-            );
-            require(
-                proposersLatestProposalState != ProposalState.Active,
-                "Governor::propose: proposal already in active state"
-            );
-            require(
-                proposersLatestProposalState != ProposalState.Pending,
-                "Governor::propose: proposal already in pending state"
-            );
+    ) external override nonReentrant returns (uint256) {
+        if (
+            getBlockTimestamp() - ForeStakes[msg.sender].startsAtTimestamp <
+            MIN_HOLD_PERIOD
+        ) {
+            revert GovernorDelegate__HoldingPeriodNotMet();
         }
-        require(
-            !proposalHashExists[
-                keccak256(abi.encode(targets, values, calldatas))
-            ],
-            "Governor::propose: duplicate proposal"
-        );
+        if (
+            getPriorVotes(msg.sender, block.number) < proposalThreshold &&
+            !isWhitelisted(msg.sender)
+        ) {
+            revert GovernorDelegate__InvalidArgument();
+        }
 
-        uint startTime = getBlockTimestamp() + votingDelay;
-        uint endTime = startTime + votingPeriod;
+        uint256 length = targets.length;
+        if (
+            length != values.length ||
+            length != signatures.length ||
+            length != calldatas.length
+        ) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (length == 0) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (length > proposalMaxOperations) {
+            revert GovernorDelegate__InvalidArgument();
+        }
+        if (latestProposalIds[msg.sender] != 0) {
+            ProposalState proposersLatestProposalState = state(
+                latestProposalIds[msg.sender]
+            );
+            if (
+                proposersLatestProposalState == ProposalState.Active ||
+                proposersLatestProposalState == ProposalState.Pending
+            ) {
+                revert GovernorDelegate__InvalidState();
+            }
+        }
+        if (
+            proposalHashExists[
+                keccak256(abi.encode(targets, values, calldatas))
+            ]
+        ) {
+            revert GovernorDelegate__DuplicateProposal();
+        }
+
+        uint256 startTime = getBlockTimestamp() + votingDelay;
+        uint256 endTime = startTime + votingPeriod;
 
         proposalCount++;
         Proposal storage newProposal = proposals[proposalCount];
-        require(newProposal.id == 0, "Governor::propose: id collision"); // This should never happen but add a check in case
+
+        // This should never happen but add a check in case
+        if (newProposal.id != 0) {
+            revert GovernorDelegate__IDCollision();
+        }
         newProposal.id = proposalCount;
         newProposal.proposer = msg.sender;
         newProposal.eta = 0;
@@ -461,14 +467,14 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Queues a proposal of state succeeded. Can be called by the moderator only.
      * @param proposalId The id of the proposal to queue
      */
-    function queue(uint proposalId) external override {
+    function queue(uint256 proposalId) external override {
         require(msg.sender == moderator, "Governor::queue: moderator only");
 
         if (state(proposalId) == ProposalState.Succeeded) {
             Proposal storage proposal = proposals[proposalId];
-            uint eta = getBlockTimestamp() + timelock.delay();
+            uint256 eta = getBlockTimestamp() + timelock.delay();
 
-            for (uint i = 0; i < proposal.targets.length; i++) {
+            for (uint256 i = 0; i < proposal.targets.length; i++) {
                 queueOrRevertInternal(
                     proposal.targets[i],
                     proposal.values[i],
@@ -489,10 +495,10 @@ contract GovernorDelegate is GovernorInterface {
 
     function queueOrRevertInternal(
         address target,
-        uint value,
+        uint256 value,
         string memory signature,
         bytes memory data,
-        uint eta
+        uint256 eta
     ) internal {
         require(
             !timelock.queuedTransactions(
@@ -507,7 +513,7 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Executes a queued proposal if eta has passed
      * @param proposalId The id of the proposal to execute
      */
-    function execute(uint proposalId) external payable override {
+    function execute(uint256 proposalId) external payable override {
         require(
             state(proposalId) == ProposalState.Queued,
             "Governor::execute: proposal not queued"
@@ -515,7 +521,7 @@ contract GovernorDelegate is GovernorInterface {
         Proposal storage proposal = proposals[proposalId];
         proposal.executed = true;
 
-        for (uint i = 0; i < proposal.targets.length; i++) {
+        for (uint256 i = 0; i < proposal.targets.length; i++) {
             timelock.executeTransaction{value: proposal.values[i]}(
                 proposal.targets[i],
                 proposal.values[i],
@@ -532,7 +538,7 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Cancels a proposal only if sender is the proposer, or proposer delegates dropped below proposal threshold
      * @param proposalId The id of the proposal to cancel
      */
-    function cancel(uint proposalId) public override {
+    function cancel(uint256 proposalId) public override {
         require(
             state(proposalId) != ProposalState.Executed,
             "Governor::cancel: cannot cancel executed proposal"
@@ -561,7 +567,7 @@ contract GovernorDelegate is GovernorInterface {
         );
         proposalHashExists[proposalHash] = false;
 
-        for (uint i = 0; i < proposal.targets.length; i++) {
+        for (uint256 i = 0; i < proposal.targets.length; i++) {
             timelock.cancelTransaction(
                 proposal.targets[i],
                 proposal.values[i],
@@ -583,14 +589,14 @@ contract GovernorDelegate is GovernorInterface {
      * @return calldatas of the proposal actions
      */
     function getActions(
-        uint proposalId
+        uint256 proposalId
     )
         external
         view
         override
         returns (
             address[] memory targets,
-            uint[] memory values,
+            uint256[] memory values,
             string[] memory signatures,
             bytes[] memory calldatas
         )
@@ -606,7 +612,7 @@ contract GovernorDelegate is GovernorInterface {
      * @return The voting receipt
      */
     function getReceipt(
-        uint proposalId,
+        uint256 proposalId,
         address voter
     ) external view override returns (Receipt memory) {
         return proposals[proposalId].receipts[voter];
@@ -618,7 +624,7 @@ contract GovernorDelegate is GovernorInterface {
      * @return Proposal state
      */
     function state(
-        uint proposalId
+        uint256 proposalId
     ) public view override returns (ProposalState) {
         require(
             proposalCount >= proposalId,
@@ -634,7 +640,7 @@ contract GovernorDelegate is GovernorInterface {
             return ProposalState.Active;
         } else if (
             proposal.forVotes <= proposal.againstVotes ||
-            proposal.forVotes < quorumVotes
+            proposal.forVotes < QUORUM_VOTES
         ) {
             return ProposalState.Defeated;
         } else if (proposal.eta == 0) {
@@ -655,7 +661,7 @@ contract GovernorDelegate is GovernorInterface {
      * @param proposalId The id of the proposal to vote on
      * @param support The support value for the vote. 0=against, 1=for
      */
-    function castVote(uint proposalId, uint8 support) external override {
+    function castVote(uint256 proposalId, uint8 support) external override {
         emit VoteCast(
             msg.sender,
             proposalId,
@@ -672,7 +678,7 @@ contract GovernorDelegate is GovernorInterface {
      * @param reason The reason given for the vote by the voter
      */
     function castVoteWithReason(
-        uint proposalId,
+        uint256 proposalId,
         uint8 support,
         string calldata reason
     ) external override {
@@ -694,9 +700,9 @@ contract GovernorDelegate is GovernorInterface {
      */
     function castVoteInternal(
         address voter,
-        uint proposalId,
+        uint256 proposalId,
         uint8 support
-    ) internal nonReentrant returns (uint) {
+    ) internal nonReentrant returns (uint256) {
         require(
             getBlockTimestamp() - ForeStakes[msg.sender].startsAtTimestamp >=
                 MIN_HOLD_PERIOD,
@@ -718,7 +724,7 @@ contract GovernorDelegate is GovernorInterface {
             receipt.hasVoted == false,
             "Governor::castVoteInternal: voter already voted"
         );
-        uint votes = getPriorVotes(voter, proposal.voteStartBlock);
+        uint256 votes = getPriorVotes(voter, proposal.voteStartBlock);
         require(votes > 0, "Governor::castVoteInternal: no votes available");
 
         if (support == 0) {
@@ -765,7 +771,9 @@ contract GovernorDelegate is GovernorInterface {
      * @notice Admin function for setting the voting delay
      * @param newVotingDelay new voting delay, in seconds
      */
-    function _setVotingDelay(uint newVotingDelay) external override adminOnly {
+    function _setVotingDelay(
+        uint32 newVotingDelay
+    ) external override adminOnly {
         require(
             newVotingDelay >= MIN_VOTING_DELAY &&
                 newVotingDelay <= MAX_VOTING_DELAY,
@@ -781,7 +789,7 @@ contract GovernorDelegate is GovernorInterface {
      * @param newVotingPeriod new voting period, in seconds
      */
     function _setVotingPeriod(
-        uint newVotingPeriod
+        uint32 newVotingPeriod
     ) external override adminOnly {
         require(
             newVotingPeriod >= MIN_VOTING_PERIOD &&
@@ -808,7 +816,7 @@ contract GovernorDelegate is GovernorInterface {
      * @param newProposalThreshold new proposal threshold
      */
     function _setProposalThreshold(
-        uint newProposalThreshold
+        uint256 newProposalThreshold
     ) external override adminOnly {
         require(
             newProposalThreshold >= MIN_PROPOSAL_THRESHOLD &&
@@ -827,7 +835,7 @@ contract GovernorDelegate is GovernorInterface {
      */
     function _setWhitelistAccountExpiration(
         address account,
-        uint expiration
+        uint256 expiration
     ) external override {
         if (msg.sender != admin && msg.sender != whitelistGuardian) {
             revert GovernorDelegate__AdminOnly();
@@ -896,9 +904,9 @@ contract GovernorDelegate is GovernorInterface {
      */
     function _manageTier(
         uint8 tierIndex,
-        uint lockedWeeks,
-        uint slashPercentage,
-        uint votingPowerCoefficient
+        uint32 lockedWeeks,
+        uint32 slashPercentage,
+        uint32 votingPowerCoefficient
     ) external override adminOnly {
         require(tierIndex < 4, "Governor::_manageTier: invalid tier index");
         require(
@@ -980,19 +988,19 @@ contract GovernorDelegate is GovernorInterface {
         pendingAdmin = address(0);
     }
 
-    function _writeCheckpoint(address user, uint newVotes) internal {
+    function _writeCheckpoint(address user, uint256 newVotes) internal {
         checkpoints[user].push(
             Checkpoint({fromBlock: uint32(block.number), votes: newVotes})
         );
     }
 
-    function getBlockTimestamp() public view virtual returns (uint) {
+    function getBlockTimestamp() public view virtual returns (uint256) {
         return block.timestamp;
     }
 
     function getPriorVotes(
         address account,
-        uint blockNumber
+        uint256 blockNumber
     ) public view returns (uint256) {
         Checkpoint[] storage checkpoint = checkpoints[account];
         if (checkpoint.length == 0) {
@@ -1002,11 +1010,11 @@ contract GovernorDelegate is GovernorInterface {
             return checkpoint[0].votes;
         }
 
-        uint low = 0;
-        uint high = checkpoint.length - 1;
+        uint256 low = 0;
+        uint256 high = checkpoint.length - 1;
 
         while (low <= high) {
-            uint mid = (low + high) / 2;
+            uint256 mid = (low + high) / 2;
 
             if (checkpoint[mid].fromBlock == blockNumber) {
                 return checkpoint[mid].votes;

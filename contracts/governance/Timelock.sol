@@ -9,46 +9,46 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
     // admin of this contract == Governor
     event NewAdmin(address indexed newAdmin);
     event NewPendingAdmin(address indexed newPendingAdmin);
-    event NewDelay(uint indexed newDelay);
+    event NewDelay(uint32 indexed newDelay);
     event CancelTransaction(
         bytes32 indexed txHash,
         address indexed target,
-        uint value,
+        uint256 value,
         string signature,
         bytes data,
-        uint eta
+        uint256 eta
     );
     event ExecuteTransaction(
         bytes32 indexed txHash,
         address indexed target,
-        uint value,
+        uint256 value,
         string signature,
         bytes data,
-        uint eta
+        uint256 eta
     );
     event QueueTransaction(
         bytes32 indexed txHash,
         address indexed target,
-        uint value,
+        uint256 value,
         string signature,
         bytes data,
-        uint eta
+        uint256 eta
     );
     event AllowedFunction(string indexed selector, bool indexed shouldAdd);
 
-    uint public constant GRACE_PERIOD = 14 days;
-    uint public constant MINIMUM_DELAY = 2 days;
-    uint public constant MAXIMUM_DELAY = 30 days;
+    uint32 public constant GRACE_PERIOD = 14 days;
+    uint32 public constant MINIMUM_DELAY = 2 days;
+    uint32 public constant MAXIMUM_DELAY = 30 days;
 
     address public admin;
     address public pendingAdmin;
-    uint public delay;
+    uint32 public delay;
 
     mapping(bytes32 => bool) public queuedTransactions;
 
     mapping(string => bool) private allowedFunctions;
 
-    constructor(address admin_, uint delay_) {
+    constructor(address admin_, uint32 delay_) {
         require(
             delay_ >= MINIMUM_DELAY,
             "Timelock::constructor: Delay must exceed minimum delay"
@@ -66,7 +66,7 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
         delay = delay_;
     }
 
-    function _setDelay(uint newDelay) public {
+    function _setDelay(uint32 newDelay) public {
         require(
             msg.sender == admin || msg.sender == address(this),
             "Timelock::_setDelay: Call must come from admin or Timelock"
@@ -124,10 +124,10 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
 
     function queueTransaction(
         address target,
-        uint value,
+        uint256 value,
         string memory signature,
         bytes memory data,
-        uint eta
+        uint256 eta
     ) public returns (bytes32) {
         require(
             msg.sender == admin,
@@ -149,10 +149,10 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
 
     function cancelTransaction(
         address target,
-        uint value,
+        uint256 value,
         string memory signature,
         bytes memory data,
-        uint eta
+        uint256 eta
     ) public {
         require(
             msg.sender == admin,
@@ -173,10 +173,10 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
 
     function executeTransaction(
         address target,
-        uint value,
+        uint256 value,
         string memory signature,
         bytes memory data,
-        uint eta
+        uint256 eta
     ) public payable nonReentrant returns (bytes memory) {
         require(
             msg.sender == admin,
@@ -250,7 +250,7 @@ contract Timelock is ReentrancyGuard, TimelockInterface {
         emit AllowedFunction(signature, shouldAdd);
     }
 
-    function getBlockTimestamp() public view virtual returns (uint) {
+    function getBlockTimestamp() public view virtual returns (uint256) {
         // solhint-disable-next-line security/no-block-members
         return block.timestamp;
     }

@@ -73,7 +73,7 @@ contract TokenIncentiveRegistry is
         __AccessManaged_init(initialAuthority);
         __UUPSUpgradeable_init();
 
-        for (uint i = 0; i < tokenAddresses.length; i++) {
+        for (uint256 i = 0; i < tokenAddresses.length; i++) {
             if (!_isValidToken(tokenAddresses[i])) {
                 revert InvalidToken();
             }

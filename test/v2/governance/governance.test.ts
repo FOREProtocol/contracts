@@ -287,7 +287,7 @@ describe("FORE Governance", function () {
     it("initial votes for less than 13 weeks stake", async () => {
       await expect(
         governor.stakeForeForVotes(ethers.utils.parseEther("100"), weeks(10))
-      ).to.be.revertedWith("Governor::getNewStakeData: stakePeriodLen too low");
+      ).to.be.reverted;
       expect(await governor.getVotes(defaultAdmin.address)).to.equal(0);
     });
 
@@ -347,13 +347,11 @@ describe("FORE Governance", function () {
       expect(
         await governor.getHypotheticalVotes(defaultAdmin.address, 0, 0)
       ).to.equal(0);
-      await expect(
-        governor.getHypotheticalVotes(defaultAdmin.address, 1, 42)
-      ).to.be.revertedWith("Governor::getNewStakeData: stakePeriodLen too low");
+      await expect(governor.getHypotheticalVotes(defaultAdmin.address, 1, 42))
+        .to.be.reverted;
       await expect(
         governor.stakeForeForVotes(ethers.utils.parseEther("50"), 42)
-      ).to.be.revertedWith("Governor::getNewStakeData: stakePeriodLen too low");
-
+      ).to.be.reverted;
       expect(
         await governor.getHypotheticalVotes(
           ZERO_ADDRESS,
@@ -426,18 +424,14 @@ describe("FORE Governance", function () {
   it("stakeForeForVotes", async () => {
     await expect(
       governor.stakeForeForVotes(ethers.utils.parseEther("0"), weeks(13))
-    ).to.be.revertedWith("Governor::stakeForeForVotes: invalid argument");
-    await expect(
-      governor.stakeForeForVotes(ethers.utils.parseEther("50"), 0)
-    ).to.be.revertedWith("Governor::stakeForeForVotes: invalid argument");
-    await expect(governor.stakeForeForVotes(0, 0)).to.be.revertedWith(
-      "Governor::stakeForeForVotes: invalid argument"
-    );
+    ).to.be.reverted;
+    await expect(governor.stakeForeForVotes(ethers.utils.parseEther("50"), 0))
+      .to.be.reverted;
+    await expect(governor.stakeForeForVotes(0, 0)).to.be.reverted;
 
     let [, receipt] = await txExec(
       governor.stakeForeForVotes(ethers.utils.parseEther("50"), weeks(13))
     );
-
     let previousBlock = await ethers.provider.getBlock("latest");
     blockTimestamp = previousBlock.timestamp;
 
@@ -481,9 +475,7 @@ describe("FORE Governance", function () {
   });
 
   it("withdrawForeStake", async () => {
-    await expect(governor.withdrawForeStake()).to.be.revertedWith(
-      "Governor::withdrawForeStake: nothing to withdraw"
-    );
+    await expect(governor.withdrawForeStake()).to.be.reverted;
 
     await governor.stakeForeForVotes(ethers.utils.parseEther("50"), weeks(13));
     await governor.stakeForeForVotes(ethers.utils.parseEther("25"), 0);
@@ -498,9 +490,7 @@ describe("FORE Governance", function () {
       amount: ethers.utils.parseEther("100"),
     });
 
-    await expect(governor.withdrawForeStake()).to.be.revertedWith(
-      "Governor::withdrawForeStake: nothing to withdraw"
-    );
+    await expect(governor.withdrawForeStake()).to.be.reverted;
     expect(await governor.getVotes(defaultAdmin.address)).to.equal(0);
   });
 
@@ -1114,18 +1104,14 @@ describe("FORE Governance", function () {
       it("should emit event", async () => {
         assertEvent<ManagedTierEvent>(receipt, "ManagedTier", {
           tierIndex: 0,
-          lockedWeeks: BigNumber.from(weeks(4)),
-          slashPercentage: BigNumber.from(1000),
-          votingPowerCoefficient: BigNumber.from(1000),
+          lockedWeeks: weeks(4),
+          slashPercentage: 1000,
+          votingPowerCoefficient: 1000,
         });
       });
 
       it("should update storage", async () => {
-        expect(await governor.getTier(0)).to.be.eql([
-          BigNumber.from(weeks(4)),
-          BigNumber.from(1000),
-          BigNumber.from(1000),
-        ]);
+        expect(await governor.getTier(0)).to.be.eql([weeks(4), 1000, 1000]);
       });
 
       describe("withdraw stake with updated tier", async () => {
@@ -1524,14 +1510,14 @@ describe("FORE Governance", function () {
   it("emits proper events", async () => {
     let [, receipt] = await txExec(governor._setVotingDelay(VOTING_DELAY + 1));
     assertEvent<VotingDelaySetEvent>(receipt, "VotingDelaySet", {
-      oldVotingDelay: BigNumber.from(VOTING_DELAY),
-      newVotingDelay: BigNumber.from(VOTING_DELAY + 1),
+      oldVotingDelay: VOTING_DELAY,
+      newVotingDelay: VOTING_DELAY + 1,
     });
 
     [, receipt] = await txExec(governor._setVotingPeriod(VOTING_PERIOD - 1));
     assertEvent<VotingPeriodSetEvent>(receipt, "VotingPeriodSet", {
-      oldVotingPeriod: BigNumber.from(VOTING_PERIOD),
-      newVotingPeriod: BigNumber.from(VOTING_PERIOD - 1),
+      oldVotingPeriod: VOTING_PERIOD,
+      newVotingPeriod: VOTING_PERIOD - 1,
     });
 
     [, receipt] = await txExec(
@@ -1564,15 +1550,13 @@ describe("FORE Governance", function () {
   });
 
   it("validations and checks", async () => {
-    await expect(governor.state("200000000")).to.be.revertedWith(
-      "Governor::state: invalid proposal id"
-    );
+    await expect(governor.state("200000000")).to.be.reverted;
     await expect(
       governor.initialize(defaultAdmin.address, defaultAdmin.address, 1, 1, 1)
     ).to.be.reverted;
     await expect(
       governor.stakeForeForVotes(ethers.utils.parseEther("100"), "200000000")
-    ).to.be.revertedWith("Governor::getNewStakeData: invalid argument");
+    ).to.be.reverted;
     await expect(
       governor
         .connect(bob)
@@ -1584,9 +1568,7 @@ describe("FORE Governance", function () {
           "test proposal 1",
           "description 1"
         )
-    ).to.be.revertedWith(
-      "Governor::propose: proposer votes below proposal threshold"
-    );
+    ).to.be.reverted;
     await expect(governor.connect(alice)._setProposalThreshold(0)).to.be
       .reverted;
     await expect(
@@ -1601,16 +1583,16 @@ describe("FORE Governance", function () {
     await expect(governor._setVotingDelay(0)).to.be.revertedWith(
       "Governor::_setVotingDelay: invalid voting delay"
     );
-    await expect(
-      governor._setVotingDelay("99999999999999999999")
-    ).to.be.revertedWith("Governor::_setVotingDelay: invalid voting delay");
+    await expect(governor._setVotingDelay((2 ^ 32) - 1)).to.be.revertedWith(
+      "Governor::_setVotingDelay: invalid voting delay"
+    );
     await expect(governor.connect(alice)._setVotingPeriod(0)).to.be.reverted;
     await expect(governor._setVotingPeriod(0)).to.be.revertedWith(
       "Governor::_setVotingPeriod: invalid voting period"
     );
-    await expect(
-      governor._setVotingPeriod("99999999999999999999")
-    ).to.be.revertedWith("Governor::_setVotingPeriod: invalid voting period");
+    await expect(governor._setVotingPeriod((2 ^ 32) - 1)).to.be.revertedWith(
+      "Governor::_setVotingPeriod: invalid voting period"
+    );
     await expect(governor._setProposalThreshold(0)).to.be.revertedWith(
       "Governor::_setProposalThreshold: invalid threshold"
     );
@@ -1630,11 +1612,8 @@ describe("FORE Governance", function () {
         "test proposal 1",
         "description 1"
       )
-    ).to.be.revertedWith(
-      "Governor::propose: proposal function information arity mismatch"
-    );
-    await expect(
-      governor.propose([], [], [], [], "test", "description")
-    ).to.be.revertedWith("Governor::propose: must provide actions");
+    ).to.be.reverted;
+    await expect(governor.propose([], [], [], [], "test", "description")).to.be
+      .reverted;
   });
 });

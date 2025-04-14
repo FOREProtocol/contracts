@@ -25,7 +25,7 @@ contract GovernorModerator {
         return account != address(0) && account == moderator;
     }
 
-    function callQueue(uint proposalId) external {
+    function callQueue(uint256 proposalId) external {
         require(isModerator(msg.sender), "moderator only");
         governor.queue(proposalId);
     }

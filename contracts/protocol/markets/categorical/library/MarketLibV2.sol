@@ -107,28 +107,34 @@ library MarketLibV2 {
 
     /// FUNCTIONS
     /// @dev Checks if one side of the market verifies more than the total market size
-    /// @param market Market info
+    /// @param verifications Verifications
+    /// @param totalMarketSize Market size
     /// @return 0 true if verified
-    function _isVerified(Market memory market) internal pure returns (bool) {
+    function _isVerified(
+        uint256[] memory verifications,
+        uint256 totalMarketSize
+    ) internal pure returns (bool) {
         bool hasSufficientPower = ArrayUtils.containsValueGreaterThanOrEqual(
-            market.verifications,
-            market.totalMarketSize
+            verifications,
+            totalMarketSize
         );
-        return market.totalMarketSize > 0 && hasSufficientPower;
+        return totalMarketSize > 0 && hasSufficientPower;
     }
 
     /// @dev Returns the maximum value(power) available for verification for side
-    /// @param market Market info
+    /// @param verifications Verifications
+    /// @param totalMarketSize Market size
     /// @param side Side of market (true/false)
     /// @return 0 Maximum amount to verify for side
     function _maxAmountToVerifyForSide(
-        Market memory market,
+        uint256[] memory verifications,
+        uint256 totalMarketSize,
         uint8 side
     ) internal pure returns (uint256) {
-        if (_isVerified(market)) {
+        if (_isVerified(verifications, totalMarketSize)) {
             return 0;
         }
-        return market.totalMarketSize - market.verifications[side];
+        return totalMarketSize - verifications[side];
     }
 
     /// @dev Returns prediction reward in ForeToken
@@ -161,28 +167,41 @@ library MarketLibV2 {
     }
 
     /// @notice Calculates Result for market
-    /// @param m Market Info
+    /// @param sides Sides
+    /// @param verifications Verifications
+    /// @param totalVerificationsAmount Total verifications amount
     /// @return 0 Type of result
     function calculateMarketResult(
-        Market memory m
+        uint256[] memory sides,
+        uint256[] memory verifications,
+        uint256 totalVerificationsAmount
     ) external pure returns (ResultType) {
-        return _calculateMarketResult(m);
+        return
+            _calculateMarketResult(
+                sides,
+                verifications,
+                totalVerificationsAmount
+            );
     }
 
     /// @dev Calculates Result for market
     /// @notice We have to optimized because of multiple loop functions
-    /// @param m Market Info
+    /// @param sides Sides
+    /// @param verifications Verifications
+    /// @param totalVerificationsAmount Total verifications amount
     /// @return 0 Type of result
     function _calculateMarketResult(
-        Market memory m
+        uint256[] memory sides,
+        uint256[] memory verifications,
+        uint256 totalVerificationsAmount
     ) internal pure returns (ResultType) {
         if (
-            ArrayUtils.isArrayHasZeroValueElement(m.sides) ||
-            m.totalVerificationsAmount == 0
+            ArrayUtils.isArrayHasZeroValueElement(sides) ||
+            totalVerificationsAmount == 0
         ) {
             return ResultType.INVALID;
         }
-        if (ArrayUtils.hasNonZeroDuplicates(m.verifications)) {
+        if (ArrayUtils.hasNonZeroDuplicates(verifications)) {
             return ResultType.DRAW;
         }
 
@@ -302,13 +321,13 @@ library MarketLibV2 {
         uint256 verificationPeriod,
         uint256 power,
         uint256 tokenId,
+        uint64 startVerificationTimestamp,
         uint8 side
     ) internal {
-        MarketLibV2.Market memory _market = market;
-        if (block.timestamp < _market.startVerificationTimestamp) {
+        if (block.timestamp < startVerificationTimestamp) {
             revert("VerificationHasNotStartedYet");
         }
-        uint256 verificationEndTime = _market.startVerificationTimestamp +
+        uint256 verificationEndTime = startVerificationTimestamp +
             verificationPeriod;
         if (block.timestamp > verificationEndTime) {
             revert("VerificationAlreadyClosed");
@@ -340,8 +359,11 @@ library MarketLibV2 {
         uint256 tokenId,
         uint8 side
     ) external {
-        MarketLibV2.Market memory _market = market;
-        uint256 powerAvailable = _maxAmountToVerifyForSide(_market, side);
+        uint256 powerAvailable = _maxAmountToVerifyForSide(
+            market.verifications,
+            market.totalMarketSize,
+            side
+        );
         if (powerAvailable == 0) {
             revert("MarketIsFullyVerified");
         }
@@ -355,6 +377,7 @@ library MarketLibV2 {
             verificationPeriod,
             power,
             tokenId,
+            market.startVerificationTimestamp,
             side
         );
     }
@@ -373,22 +396,23 @@ library MarketLibV2 {
         if (creator == address(0)) {
             revert("InvalidCreatorAddress");
         }
-        Market memory m = market;
 
         bool isDisputeStarted = ((block.timestamp >=
-            m.startVerificationTimestamp + verificationPeriod) ||
-            _isVerified(m));
+            market.startVerificationTimestamp + verificationPeriod) ||
+            _isVerified(market.verifications, market.totalMarketSize));
 
         if (!isDisputeStarted) {
             revert("DisputePeriodIsNotStartedYet");
         }
         if (
             block.timestamp >=
-            m.startVerificationTimestamp + verificationPeriod + disputePeriod
+            market.startVerificationTimestamp +
+                verificationPeriod +
+                disputePeriod
         ) {
             revert("DisputePeriodIsEnded");
         }
-        if (m.disputeCreator != address(0)) {
+        if (market.disputeCreator != address(0)) {
             revert("DisputeAlreadyExists");
         }
 
@@ -421,26 +445,28 @@ library MarketLibV2 {
         if (result == MarketLibV2.ResultType.INVALID) {
             revert("ResultCantBeInvalid");
         }
-        MarketLibV2.Market memory m = market;
-        if (m.disputeCreator == address(0)) {
+        if (market.disputeCreator == address(0)) {
             revert("DisputePeriodIsNotStartedYet");
         }
-
-        if (m.solved) {
+        if (market.solved) {
             revert("DisputeAlreadySolved");
         }
-
         market.solved = true;
 
         if (
-            _calculateMarketResult(m) != result ||
+            _calculateMarketResult(
+                market.sides,
+                market.verifications,
+                market.totalVerificationsAmount
+            ) !=
+            result ||
             market.winnerSideIndex != winnerSideIndex
         ) {
             market.confirmed = true;
             if (result == ResultType.WON) {
                 market.winnerSideIndex = winnerSideIndex;
             }
-            return (m.disputeCreator);
+            return (market.disputeCreator);
         } else {
             return (requester);
         }
@@ -473,44 +499,47 @@ library MarketLibV2 {
             address disputeCreator
         )
     {
-        Market memory m = market;
-        if (m.result != ResultType.NULL) {
+        if (market.result != ResultType.NULL) {
             revert("MarketIsClosed");
         }
-
         market.result = result;
-        m.result = result;
+        ResultType newResult = market.result;
 
-        if (m.result == ResultType.WON && !m.confirmed) {
-            uint8 winnerSideIndex = ArrayUtils.findMaxIndex(m.verifications);
+        bool confirmed = market.confirmed;
+
+        if (newResult == ResultType.WON && !confirmed) {
+            uint8 winnerSideIndex = ArrayUtils.findMaxIndex(
+                market.verifications
+            );
             market.winnerSideIndex = winnerSideIndex;
         }
-        emit CloseMarket(m.result);
+        emit CloseMarket(newResult);
 
-        if (m.result == MarketLibV2.ResultType.INVALID) {
-            return (0, 0, 0, 0, m.disputeCreator);
+        if (newResult == MarketLibV2.ResultType.INVALID) {
+            return (0, 0, 0, 0, market.disputeCreator);
         }
 
-        toBurn = (m.totalMarketSize * burnFee) / DIVIDER;
-        uint256 toVerifiers = (m.totalMarketSize * verificationFee) / DIVIDER;
-        toFoundation = (m.totalMarketSize * foundationFee) / DIVIDER;
+        toBurn = (market.totalMarketSize * burnFee) / DIVIDER;
+        uint256 toVerifiers = (market.totalMarketSize * verificationFee) /
+            DIVIDER;
+        toFoundation = (market.totalMarketSize * foundationFee) / DIVIDER;
 
         if (
-            m.result == MarketLibV2.ResultType.DRAW &&
-            m.disputeCreator != address(0) &&
-            !m.confirmed
+            newResult == MarketLibV2.ResultType.DRAW &&
+            market.disputeCreator != address(0) &&
+            !confirmed
         ) {
             // draw with dispute rejected - result set to draw
             toBurn += toVerifiers / 2;
             toHighGuard = toVerifiers / 2;
-        } else if (m.result == MarketLibV2.ResultType.DRAW && m.confirmed) {
+        } else if (newResult == MarketLibV2.ResultType.DRAW && confirmed) {
             // dispute confirmed - result set to draw
             toHighGuard = toVerifiers / 2;
             toDisputeCreator = toVerifiers - toHighGuard;
-            disputeCreator = m.disputeCreator;
+            disputeCreator = market.disputeCreator;
         } else if (
-            m.result == MarketLibV2.ResultType.DRAW &&
-            m.disputeCreator == address(0)
+            newResult == MarketLibV2.ResultType.DRAW &&
+            market.disputeCreator == address(0)
         ) {
             // draw with no dispute
             toBurn += toVerifiers;
@@ -518,36 +547,39 @@ library MarketLibV2 {
     }
 
     /// @notice Check market status before closing
-    /// @param m Market info
+    /// @param sides Sides
     /// @param verificationPeriod Verification Period
     /// @param disputePeriod Dispute Period
     /// @return Is invalid market
     function beforeClosingCheck(
-        Market memory m,
+        uint256[] memory sides,
         uint256 verificationPeriod,
-        uint256 disputePeriod
+        uint256 disputePeriod,
+        uint256 totalVerificationsAmount,
+        uint64 startVerificationTimestamp,
+        uint64 endPredictionTimestamp,
+        address disputeCreator
     ) external view returns (bool) {
         if (
-            ArrayUtils.isArrayHasZeroValueElement(m.sides) &&
-            block.timestamp > m.endPredictionTimestamp
+            ArrayUtils.isArrayHasZeroValueElement(sides) &&
+            block.timestamp > endPredictionTimestamp
         ) {
             return true;
         }
 
-        uint256 verificationPeriodEnds = m.startVerificationTimestamp +
+        uint256 verificationPeriodEnds = startVerificationTimestamp +
             verificationPeriod;
         if (
             block.timestamp > verificationPeriodEnds &&
-            m.totalVerificationsAmount == 0
+            totalVerificationsAmount == 0
         ) {
             return true;
         }
-
-        if (m.disputeCreator != address(0)) {
+        if (disputeCreator != address(0)) {
             revert("DisputeNotSolvedYet");
         }
 
-        uint256 disputePeriodEnds = m.startVerificationTimestamp +
+        uint256 disputePeriodEnds = startVerificationTimestamp +
             verificationPeriod +
             disputePeriod;
         if (block.timestamp < disputePeriodEnds) {
@@ -630,10 +662,13 @@ library MarketLibV2 {
             bool vPenalty
         )
     {
+        ResultType result = m.result;
+        uint8 side = v.side;
+
         if (
-            m.result == MarketLibV2.ResultType.DRAW ||
-            m.result == MarketLibV2.ResultType.INVALID ||
-            m.result == MarketLibV2.ResultType.NULL ||
+            result == MarketLibV2.ResultType.DRAW ||
+            result == MarketLibV2.ResultType.INVALID ||
+            result == MarketLibV2.ResultType.NULL ||
             v.withdrawn
         ) {
             // draw - withdraw verifier token
@@ -643,13 +678,10 @@ library MarketLibV2 {
         uint256 verificatorsFees = (m.totalMarketSize * verificationFee) /
             DIVIDER;
 
-        if (
-            v.side == m.winnerSideIndex &&
-            m.result == MarketLibV2.ResultType.WON
-        ) {
+        if (side == m.winnerSideIndex && result == MarketLibV2.ResultType.WON) {
             // verifier voted properly
             uint256 reward = (v.power * verificatorsFees) /
-                m.verifications[v.side];
+                m.verifications[side];
             return (reward, 0, 0, false);
         } else {
             // verifier voted wrong

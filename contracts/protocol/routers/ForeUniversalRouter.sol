@@ -186,7 +186,7 @@ contract ForeUniversalRouter is
         foreProtocol = protocolAddress;
         permit2 = permit2Address;
 
-        for (uint i = 0; i < tokenAddresses.length; i++) {
+        for (uint256 i = 0; i < tokenAddresses.length; i++) {
             if (tokenAddresses[i] == address(0)) {
                 revert InvalidToken();
             }
