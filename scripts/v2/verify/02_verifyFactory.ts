@@ -11,6 +11,8 @@ async function main() {
     address: contractAddresses[network].factory,
     constructorArguments: [
       contractAddresses[network].accessManager,
+      contractAddresses[network].categoricalMarketBeacon,
+      contractAddresses[network].classicMarketBeacon,
       contractAddresses[network].protocol,
       contractAddresses[network].tokenRegistry,
       contractAddresses[network].accountWhitelist,

@@ -41,6 +41,7 @@ export const contractAddresses = {
     timelock: "0xA61Bbc84c29Ea25F56Cc37aC0c0EA1a5A539F996",
   },
   arbitrumMainnet: {
+    factory: "",
     protocol: "0x99Bde3833cEd0968E6Ba2C6616eBDA9691ff164D",
     protocolConfig: "0x447A8D6af358f8bdD886B87f9bfE4C83c1B5aF06",
     foreToken: "0xcbe94d75ec713b7ead84f55620dc3174beeb1cfe",
@@ -48,5 +49,7 @@ export const contractAddresses = {
     permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
     marketplace: "0x50761dA72Ea7220325936b6E17F10df71C067717",
     foreVerifiers: "0x8A86953F8D1cdB5A58dc8baD4c02484d6ac3FBaD",
+    categoricalMarketBeacon: "",
+    classicMarketBeacon: "",
   },
 };
