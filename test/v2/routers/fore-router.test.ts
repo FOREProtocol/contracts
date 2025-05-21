@@ -1516,7 +1516,7 @@ describe("Fore Universal Router", function () {
         );
         await contract
           .connect(defaultAdmin)
-          .manageAllowedFunctions(bytes4Value, true);
+          .manageAllowedSelectors(bytes4Value, true);
       });
 
       it("should revert invalid selector", async () => {
@@ -1548,7 +1548,7 @@ describe("Fore Universal Router", function () {
           4
         );
         await expect(
-          contract.connect(alice).manageAllowedFunctions(bytes4Value, true)
+          contract.connect(alice).manageAllowedSelectors(bytes4Value, true)
         ).to.be.reverted;
       });
     });

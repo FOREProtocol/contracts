@@ -9,6 +9,14 @@ contract GovernorModerator {
     address public moderator;
 
     constructor(address governorAddress, address moderatorAddress) {
+        require(
+            governorAddress != address(0),
+            "GovernorModerator::constructor: Invalid governor address"
+        );
+        require(
+            moderatorAddress != address(0),
+            "GovernorModerator::constructor: Invalid moderator address"
+        );
         governor = GovernorInterface(governorAddress);
         moderator = moderatorAddress;
     }
@@ -17,7 +25,7 @@ contract GovernorModerator {
         return account != address(0) && account == moderator;
     }
 
-    function callQueue(uint proposalId) external {
+    function callQueue(uint256 proposalId) external {
         require(isModerator(msg.sender), "moderator only");
         governor.queue(proposalId);
     }

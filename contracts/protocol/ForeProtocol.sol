@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "../verifiers/IForeVerifiers.sol";
 import "./config/IProtocolConfig.sol";
-import "openzeppelin-v4/contracts/utils/Strings.sol";
-import "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
-import "openzeppelin-v4/contracts/token/ERC721/ERC721.sol";
-import "openzeppelin-v4/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import "openzeppelin-v4/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "openzeppelin-v4/contracts/access/Ownable.sol";
 
 contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     using Strings for uint256;
@@ -35,12 +34,15 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     );
 
     /// @notice ForeToken
+    //solhint-disable-next-line immutable-vars-naming
     IERC20 public immutable foreToken;
 
     /// @notice Protocol Config
+    //solhint-disable-next-line immutable-vars-naming
     IProtocolConfig public immutable config;
 
     /// @notice ForeVerifiers
+    //solhint-disable-next-line immutable-vars-naming
     IForeVerifiers public immutable foreVerifiers;
 
     /// @notice Market address for hash (ipfs hash without first 2 bytes)
@@ -53,28 +55,28 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     address[] public allMarkets;
 
     /// @dev base uri
-    string internal bUri;
+    string internal _bUri;
 
     /// @param cfg Protocol Config address
     /// @param uriBase Base Uri
     constructor(
         IProtocolConfig cfg,
         string memory uriBase
-    ) ERC721("Fore Markets", "MFORE") {
+    ) ERC721("Fore Markets", "MFORE") Ownable(msg.sender) {
         config = cfg;
         foreToken = IERC20(cfg.foreToken());
         foreVerifiers = IForeVerifiers(cfg.foreVerifiers());
-        bUri = uriBase;
+        _bUri = uriBase;
         emit BaseURI(uriBase);
     }
 
     /// @notice Returns base uri
     function _baseURI() internal view override returns (string memory) {
-        return bUri;
+        return _bUri;
     }
 
     function editBaseUri(string memory newBaseUri) external onlyOwner {
-        bUri = newBaseUri;
+        _bUri = newBaseUri;
         emit BaseURI(newBaseUri);
     }
 
@@ -94,15 +96,6 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
                 isForeMarket[addr] ||
                 config.isFactoryWhitelisted(addr) ||
                 addr == config.marketplace()));
-    }
-
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId,
-        uint256 batchSize
-    ) internal override(ERC721, ERC721Enumerable) {
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
 
     function supportsInterface(
@@ -215,5 +208,20 @@ contract ForeProtocol is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         allMarkets.push(marketAddress);
 
         return (marketIdx);
+    }
+
+    function _increaseBalance(
+        address account,
+        uint128 value
+    ) internal override(ERC721, ERC721Enumerable) {
+        super._increaseBalance(account, value);
+    }
+
+    function _update(
+        address to,
+        uint256 tokenId,
+        address auth
+    ) internal override(ERC721, ERC721Enumerable) returns (address) {
+        return super._update(to, tokenId, auth);
     }
 }

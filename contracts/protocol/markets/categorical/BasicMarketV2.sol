@@ -225,7 +225,14 @@ contract BasicMarketV2 is Initializable, ReentrancyGuard {
 
         (, uint256 verificationPeriod) = marketConfig.periods();
 
-        foreVerifiers.transferFrom(msg.sender, address(this), tokenId);
+        try
+            foreVerifiers.transferFrom(msg.sender, address(this), tokenId)
+        // solhint-disable-next-line no-empty-blocks
+        {
+
+        } catch Error(string memory reason) {
+            revert(string(abi.encodePacked("External call failed: ", reason)));
+        }
 
         uint256 multipliedPower = foreVerifiers.multipliedPowerOf(tokenId);
         (, , , , , uint256 verifiersNFTMultiplier) = tokenRegistry
@@ -265,7 +272,6 @@ contract BasicMarketV2 is Initializable, ReentrancyGuard {
     /// @param creator Creator address
     /// @param messageHash Message Hash
     function _openDispute(address creator, bytes32 messageHash) internal {
-        MarketLibV2.Market memory m = _market;
         (
             uint256 disputePrice,
             uint256 disputePeriod,
@@ -276,9 +282,13 @@ contract BasicMarketV2 is Initializable, ReentrancyGuard {
 
         ) = marketConfig.config();
 
-        MarketLibV2.ResultType result = MarketLibV2.calculateMarketResult(m);
+        MarketLibV2.ResultType result = MarketLibV2.calculateMarketResult(
+            _market.sides,
+            _market.verifications,
+            _market.totalVerificationsAmount
+        );
         bool isDisputeStarted = block.timestamp >=
-            m.startVerificationTimestamp + verificationPeriod;
+            _market.startVerificationTimestamp + verificationPeriod;
 
         if (result == MarketLibV2.ResultType.INVALID && isDisputeStarted) {
             _closeMarket(MarketLibV2.ResultType.INVALID);
@@ -315,19 +325,28 @@ contract BasicMarketV2 is Initializable, ReentrancyGuard {
 
     /// @notice Closes _market
     function closeMarket() external {
-        MarketLibV2.Market memory m = _market;
         (uint256 disputePeriod, uint256 verificationPeriod) = marketConfig
             .periods();
         bool isInvalid = MarketLibV2.beforeClosingCheck(
-            m,
+            _market.sides,
             verificationPeriod,
-            disputePeriod
+            disputePeriod,
+            _market.totalVerificationsAmount,
+            _market.startVerificationTimestamp,
+            _market.endPredictionTimestamp,
+            _market.disputeCreator
         );
         if (isInvalid) {
             _closeMarket(MarketLibV2.ResultType.INVALID);
             return;
         }
-        _closeMarket(MarketLibV2.calculateMarketResult(m));
+        _closeMarket(
+            MarketLibV2.calculateMarketResult(
+                _market.sides,
+                _market.verifications,
+                _market.totalVerificationsAmount
+            )
+        );
     }
 
     /// @notice Returns prediction reward in ForeToken
@@ -440,27 +459,96 @@ contract BasicMarketV2 is Initializable, ReentrancyGuard {
             }
             if (withdrawAsTokens) {
                 token.safeTransfer(v.verifier, toVerifier);
-                foreVerifiers.increaseValidation(v.tokenId);
+                try
+                    foreVerifiers.increaseValidation(v.tokenId)
+                // solhint-disable-next-line no-empty-blocks
+                {
+
+                } catch Error(string memory reason) {
+                    revert(
+                        string(
+                            abi.encodePacked("External call failed: ", reason)
+                        )
+                    );
+                }
             } else {
                 if (address(token) != address(foreToken)) {
                     revert("OnlyForFOREDenominatedMarkets");
                 }
-                foreVerifiers.increasePower(v.tokenId, toVerifier, true);
+                try
+                    foreVerifiers.increasePower(v.tokenId, toVerifier, true)
+                // solhint-disable-next-line no-empty-blocks
+                {
+
+                } catch Error(string memory reason) {
+                    revert(
+                        string(
+                            abi.encodePacked("External call failed: ", reason)
+                        )
+                    );
+                }
+
                 token.safeTransfer(address(foreVerifiers), toVerifier);
             }
         }
         if (toDisputeCreator != 0) {
-            foreVerifiers.marketTransfer(m.disputeCreator, toDisputeCreator);
-            foreVerifiers.marketTransfer(
-                protocolConfig.highGuard(),
-                toHighGuard
-            );
+            try
+                foreVerifiers.marketTransfer(m.disputeCreator, toDisputeCreator)
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
+
+            try
+                foreVerifiers.marketTransfer(
+                    protocolConfig.highGuard(),
+                    toHighGuard
+                )
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
         }
         if (vNftBurn) {
-            foreVerifiers.marketBurn(power - toDisputeCreator - toHighGuard);
-            foreVerifiers.burn(v.tokenId);
+            try
+                foreVerifiers.marketBurn(power - toDisputeCreator - toHighGuard)
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
+            try
+                foreVerifiers.burn(v.tokenId)
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
         } else {
-            foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId);
+            try
+                foreVerifiers.transferFrom(address(this), v.verifier, v.tokenId)
+            // solhint-disable-next-line no-empty-blocks
+            {
+
+            } catch Error(string memory reason) {
+                revert(
+                    string(abi.encodePacked("External call failed: ", reason))
+                );
+            }
         }
     }
 
@@ -499,6 +587,11 @@ contract BasicMarketV2 is Initializable, ReentrancyGuard {
     /// @param result Market close result type
     /// @dev Is not best optimized because of deep stack
     function _closeMarket(MarketLibV2.ResultType result) private {
+        if (result == MarketLibV2.ResultType.INVALID) {
+            MarketLibV2.closeMarket(_market, 0, 0, 0, result);
+            return;
+        }
+
         (uint256 burnFee, , , ) = marketConfig.fees();
         uint256 foundationFee = _calculateFoundationFeeRate();
         uint256 verificationFee = _calculateVerificationFeeRate();
@@ -518,13 +611,12 @@ contract BasicMarketV2 is Initializable, ReentrancyGuard {
 
         if (result != MarketLibV2.ResultType.INVALID) {
             MarketLibV2.Market memory m = _market;
-            uint256 verificatorsFees = (m.totalMarketSize * verificationFee) /
-                DIVIDER;
-
             if (
                 m.verifications[m.winnerSideIndex] == 0 &&
                 result == MarketLibV2.ResultType.WON
             ) {
+                uint256 verificatorsFees = (m.totalMarketSize *
+                    verificationFee) / DIVIDER;
                 toBurn += verificatorsFees;
             }
             if (toBurn != 0 && address(token) == address(foreToken)) {

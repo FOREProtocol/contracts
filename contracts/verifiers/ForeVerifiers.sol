@@ -2,12 +2,12 @@
 pragma solidity 0.8.20;
 
 import "../protocol/IForeProtocol.sol";
-import "openzeppelin-v4/contracts/access/Ownable.sol";
-import "openzeppelin-v4/contracts/token/ERC20/IERC20.sol";
-import "openzeppelin-v4/contracts/token/ERC20/utils/SafeERC20.sol";
-import "openzeppelin-v4/contracts/token/ERC721/ERC721.sol";
-import "openzeppelin-v4/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import "openzeppelin-v4/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "../protocol/config/IProtocolConfig.sol";
 
 contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
@@ -46,7 +46,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     /// @notice Current token power (may be reduced / increased)
     mapping(uint256 => uint256) internal _power;
 
-    /// @notice Inital power
+    /// @notice Initial power
     mapping(uint256 => uint256) internal _initialPower;
 
     /// @notice Transfers may be restricted to operators
@@ -70,8 +70,11 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         _;
     }
 
-    constructor(string memory uriBase) ERC721("ForeNFT", "FORE") {
+    constructor(
+        string memory uriBase
+    ) ERC721("ForeNFT", "FORE") Ownable(msg.sender) {
         bUri = uriBase;
+        _transfersAllowed = true;
         emit BaseURI(uriBase);
     }
 
@@ -128,7 +131,7 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
     function setProtocol(address newAddress) external onlyOwner {
         require(
             newAddress != address(0),
-            "ForeVerifiers: Procotol address cannot be zero"
+            "ForeVerifiers: Protocol address cannot be zero"
         );
         protocol = IForeProtocol(newAddress);
 
@@ -265,15 +268,6 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
         emit TokenPowerDecreased(id, powerDelta, _power[id]);
     }
 
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId,
-        uint256 batchSize
-    ) internal override(ERC721, ERC721Enumerable) {
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
-    }
-
     function supportsInterface(
         bytes4 interfaceId
     ) public view override(ERC721, ERC721Enumerable) returns (bool) {
@@ -299,34 +293,24 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
      * @inheritdoc ERC721
      * @dev In case transfers are disabled only Fore operator is allowed to transfer from or transfer to
      */
-    function _transfer(
-        address from,
+    function _update(
         address to,
-        uint256 tokenId
-    ) internal override {
+        uint256 tokenId,
+        address auth
+    ) internal override(ERC721, ERC721Enumerable) returns (address) {
         if (!_transfersAllowed) {
-            if (
-                !protocol.isForeOperator(to) && !protocol.isForeOperator(from)
-            ) {
+            if (!protocol.isForeOperator(to)) {
                 revert TransferAllowedOnlyForOperator();
             }
         }
 
-        super._transfer(from, to, tokenId);
-    }
-
-    /**
-     * @inheritdoc ERC721
-     */
-    function _burn(uint256 tokenId) internal virtual override {
-        _power[tokenId] = 0;
-        super._burn(tokenId);
+        return super._update(to, tokenId, auth);
     }
 
     /**
      * @notice Allows a market to transfer FORE that are inside the verifier nft
      * @param to Receiver address
-     * @param amount Amount of FORE to be transfered
+     * @param amount Amount of FORE to be transferred
      * @dev Only allowed for a market to call this function
      */
     function marketTransfer(address to, uint256 amount) public onlyMarket {
@@ -345,5 +329,16 @@ contract ForeVerifiers is ERC721, ERC721Enumerable, ERC721Burnable, Ownable {
             address(0x000000000000000000000000000000000000dEaD),
             amount
         );
+    }
+
+    function _exists(uint256 tokenId) internal view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
+    }
+
+    function _increaseBalance(
+        address account,
+        uint128 value
+    ) internal override(ERC721, ERC721Enumerable) {
+        super._increaseBalance(account, value);
     }
 }

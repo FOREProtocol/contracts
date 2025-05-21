@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "openzeppelin-v4/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import "./IForeVerifiers.sol";
 
 interface IVerifier is IForeVerifiers, IERC721Enumerable {}

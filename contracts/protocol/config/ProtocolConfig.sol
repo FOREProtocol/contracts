@@ -58,9 +58,11 @@ contract ProtocolConfig is Ownable {
     address public marketplace;
 
     /// @notice FORE token contract address
+    //solhint-disable-next-line immutable-vars-naming
     address public immutable foreToken;
 
     /// @notice FORE verifiers NFT contract address
+    //solhint-disable-next-line immutable-vars-naming
     address public immutable foreVerifiers;
 
     /// @notice Market creation price (FORE)
@@ -174,11 +176,11 @@ contract ProtocolConfig is Ownable {
         );
 
         _setConfig(
-            1000 ether,
-            1000 ether,
+            marketCreationPriceP,
+            verifierMintPriceP,
             1000 ether,
             86400,
-            86400,
+            43200,
             100,
             150,
             50,
@@ -192,9 +194,6 @@ contract ProtocolConfig is Ownable {
         marketplace = marketplaceP;
         foreToken = foreTokenP;
         foreVerifiers = foreVerifiersP;
-
-        marketCreationPrice = marketCreationPriceP;
-        verifierMintPrice = verifierMintPriceP;
 
         _tiers[0] = Tier(0, 10000);
         _tiers[1] = Tier(30, 11000);
@@ -305,6 +304,7 @@ contract ProtocolConfig is Ownable {
         );
 
         marketCreationPrice = creationPriceP;
+        verifierMintPrice = verifierMintPriceP;
         marketConfig = createdMarketConfig;
 
         emit MarketConfigurationUpdated(marketConfig);

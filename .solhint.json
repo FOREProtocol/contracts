@@ -7,6 +7,13 @@
         "no-global-import": "off",
         "explicit-types": "off",
         "reason-string": "off",
-        "custom-errors": "off"
+        "custom-errors": "off",
+        "gas-custom-errors": "off",
+        "var-name-mixedcase": "off",
+        "one-contract-per-file": "off",
+        "const-name-snakecase": "off",
+        "func-name-mixedcase": "off",
+        "max-states-count": "off",
+        "func-param-name-mixedcase": "off"
     }
 }

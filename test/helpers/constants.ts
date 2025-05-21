@@ -46,7 +46,8 @@ export const defaultIncentives = {
 } as const;
 
 export const TIME_LOCK_DELAY = 172800;
-export const VOTING_PERIOD = 86400;
+export const VOTING_PERIOD = 86400 * 7; // 7 Days
+export const HOLDING_PERIOD = 86400 * 3; // 3 Days
 export const VOTING_DELAY = 86400;
 export const PROPOSAL_THRESHOLD = "1000000000000000000000";
 export const MORE_THAN_QUORUM_VOTES = BigNumber.from(

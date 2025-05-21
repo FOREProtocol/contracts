@@ -36,11 +36,15 @@ contract AccountWhitelist is
         address initialAuthority,
         address[] memory initialAccounts
     ) public initializer {
+        if (initialAuthority == address(0)) {
+            revert InvalidAccount();
+        }
         __Pausable_init();
         __AccessManaged_init(initialAuthority);
         __UUPSUpgradeable_init();
 
-        for (uint i = 0; i < initialAccounts.length; i++) {
+        uint256 length = initialAccounts.length;
+        for (uint256 i = 0; i < length; i++) {
             if (initialAccounts[i] == address(0)) {
                 revert InvalidAccount();
             }

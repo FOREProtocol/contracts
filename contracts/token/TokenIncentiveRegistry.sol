@@ -5,6 +5,8 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/manager/AccessManagedUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 error TokenAlreadyRegistered();
 error TokenNotRegistered();
@@ -14,9 +16,14 @@ error InvalidIncentiveRates();
 /// @custom:security-contact security@foreprotocol.io
 contract TokenIncentiveRegistry is
     Initializable,
+    PausableUpgradeable,
     AccessManagedUpgradeable,
     UUPSUpgradeable
 {
+    uint256 public constant MAX_ALLOWABLE_MARKET_CREATION_FEE = 10 ether;
+
+    uint32 public constant MAX_ALLOWABLE_DISCOUNT_RATE = 5000; // 50%
+
     struct TokenIncentives {
         /// @notice Prediction discount rate
         uint256 predictionDiscountRate;
@@ -66,8 +73,8 @@ contract TokenIncentiveRegistry is
         __AccessManaged_init(initialAuthority);
         __UUPSUpgradeable_init();
 
-        for (uint i = 0; i < tokenAddresses.length; i++) {
-            if (tokenAddresses[i] == address(0)) {
+        for (uint256 i = 0; i < tokenAddresses.length; i++) {
+            if (!_isValidToken(tokenAddresses[i])) {
                 revert InvalidToken();
             }
             if (_isZeroIncentive(incentives[i])) {
@@ -119,8 +126,8 @@ contract TokenIncentiveRegistry is
     function addToken(
         address tokenAddress,
         TokenIncentives memory incentives
-    ) external restricted {
-        if (tokenAddress == address(0)) {
+    ) external whenNotPaused restricted {
+        if (!_isValidToken(tokenAddress)) {
             revert InvalidToken();
         }
         if (_isZeroIncentive(incentives)) {
@@ -140,7 +147,9 @@ contract TokenIncentiveRegistry is
      * @dev This function deletes the token's entry from the `tokenIncentives` mapping.
      * It emits a `TokenRemoved` event upon successful removal.
      */
-    function removeToken(address tokenAddress) external restricted {
+    function removeToken(
+        address tokenAddress
+    ) external whenNotPaused restricted {
         if (_isZeroIncentive(tokenIncentives[tokenAddress])) {
             revert TokenNotRegistered();
         }
@@ -159,7 +168,7 @@ contract TokenIncentiveRegistry is
     function setTokenIncentives(
         address tokenAddress,
         TokenIncentives memory newIncentives
-    ) external restricted {
+    ) external whenNotPaused restricted {
         if (_isZeroIncentive(newIncentives)) {
             revert InvalidIncentiveRates();
         }
@@ -186,6 +195,42 @@ contract TokenIncentiveRegistry is
             incentives.foundationDiscountRate == 0 &&
             incentives.marketCreationFee == 0 &&
             incentives.verifiersNFTMultiplier == 0;
+    }
+
+    function _isIncentivesInRange(
+        TokenIncentives memory incentives
+    ) internal pure returns (bool) {
+        return
+            incentives.predictionDiscountRate == MAX_ALLOWABLE_DISCOUNT_RATE &&
+            incentives.marketCreatorDiscountRate ==
+            MAX_ALLOWABLE_DISCOUNT_RATE &&
+            incentives.verificationDiscountRate ==
+            MAX_ALLOWABLE_DISCOUNT_RATE &&
+            incentives.foundationDiscountRate <= MAX_ALLOWABLE_DISCOUNT_RATE &&
+            incentives.marketCreationFee <= MAX_ALLOWABLE_MARKET_CREATION_FEE;
+    }
+
+    /**
+     * @notice Pauses the contract, preventing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the authorized account can call this function
+     */
+    function pause() external restricted {
+        _pause();
+    }
+
+    /**
+     * @notice Unpauses the contract, allowing the execution of functions with the whenNotPaused modifier.
+     * @dev Only the authorized account can call this function
+     */
+    function unpause() external restricted {
+        _unpause();
+    }
+
+    function _isValidToken(address token) internal view returns (bool) {
+        return
+            token != address(0) &&
+            token.code.length > 0 &&
+            IERC20(token).totalSupply() < 2 ** 200;
     }
 
     /// @notice Ensure only the owner can upgrade the contract

@@ -29,6 +29,8 @@ contract ForeUniversalRouter is
     error InvalidSelector();
     error InvalidMsgSender();
     error InvalidAuthority();
+    error InvalidAddress();
+    error InvalidContract();
     error CallFunctionFailed();
 
     bytes4 private constant PREDICT_SELECTOR_HASH =
@@ -61,7 +63,7 @@ contract ForeUniversalRouter is
     mapping(address => bool) public tokens;
 
     /// @notice Allowed functions
-    mapping(bytes4 => bool) private allowedFunctions;
+    mapping(bytes4 => bool) private allowedSelectors;
 
     /// EVENTS
     event PermitUsed(
@@ -77,6 +79,7 @@ contract ForeUniversalRouter is
         uint160 amount
     );
     event ManagedToken(address indexed token, bool indexed shouldAdd);
+    event AllowedSelector(bytes4 indexed selector, bool indexed shouldAdd);
 
     /**
      * @notice Verify the validity of a function call based on the target address, operator status, and function selector.
@@ -98,7 +101,7 @@ contract ForeUniversalRouter is
             selector := calldataload(data.offset)
         }
 
-        if (!allowedFunctions[selector]) {
+        if (!allowedSelectors[selector]) {
             revert InvalidSelector();
         }
 
@@ -163,6 +166,18 @@ contract ForeUniversalRouter is
         if (initialAuthority == address(0)) {
             revert InvalidAuthority();
         }
+        if (address(protocolAddress) == address(0)) {
+            revert InvalidAddress();
+        }
+        if (address(protocolAddress).code.length == 0) {
+            revert InvalidContract();
+        }
+        if (address(permit2Address) == address(0)) {
+            revert InvalidAddress();
+        }
+        if (address(permit2Address).code.length == 0) {
+            revert InvalidContract();
+        }
         __Pausable_init();
         __AccessManaged_init(initialAuthority);
         __ReentrancyGuard_init();
@@ -171,17 +186,17 @@ contract ForeUniversalRouter is
         foreProtocol = protocolAddress;
         permit2 = permit2Address;
 
-        for (uint i = 0; i < tokenAddresses.length; i++) {
+        for (uint256 i = 0; i < tokenAddresses.length; i++) {
             if (tokenAddresses[i] == address(0)) {
                 revert InvalidToken();
             }
             tokens[tokenAddresses[i]] = true;
         }
 
-        allowedFunctions[PREDICT_SELECTOR_HASH] = true;
-        allowedFunctions[OPEN_DISPUTE_SELECTOR_HASH] = true;
-        allowedFunctions[CREATE_CATEGORICAL_MARKET_SELECTOR_HASH] = true;
-        allowedFunctions[CREATE_CLASSIC_MARKET_SELECTOR_HASH] = true;
+        allowedSelectors[PREDICT_SELECTOR_HASH] = true;
+        allowedSelectors[OPEN_DISPUTE_SELECTOR_HASH] = true;
+        allowedSelectors[CREATE_CATEGORICAL_MARKET_SELECTOR_HASH] = true;
+        allowedSelectors[CREATE_CLASSIC_MARKET_SELECTOR_HASH] = true;
     }
 
     /**
@@ -281,6 +296,12 @@ contract ForeUniversalRouter is
         if (token == address(0)) {
             revert InvalidToken();
         }
+        if (token.code.length == 0) {
+            revert InvalidToken();
+        }
+        if (IERC20(token).totalSupply() > 2 ** 200) {
+            revert InvalidToken();
+        }
         tokens[token] = shouldAdd;
 
         emit ManagedToken(token, shouldAdd);
@@ -292,11 +313,12 @@ contract ForeUniversalRouter is
      * @param selector The function selector to allow.
      * @param shouldAdd Boolean flag indicating whether to add (true) or remove (false) the selector.
      */
-    function manageAllowedFunctions(
+    function manageAllowedSelectors(
         bytes4 selector,
         bool shouldAdd
     ) external restricted {
-        allowedFunctions[selector] = shouldAdd;
+        allowedSelectors[selector] = shouldAdd;
+        emit AllowedSelector(selector, shouldAdd);
     }
 
     /**
