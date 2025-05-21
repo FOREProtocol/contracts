@@ -6,24 +6,31 @@ import "./IMarketConfig.sol";
 contract MarketConfig is IMarketConfig {
     /// @notice Opening dispute price (FORE)
     /// @dev Used in order to disincentive spam
+    //solhint-disable-next-line immutable-vars-naming
     uint256 public immutable override disputePrice;
 
     /// @notice Dispute period (in seconds)
+    //solhint-disable-next-line immutable-vars-naming
     uint256 public immutable override disputePeriod;
 
     /// @notice Verification period (in seconds)
+    //solhint-disable-next-line immutable-vars-naming
     uint256 public immutable override verificationPeriod;
 
     /// @notice Burn fee (1 = 0.01%)
+    //solhint-disable-next-line immutable-vars-naming
     uint256 public immutable override burnFee;
 
     /// @notice Foundation fee (1 = 0.01%)
+    //solhint-disable-next-line immutable-vars-naming
     uint256 public immutable override foundationFee;
 
     /// @notice Market creator fee (1 = 0.01%)
+    //solhint-disable-next-line immutable-vars-naming
     uint256 public immutable override marketCreatorFee;
 
     /// @notice Verification fee (1 = 0.01%)
+    //solhint-disable-next-line immutable-vars-naming
     uint256 public immutable override verificationFee;
 
     constructor(

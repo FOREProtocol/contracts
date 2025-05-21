@@ -1,15 +1,17 @@
-import hre from "hardhat";
+import hre, { ethers } from "hardhat";
 
 import { contractAddresses } from "../constants";
 
 async function main() {
   const network = hre.hardhatArguments.network;
+  const [deployer] = await ethers.getSigners();
 
   console.log(`Verifying access manager on ${network}...`);
 
   await hre.run("verify:verify", {
     address: contractAddresses[network].accessManager,
-    constructorArguments: [process.env.FOUNDATION_WALLET],
+    constructorArguments: [deployer.address],
+    contract: "contracts/access/ForeAccessManager.sol:ForeAccessManager",
   });
   console.log("Access manager verified on Etherscan");
 }
